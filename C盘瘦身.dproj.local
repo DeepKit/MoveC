@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>2025/01/30 00:13:57.000.753,=D:\SynologyDrive\Progs\RAD12\Unit1.pas</Transaction>
+    <Transaction>2025/02/08 18:17:34.000.807,=D:\SynologyDrive\Progs\RAD12\Unit2.pas</Transaction>
+    <Transaction>2025/02/08 18:37:07.000.094,D:\SynologyDrive\Progs\RAD12\Unit2.pas=D:\SynologyDrive\Progs\RAD12\MoveC\uMain.pas</Transaction>
+    <Transaction>2025/02/08 18:37:07.000.094,D:\SynologyDrive\Progs\RAD12\Unit2.dfm=D:\SynologyDrive\Progs\RAD12\MoveC\uMain.dfm</Transaction>
+    <Transaction>2025/02/08 18:37:36.000.109,D:\SynologyDrive\Progs\RAD12\Project1.dproj=D:\SynologyDrive\Progs\RAD12\MoveC\C盘瘦身.dproj</Transaction>
+  </Transactions>
+</BorlandProject>
