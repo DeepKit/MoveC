@@ -4,7 +4,7 @@ interface
 
 uses
   System.SysUtils, System.Classes, System.StrUtils, IDonationManager2, DataTypes, ISecurityManager2,
-  ConfigManager, BasicProtection;
+  ConfigManager, BasicProtection, DatabaseManager;
 
 type
   // 打赏管理器具体实现

@@ -3,7 +3,7 @@ unit uStyles;
 interface
 
 uses
-  Windows, Graphics, Controls, Forms, StdCtrls, ExtCtrls, ComCtrls, Buttons;
+  Winapi.Windows, Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls, Vcl.Buttons;
 
 type
   // 现代化主题颜色

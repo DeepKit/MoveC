@@ -41,12 +41,12 @@ type
     function IsRunningAsAdmin: Boolean;
     
     // 公共方法（用于测试和调试）
-    function GetCPUInfo: string;
-    function GetDiskSerialNumber: string;
-    function GetMACAddress: string;
-    function GetBIOSInfo: string;
-    function GetMotherboardInfo: string;
-    function FormatMachineCode(const ARawCode: string): string;
+    function GetCPUInfoPublic: string;
+    function GetDiskSerialNumberPublic: string;
+    function GetMACAddressPublic: string;
+    function GetBIOSInfoPublic: string;
+    function GetMotherboardInfoPublic: string;
+    function FormatMachineCodePublic(const ARawCode: string): string;
   end;
 
 implementation
@@ -595,6 +595,37 @@ begin
   finally
     CloseHandle(hToken);
   end;
+end;
+
+// 公共方法实现（调用私有方法）
+function TSecurityManager.GetCPUInfoPublic: string;
+begin
+  Result := GetCPUInfo;
+end;
+
+function TSecurityManager.GetDiskSerialNumberPublic: string;
+begin
+  Result := GetDiskSerialNumber;
+end;
+
+function TSecurityManager.GetMACAddressPublic: string;
+begin
+  Result := GetMACAddress;
+end;
+
+function TSecurityManager.GetBIOSInfoPublic: string;
+begin
+  Result := GetBIOSInfo;
+end;
+
+function TSecurityManager.GetMotherboardInfoPublic: string;
+begin
+  Result := GetMotherboardInfo;
+end;
+
+function TSecurityManager.FormatMachineCodePublic(const ARawCode: string): string;
+begin
+  Result := FormatMachineCode(ARawCode);
 end;
 
 end.
