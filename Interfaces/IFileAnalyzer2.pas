@@ -1,4 +1,4 @@
-unit IFileAnalyzer2;
+﻿unit IFileAnalyzer2;
 
 interface
 

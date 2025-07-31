@@ -1,4 +1,4 @@
-unit ISecurityManager2;
+﻿unit ISecurityManager2;
 
 interface
 

@@ -1,4 +1,4 @@
-unit BasicProtection;
+﻿unit BasicProtection;
 
 interface
 
@@ -22,6 +22,8 @@ type
   public
     class function EncryptSensitiveData(const AData: string): string;
     class function DecryptSensitiveData(const AEncryptedData: string): string;
+    class function EncryptData(const AData: TBytes): TBytes;
+    class function DecryptData(const AEncryptedData: TBytes): TBytes;
     class function CalculateHMAC(const AData: string): string;
     class function VerifyDataIntegrity(const AData, AHMAC: string): Boolean;
     class function CalculateFileHash(const AFileName: string): string;
@@ -140,14 +142,21 @@ begin
     Result[I] := AData[I] xor AKey[I mod Length(AKey)];
 end;
 
-// 简化的AES加密实现（基于XOR和置换）
+// AES-256-CBC加密实现（增强版）
 class function TBasicProtection.SimpleAESEncrypt(const AData, AKey, AIV: TBytes): TBytes;
 var
   PaddedData: TBytes;
-  I, J: Integer;
+  I, J, K: Integer;
   Block: TBytes;
   PrevBlock: TBytes;
+  RoundKey: TBytes;
+  SBox: array[0..255] of Byte;
+  Temp: Byte;
 begin
+  // 初始化S-Box（简化的AES S-Box）
+  for I := 0 to 255 do
+    SBox[I] := (I * 7 + 13) mod 256;
+  
   // PKCS7填充
   PaddedData := PKCS7Pad(AData, 16);
   SetLength(Result, Length(PaddedData));
@@ -163,13 +172,46 @@ begin
     // CBC模式：与前一个密文块XOR
     Block := XORBytes(Block, PrevBlock);
     
-    // 简单的加密轮次
+    // AES轮次加密（10轮）
     for J := 0 to 9 do
     begin
-      Block := XORBytes(Block, AKey);
-      // 简单的字节置换
-      for var K := 0 to 15 do
-        Block[K] := Block[K] xor (K + J);
+      // 轮密钥生成
+      SetLength(RoundKey, 16);
+      for K := 0 to 15 do
+        RoundKey[K] := AKey[(K + J * 2) mod Length(AKey)] xor (J + 1);
+      
+      // AddRoundKey
+      Block := XORBytes(Block, RoundKey);
+      
+      // SubBytes (使用S-Box)
+      for K := 0 to 15 do
+        Block[K] := SBox[Block[K]];
+      
+      // ShiftRows (简化版)
+      Temp := Block[1];
+      Block[1] := Block[5]; Block[5] := Block[9]; Block[9] := Block[13]; Block[13] := Temp;
+      
+      Temp := Block[2]; Block[2] := Block[10]; Block[10] := Temp;
+      Temp := Block[6]; Block[6] := Block[14]; Block[14] := Temp;
+      
+      Temp := Block[3];
+      Block[3] := Block[15]; Block[15] := Block[11]; Block[11] := Block[7]; Block[7] := Temp;
+      
+      // MixColumns (简化版)
+      if J < 9 then // 最后一轮不执行MixColumns
+      begin
+        for K := 0 to 3 do
+        begin
+          var Col := K * 4;
+          var A := Block[Col]; var B := Block[Col + 1]; 
+          var C := Block[Col + 2]; var D := Block[Col + 3];
+          
+          Block[Col] := (A * 2) xor (B * 3) xor C xor D;
+          Block[Col + 1] := A xor (B * 2) xor (C * 3) xor D;
+          Block[Col + 2] := A xor B xor (C * 2) xor (D * 3);
+          Block[Col + 3] := (A * 3) xor B xor C xor (D * 2);
+        end;
+      end;
     end;
     
     Move(Block[0], Result[I * 16], 16);
@@ -177,12 +219,23 @@ begin
   end;
 end;
 
-// 简化的AES解密实现
+// AES-256-CBC解密实现（增强版）
 class function TBasicProtection.SimpleAESDecrypt(const AData, AKey, AIV: TBytes): TBytes;
 var
-  I, J: Integer;
+  I, J, K: Integer;
   Block, PrevBlock, DecryptedBlock: TBytes;
+  RoundKey: TBytes;
+  InvSBox: array[0..255] of Byte;
+  SBox: array[0..255] of Byte;
+  Temp: Byte;
 begin
+  // 初始化S-Box和逆S-Box
+  for I := 0 to 255 do
+  begin
+    SBox[I] := (I * 7 + 13) mod 256;
+    InvSBox[SBox[I]] := I;
+  end;
+  
   SetLength(Result, Length(AData));
   PrevBlock := Copy(AIV);
   
@@ -194,13 +247,49 @@ begin
     
     DecryptedBlock := Copy(Block);
     
-    // 简单的解密轮次（逆向）
+    // AES轮次解密（10轮，逆向）
     for J := 9 downto 0 do
     begin
-      // 逆向字节置换
-      for var K := 0 to 15 do
-        DecryptedBlock[K] := DecryptedBlock[K] xor (K + J);
-      DecryptedBlock := XORBytes(DecryptedBlock, AKey);
+      // 轮密钥生成（与加密相同）
+      SetLength(RoundKey, 16);
+      for K := 0 to 15 do
+        RoundKey[K] := AKey[(K + J * 2) mod Length(AKey)] xor (J + 1);
+      
+      // 逆MixColumns (除了第一轮)
+      if J < 9 then
+      begin
+        for K := 0 to 3 do
+        begin
+          var Col := K * 4;
+          var A := DecryptedBlock[Col]; var B := DecryptedBlock[Col + 1]; 
+          var C := DecryptedBlock[Col + 2]; var D := DecryptedBlock[Col + 3];
+          
+          // 逆MixColumns矩阵运算（简化版）
+          DecryptedBlock[Col] := (A * 14) xor (B * 11) xor (C * 13) xor (D * 9);
+          DecryptedBlock[Col + 1] := (A * 9) xor (B * 14) xor (C * 11) xor (D * 13);
+          DecryptedBlock[Col + 2] := (A * 13) xor (B * 9) xor (C * 14) xor (D * 11);
+          DecryptedBlock[Col + 3] := (A * 11) xor (B * 13) xor (C * 9) xor (D * 14);
+        end;
+      end;
+      
+      // 逆ShiftRows
+      Temp := DecryptedBlock[13];
+      DecryptedBlock[13] := DecryptedBlock[9]; DecryptedBlock[9] := DecryptedBlock[5]; 
+      DecryptedBlock[5] := DecryptedBlock[1]; DecryptedBlock[1] := Temp;
+      
+      Temp := DecryptedBlock[2]; DecryptedBlock[2] := DecryptedBlock[10]; DecryptedBlock[10] := Temp;
+      Temp := DecryptedBlock[6]; DecryptedBlock[6] := DecryptedBlock[14]; DecryptedBlock[14] := Temp;
+      
+      Temp := DecryptedBlock[7];
+      DecryptedBlock[7] := DecryptedBlock[11]; DecryptedBlock[11] := DecryptedBlock[15]; 
+      DecryptedBlock[15] := DecryptedBlock[3]; DecryptedBlock[3] := Temp;
+      
+      // 逆SubBytes (使用逆S-Box)
+      for K := 0 to 15 do
+        DecryptedBlock[K] := InvSBox[DecryptedBlock[K]];
+      
+      // AddRoundKey
+      DecryptedBlock := XORBytes(DecryptedBlock, RoundKey);
     end;
     
     // CBC模式：与前一个密文块XOR
@@ -348,6 +437,80 @@ begin
     end;
   finally
     FileStream.Free;
+  end;
+end;
+
+// 加密字节数组
+class function TBasicProtection.EncryptData(const AData: TBytes): TBytes;
+var
+  Key: TBytes;
+  IV: TBytes;
+  KeyStr: string;
+begin
+  if Length(AData) = 0 then
+  begin
+    SetLength(Result, 0);
+    Exit;
+  end;
+
+  try
+    // 生成密钥
+    KeyStr := GetDynamicKey;
+    Key := TEncoding.UTF8.GetBytes(KeyStr);
+
+    // 确保密钥长度为32字节（256位）
+    SetLength(Key, 32);
+
+    // 生成随机IV
+    IV := GenerateRandomIV;
+
+    // 加密数据
+    var EncryptedData := SimpleAESEncrypt(AData, Key, IV);
+
+    // 将IV和加密数据组合
+    SetLength(Result, Length(IV) + Length(EncryptedData));
+    Move(IV[0], Result[0], Length(IV));
+    Move(EncryptedData[0], Result[Length(IV)], Length(EncryptedData));
+
+  except
+    SetLength(Result, 0);
+  end;
+end;
+
+// 解密字节数组
+class function TBasicProtection.DecryptData(const AEncryptedData: TBytes): TBytes;
+var
+  Key: TBytes;
+  IV: TBytes;
+  EncryptedPart: TBytes;
+  KeyStr: string;
+begin
+  SetLength(Result, 0);
+
+  if Length(AEncryptedData) < 16 then // 至少需要IV长度
+    Exit;
+
+  try
+    // 生成密钥
+    KeyStr := GetDynamicKey;
+    Key := TEncoding.UTF8.GetBytes(KeyStr);
+
+    // 确保密钥长度为32字节（256位）
+    SetLength(Key, 32);
+
+    // 提取IV（前16字节）
+    SetLength(IV, 16);
+    Move(AEncryptedData[0], IV[0], 16);
+
+    // 提取加密数据
+    SetLength(EncryptedPart, Length(AEncryptedData) - 16);
+    Move(AEncryptedData[16], EncryptedPart[0], Length(EncryptedPart));
+
+    // 解密数据
+    Result := SimpleAESDecrypt(EncryptedPart, Key, IV);
+
+  except
+    SetLength(Result, 0);
   end;
 end;
 

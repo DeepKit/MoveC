@@ -1,4 +1,4 @@
-unit IDonationManager2;
+﻿unit IDonationManager2;
 
 interface
 

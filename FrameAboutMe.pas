@@ -6,7 +6,7 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ComCtrls, Vcl.StdCtrls,
   Vcl.ExtCtrls, System.Skia, Vcl.Skia, ControllerIntf, System.NetEncoding, System.Hash,
-  DatabaseSecurity, uDM, Vcl.Clipbrd;
+  DatabaseSecurity, uDM, Vcl.Clipbrd, BasicProtection;
 
 type
   // 打赏地址类型
@@ -19,6 +19,26 @@ type
     Description: string;
     QRCodeData: TBytes;
     IsValid: Boolean;
+  end;
+
+  // 简化的图像管理器（用于AboutMe窗口）
+  TAboutMeImageManager = class
+  private
+    FDatabasePath: string;
+    FResourcesIni: TMemIniFile;
+
+    function GetDatabasePath: string;
+    function ResourcesFile: string;
+    function LoadImageFromDatabase(const ResourceName: string): TBytes;
+    function DecryptImageData(const Data: TBytes): TBytes;
+
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    function Initialize: Boolean;
+    procedure Finalize;
+    function LoadImageToSkiaControl(const ResourceName: string; TargetImage: TSkAnimatedImage): Boolean;
   end;
 
   TFrameAboutMe = class(TFrame)
@@ -69,6 +89,7 @@ type
     FController: IControllerMain;
     FSecurityManager: TDatabaseSecurityManager;
     FDonationAddresses: array[TDonationAddressType] of TDonationAddressInfo;
+    FImageManager: TAboutMeImageManager;
     
     // 硬编码备用地址（安全防线）
     const
@@ -126,9 +147,157 @@ type
 implementation
 
 uses
-  System.IOUtils;
+  System.IOUtils, System.IniFiles, System.NetEncoding;
 
 {$R *.dfm}
+
+// TAboutMeImageManager 实现
+
+constructor TAboutMeImageManager.Create;
+begin
+  inherited;
+  FDatabasePath := '';
+  FResourcesIni := nil;
+end;
+
+destructor TAboutMeImageManager.Destroy;
+begin
+  Finalize;
+  inherited;
+end;
+
+function TAboutMeImageManager.GetDatabasePath: string;
+var
+  AppDataPath: string;
+begin
+  AppDataPath := GetEnvironmentVariable('LOCALAPPDATA');
+  if AppDataPath = '' then
+    AppDataPath := TPath.Combine(GetEnvironmentVariable('USERPROFILE'), 'AppData\Local');
+  Result := TPath.Combine(AppDataPath, 'DiskCleanup');
+end;
+
+function TAboutMeImageManager.ResourcesFile: string;
+begin
+  Result := TPath.Combine(FDatabasePath, 'image_resources.ini');
+end;
+
+function TAboutMeImageManager.Initialize: Boolean;
+begin
+  Result := False;
+  try
+    FDatabasePath := GetDatabasePath;
+
+    if not TDirectory.Exists(FDatabasePath) then
+      Exit;
+
+    if not TFile.Exists(ResourcesFile) then
+      Exit;
+
+    FResourcesIni := TMemIniFile.Create(ResourcesFile, TEncoding.UTF8);
+    Result := True;
+
+  except
+    on E: Exception do
+      OutputDebugString(PChar('Image manager initialization failed: ' + E.Message));
+  end;
+end;
+
+procedure TAboutMeImageManager.Finalize;
+begin
+  try
+    if Assigned(FResourcesIni) then
+    begin
+      FResourcesIni.Free;
+      FResourcesIni := nil;
+    end;
+  except
+    // 忽略错误
+  end;
+end;
+
+function TAboutMeImageManager.DecryptImageData(const Data: TBytes): TBytes;
+begin
+  try
+    Result := TBasicProtection.DecryptData(Data);
+  except
+    SetLength(Result, 0);
+  end;
+end;
+
+function TAboutMeImageManager.LoadImageFromDatabase(const ResourceName: string): TBytes;
+var
+  DataFile, EncodedData: string;
+  EncryptedData: TBytes;
+begin
+  SetLength(Result, 0);
+
+  if not Assigned(FResourcesIni) then
+    Exit;
+
+  try
+    DataFile := FResourcesIni.ReadString(ResourceName, 'data_file', '');
+    if (DataFile = '') or not TFile.Exists(DataFile) then
+      Exit;
+
+    // 读取Base64编码的数据
+    EncodedData := TFile.ReadAllText(DataFile, TEncoding.UTF8);
+
+    // Base64解码
+    EncryptedData := TNetEncoding.Base64.DecodeStringToBytes(EncodedData);
+
+    // 解密图像数据
+    Result := DecryptImageData(EncryptedData);
+
+  except
+    on E: Exception do
+    begin
+      OutputDebugString(PChar('Load image from database failed: ' + E.Message));
+      SetLength(Result, 0);
+    end;
+  end;
+end;
+
+function TAboutMeImageManager.LoadImageToSkiaControl(const ResourceName: string; TargetImage: TSkAnimatedImage): Boolean;
+var
+  ImageData: TBytes;
+  Stream: TMemoryStream;
+begin
+  Result := False;
+
+  if not Assigned(TargetImage) then
+    Exit;
+
+  try
+    ImageData := LoadImageFromDatabase(ResourceName);
+    if Length(ImageData) = 0 then
+    begin
+      OutputDebugString(PChar('No image data found for: ' + ResourceName));
+      Exit;
+    end;
+
+    Stream := TMemoryStream.Create;
+    try
+      Stream.WriteBuffer(ImageData[0], Length(ImageData));
+      Stream.Position := 0;
+
+      // 加载到Skia控件
+      TargetImage.LoadFromStream(Stream);
+
+      Result := True;
+      OutputDebugString(PChar('Successfully loaded image: ' + ResourceName));
+
+    finally
+      Stream.Free;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      OutputDebugString(PChar('Load image to Skia control failed: ' + E.Message));
+      Result := False;
+    end;
+  end;
+end;
 
 constructor TFrameAboutMe.Create(AOwner: TComponent; AController: IControllerMain);
 begin
@@ -137,6 +306,13 @@ begin
 
   // 初始化安全管理器
   FSecurityManager := TDatabaseSecurityManager.Create('TwoKeyRun.db', nil, nil);
+
+  // 初始化图像管理器
+  FImageManager := TAboutMeImageManager.Create;
+  if FImageManager.Initialize then
+    LogMessage('FrameAboutMe: 图像管理器初始化成功')
+  else
+    LogMessage('FrameAboutMe: 图像管理器初始化失败');
 
   // 初始化打赏地址
   InitializeDonationAddresses;
@@ -159,6 +335,8 @@ end;
 
 destructor TFrameAboutMe.Destroy;
 begin
+  if Assigned(FImageManager) then
+    FImageManager.Free;
   FSecurityManager.Free;
   inherited;
 end;
@@ -619,20 +797,41 @@ procedure TFrameAboutMe.LoadAllImages;
 begin
   LogMessage('FrameAboutMe: 开始加载所有图片');
 
-  // 加载微信二维码
-  LoadImageFromDB('wechat_qr', imgWechat);
+  if not Assigned(FImageManager) then
+  begin
+    LogMessage('FrameAboutMe: 图像管理器未初始化');
+    Exit;
+  end;
 
-  // 加载支付宝二维码
-  LoadImageFromDB('alipay_qr', imgAlipay);
+  // 加载微信二维码 (对应 wechat.png)
+  if FImageManager.LoadImageToSkiaControl('wechat', imgWechat) then
+    LogMessage('FrameAboutMe: 微信二维码加载成功')
+  else
+    LogMessage('FrameAboutMe: 微信二维码加载失败');
 
-  // 加载开发者照片
-  LoadImageFromDB('aboutme_photo', imgAboutMe);
+  // 加载支付宝二维码 (对应 AliPay.png)
+  if FImageManager.LoadImageToSkiaControl('AliPay', imgAlipay) then
+    LogMessage('FrameAboutMe: 支付宝二维码加载成功')
+  else
+    LogMessage('FrameAboutMe: 支付宝二维码加载失败');
 
-  // 加载BTC二维码
-  LoadImageFromDB('btc_qr', imgBTC);
+  // 加载BTC二维码 (对应 btc.png)
+  if FImageManager.LoadImageToSkiaControl('btc', imgBTC) then
+    LogMessage('FrameAboutMe: BTC二维码加载成功')
+  else
+    LogMessage('FrameAboutMe: BTC二维码加载失败');
 
-  // 加载USDT二维码
-  LoadImageFromDB('usdt_qr', imgUSDT);
+  // 加载USDT二维码 (对应 usdt.png)
+  if FImageManager.LoadImageToSkiaControl('usdt', imgUSDT) then
+    LogMessage('FrameAboutMe: USDT二维码加载成功')
+  else
+    LogMessage('FrameAboutMe: USDT二维码加载失败');
+
+  // 加载开发者照片 (对应 itsMe.jpg)
+  if FImageManager.LoadImageToSkiaControl('itsMe', imgAboutMe) then
+    LogMessage('FrameAboutMe: 开发者照片加载成功')
+  else
+    LogMessage('FrameAboutMe: 开发者照片加载失败');
 
   LogMessage('FrameAboutMe: 所有图片加载完成');
 end;

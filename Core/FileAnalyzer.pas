@@ -1,4 +1,4 @@
-unit FileAnalyzer;
+﻿unit FileAnalyzer;
 
 interface
 

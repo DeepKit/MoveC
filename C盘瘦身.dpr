@@ -1,4 +1,4 @@
-program C������;
+﻿program C������;
 
 uses
   Vcl.Forms,

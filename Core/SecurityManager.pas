@@ -1,4 +1,4 @@
-unit SecurityManager;
+﻿unit SecurityManager;
 
 interface
 
@@ -19,7 +19,10 @@ type
     function GetCPUInfo: string;
     function GetDiskSerialNumber: string;
     function GetMACAddress: string;
+    function GetBIOSInfo: string;
+    function GetMotherboardInfo: string;
     function GetSystemFingerprint: string;
+    function FormatMachineCode(const ARawCode: string): string;
     function LoadStoredHash: string;
     procedure SaveExecutableHash;
     function CheckExecutableIntegrity: Boolean;
@@ -36,6 +39,14 @@ type
     function DecryptSensitiveData(const AEncryptedData: string): string;
     function GenerateMachineFingerprint: string;
     function IsRunningAsAdmin: Boolean;
+    
+    // 公共方法（用于测试和调试）
+    function GetCPUInfo: string;
+    function GetDiskSerialNumber: string;
+    function GetMACAddress: string;
+    function GetBIOSInfo: string;
+    function GetMotherboardInfo: string;
+    function FormatMachineCode(const ARawCode: string): string;
   end;
 
 implementation
@@ -143,18 +154,124 @@ begin
     Result := 'MAC_' + IntToStr(GetTickCount);
 end;
 
+// 获取BIOS信息
+function TSecurityManager.GetBIOSInfo: string;
+var
+  Reg: TRegistry;
+begin
+  Result := '';
+  Reg := TRegistry.Create(KEY_READ);
+  try
+    Reg.RootKey := HKEY_LOCAL_MACHINE;
+    if Reg.OpenKey('HARDWARE\DESCRIPTION\System\BIOS', False) then
+    begin
+      if Reg.ValueExists('BIOSVersion') then
+        Result := Reg.ReadString('BIOSVersion')
+      else if Reg.ValueExists('SystemManufacturer') then
+        Result := Reg.ReadString('SystemManufacturer');
+      Reg.CloseKey;
+    end;
+    
+    // 尝试另一个位置
+    if Result = '' then
+    begin
+      if Reg.OpenKey('HARDWARE\DESCRIPTION\System', False) then
+      begin
+        if Reg.ValueExists('SystemBiosVersion') then
+          Result := Reg.ReadString('SystemBiosVersion');
+        Reg.CloseKey;
+      end;
+    end;
+  finally
+    Reg.Free;
+  end;
+
+  // 如果无法获取，使用备用方法
+  if Result = '' then
+    Result := 'BIOS_' + IntToStr(GetTickCount);
+end;
+
+// 获取主板信息
+function TSecurityManager.GetMotherboardInfo: string;
+var
+  Reg: TRegistry;
+begin
+  Result := '';
+  Reg := TRegistry.Create(KEY_READ);
+  try
+    Reg.RootKey := HKEY_LOCAL_MACHINE;
+    if Reg.OpenKey('HARDWARE\DESCRIPTION\System\BIOS', False) then
+    begin
+      if Reg.ValueExists('BaseBoardManufacturer') then
+        Result := Reg.ReadString('BaseBoardManufacturer')
+      else if Reg.ValueExists('BaseBoardProduct') then
+        Result := Reg.ReadString('BaseBoardProduct');
+      Reg.CloseKey;
+    end;
+    
+    // 尝试另一个位置
+    if Result = '' then
+    begin
+      if Reg.OpenKey('SYSTEM\CurrentControlSet\Control\SystemInformation', False) then
+      begin
+        if Reg.ValueExists('SystemManufacturer') then
+          Result := Reg.ReadString('SystemManufacturer');
+        Reg.CloseKey;
+      end;
+    end;
+  finally
+    Reg.Free;
+  end;
+
+  // 如果无法获取，使用备用方法
+  if Result = '' then
+    Result := 'MOBO_' + IntToStr(GetTickCount);
+end;
+
+// 格式化机器码为易读格式
+function TSecurityManager.FormatMachineCode(const ARawCode: string): string;
+var
+  CleanCode: string;
+  I: Integer;
+begin
+  // 移除非字母数字字符并转换为大写
+  CleanCode := '';
+  for I := 1 to Length(ARawCode) do
+  begin
+    if CharInSet(ARawCode[I], ['0'..'9', 'A'..'Z', 'a'..'z']) then
+      CleanCode := CleanCode + UpCase(ARawCode[I]);
+  end;
+  
+  // 确保至少有16个字符
+  while Length(CleanCode) < 16 do
+    CleanCode := CleanCode + '0';
+  
+  // 截取前16个字符并格式化为 XXXX-XXXX-XXXX-XXXX
+  CleanCode := Copy(CleanCode, 1, 16);
+  Result := Copy(CleanCode, 1, 4) + '-' + 
+            Copy(CleanCode, 5, 4) + '-' + 
+            Copy(CleanCode, 9, 4) + '-' + 
+            Copy(CleanCode, 13, 4);
+end;
+
 // 获取系统指纹
 function TSecurityManager.GetSystemFingerprint: string;
 var
-  CPUInfo, DiskInfo, MACInfo: string;
+  CPUInfo, DiskInfo, MACInfo, BIOSInfo, MotherboardInfo: string;
   Combined: string;
+  RawFingerprint: string;
 begin
   CPUInfo := GetCPUInfo;
   DiskInfo := GetDiskSerialNumber;
   MACInfo := GetMACAddress;
+  BIOSInfo := GetBIOSInfo;
+  MotherboardInfo := GetMotherboardInfo;
 
-  Combined := CPUInfo + '|' + DiskInfo + '|' + MACInfo;
-  Result := TBasicProtection.CalculateHMAC(Combined);
+  Combined := CPUInfo + '|' + DiskInfo + '|' + MACInfo + '|' + BIOSInfo + '|' + MotherboardInfo;
+  RawFingerprint := TBasicProtection.CalculateHMAC(Combined);
+  
+  // 格式化为易读的机器码格式 (XXXX-XXXX-XXXX-XXXX)
+  Result := FormatMachineCode(RawFingerprint);
 end;
 
 // 加载存储的哈希值
@@ -185,11 +302,23 @@ end;
 function TSecurityManager.CheckExecutableIntegrity: Boolean;
 var
   CurrentHash, StoredHash: string;
+  ExePath: string;
+  CriticalFiles: TArray<string>;
+  I: Integer;
 begin
   Result := True;
   
   try
-    CurrentHash := TBasicProtection.CalculateFileHash(Application.ExeName);
+    ExePath := Application.ExeName;
+    
+    // 检查主程序文件
+    if not FileExists(ExePath) then
+    begin
+      Result := False;
+      Exit;
+    end;
+    
+    CurrentHash := TBasicProtection.CalculateFileHash(ExePath);
     StoredHash := LoadStoredHash;
     
     if StoredHash = '' then
@@ -201,10 +330,48 @@ begin
     else
     begin
       Result := SameText(CurrentHash, StoredHash);
+      if not Result then
+      begin
+        // 记录完整性验证失败
+        if Assigned(FConfigManager) then
+          FConfigManager.LogOperation('SECURITY', 'Executable integrity check failed', 
+            ExePath, '', 'FAILED', 'Hash mismatch: Expected=' + StoredHash + ', Actual=' + CurrentHash);
+      end;
     end;
+    
+    // 检查关键组件文件
+    if Result then
+    begin
+      CriticalFiles := TArray<string>.Create(
+        ExtractFilePath(ExePath) + 'Core\SecurityManager.pas',
+        ExtractFilePath(ExePath) + 'Core\BasicProtection.pas',
+        ExtractFilePath(ExePath) + 'Core\ConfigManager.pas'
+      );
+      
+      for I := 0 to Length(CriticalFiles) - 1 do
+      begin
+        if FileExists(CriticalFiles[I]) then
+        begin
+          if not ValidateFileIntegrity(CriticalFiles[I]) then
+          begin
+            Result := False;
+            if Assigned(FConfigManager) then
+              FConfigManager.LogOperation('SECURITY', 'Critical file integrity check failed', 
+                CriticalFiles[I], '', 'FAILED', 'File hash verification failed');
+            Break;
+          end;
+        end;
+      end;
+    end;
+    
   except
-    // 如果检查失败，假设完整性有问题
-    Result := False;
+    on E: Exception do
+    begin
+      Result := False;
+      if Assigned(FConfigManager) then
+        FConfigManager.LogOperation('SECURITY', 'Executable integrity check exception', 
+          ExePath, '', 'ERROR', E.Message);
+    end;
   end;
 end;
 
@@ -212,13 +379,27 @@ end;
 function TSecurityManager.CheckConfigIntegrity: Boolean;
 var
   ConfigData, ConfigHMAC, CalculatedHMAC: string;
+  SecuritySettings, MigrationSettings: string;
 begin
   Result := True;
   
   try
+    // 收集关键配置数据
     ConfigData := FConfigManager.GetString('Application', 'Language', '') + '|' +
                   IntToStr(FConfigManager.GetInteger('Application', 'SecurityLevel', 1)) + '|' +
                   FConfigManager.GetString('Application', 'LastBackupId', '');
+    
+    // 添加安全配置
+    SecuritySettings := BoolToStr(FConfigManager.GetBoolean('Security', 'EnableIntegrityCheck', True)) + '|' +
+                       BoolToStr(FConfigManager.GetBoolean('Security', 'EnableEncryption', True)) + '|' +
+                       IntToStr(FConfigManager.GetInteger('Security', 'EncryptionLevel', 256));
+    
+    // 添加迁移配置
+    MigrationSettings := BoolToStr(FConfigManager.GetBoolean('Migration', 'CreateBackupBeforeMigration', True)) + '|' +
+                        BoolToStr(FConfigManager.GetBoolean('Migration', 'ValidateDependencies', True)) + '|' +
+                        BoolToStr(FConfigManager.GetBoolean('Migration', 'RequireAdminRights', True));
+    
+    ConfigData := ConfigData + '|' + SecuritySettings + '|' + MigrationSettings;
     
     ConfigHMAC := FConfigManager.GetString('Security', 'ConfigHMAC', '');
     
@@ -233,9 +414,31 @@ begin
     else
     begin
       Result := TBasicProtection.VerifyDataIntegrity(ConfigData, ConfigHMAC);
+      if not Result then
+      begin
+        // 记录配置完整性验证失败
+        if Assigned(FConfigManager) then
+          FConfigManager.LogOperation('SECURITY', 'Configuration integrity check failed', 
+            FConfigManager.ConfigPath, '', 'FAILED', 'Configuration HMAC verification failed');
+        
+        // 在开发模式下，重新计算并保存HMAC
+        if DEVELOPMENT_MODE then
+        begin
+          CalculatedHMAC := TBasicProtection.CalculateHMAC(ConfigData);
+          FConfigManager.SetString('Security', 'ConfigHMAC', CalculatedHMAC);
+          FConfigManager.SaveConfig;
+          Result := True;
+        end;
+      end;
     end;
   except
-    Result := False;
+    on E: Exception do
+    begin
+      Result := False;
+      if Assigned(FConfigManager) then
+        FConfigManager.LogOperation('SECURITY', 'Configuration integrity check exception', 
+          FConfigManager.ConfigPath, '', 'ERROR', E.Message);
+    end;
   end;
 end;
 

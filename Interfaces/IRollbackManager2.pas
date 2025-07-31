@@ -1,4 +1,4 @@
-unit IRollbackManager2;
+﻿unit IRollbackManager2;
 
 interface
 

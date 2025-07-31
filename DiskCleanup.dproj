@@ -111,12 +111,22 @@
         <DCCReference Include="Interfaces\ISecurityManager2.pas"/>
         <DCCReference Include="Interfaces\IDonationManager2.pas"/>
         <DCCReference Include="Core\ConfigManager.pas"/>
+        <DCCReference Include="Core\DatabaseManager.pas"/>
         <DCCReference Include="Core\BasicProtection.pas"/>
         <DCCReference Include="Core\SecurityManager.pas"/>
         <DCCReference Include="Core\FileAnalyzer.pas"/>
         <DCCReference Include="Core\DonationManager.pas"/>
         <DCCReference Include="Core\MigrationManager.pas"/>
         <DCCReference Include="Core\RollbackManager2.pas"/>
+        <DCCReference Include="uProgress.pas">
+            <Form>frmProgress</Form>
+        </DCCReference>
+        <DCCReference Include="uLanguageDialog.pas">
+            <Form>frmLanguageDialog</Form>
+        </DCCReference>
+        <DCCReference Include="Core\SystemChecker.pas"/>
+        <DCCReference Include="Core\LanguageTypes.pas"/>
+        <DCCReference Include="Core\LanguageManager.pas"/>
         <DCCReference Include="uMain.pas">
             <Form>frmMain</Form>
         </DCCReference>

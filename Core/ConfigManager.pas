@@ -1,9 +1,9 @@
-unit ConfigManager;
+﻿unit ConfigManager;
 
 interface
 
 uses
-  System.SysUtils, System.Classes, System.IniFiles, DataTypes;
+  System.SysUtils, System.Classes, System.IniFiles, DataTypes, DatabaseManager;
 
 type
   // 配置管理器类
@@ -11,7 +11,8 @@ type
   private
     FConfigFile: TIniFile;
     FConfigPath: string;
-    
+    FDatabaseManager: TDatabaseManager;
+
     procedure CreateDefaultConfig;
     
   public
@@ -38,8 +39,17 @@ type
     procedure SaveConfig;
     procedure LoadConfig;
     function ConfigExists: Boolean;
-    
+
+    // 数据库相关方法
+    function InitializeDatabase: Boolean;
+    function GetDatabaseManager: TDatabaseManager;
+    function LogOperation(const OpType, Detail, SourcePath, TargetPath, OpResult: string;
+                         const ErrorMsg: string = ''; ExecutionTime: Integer = 0): Boolean;
+    function GetBackupRecords: TArray<TBackupInfo>;
+    function AddBackupRecord(const BackupInfo: TBackupInfo): Boolean;
+
     property ConfigPath: string read FConfigPath;
+    property DatabaseManager: TDatabaseManager read FDatabaseManager;
   end;
 
 implementation
@@ -47,20 +57,25 @@ implementation
 constructor TConfigManager.Create(const AConfigPath: string);
 begin
   inherited Create;
-  
+
   if AConfigPath = '' then
     FConfigPath := ChangeFileExt(ParamStr(0), '.ini')
   else
     FConfigPath := AConfigPath;
-    
+
   FConfigFile := TIniFile.Create(FConfigPath);
-  
+
+  // 初始化数据库管理器
+  FDatabaseManager := TDatabaseManager.Create;
+
   if not ConfigExists then
     CreateDefaultConfig;
 end;
 
 destructor TConfigManager.Destroy;
 begin
+  if Assigned(FDatabaseManager) then
+    FDatabaseManager.Free;
   FConfigFile.Free;
   inherited;
 end;
@@ -161,6 +176,45 @@ end;
 function TConfigManager.ConfigExists: Boolean;
 begin
   Result := FileExists(FConfigPath);
+end;
+
+// 初始化数据库
+function TConfigManager.InitializeDatabase: Boolean;
+begin
+  Result := False;
+  if Assigned(FDatabaseManager) then
+    Result := FDatabaseManager.Initialize;
+end;
+
+// 获取数据库管理器
+function TConfigManager.GetDatabaseManager: TDatabaseManager;
+begin
+  Result := FDatabaseManager;
+end;
+
+// 记录操作日志
+function TConfigManager.LogOperation(const OpType, Detail, SourcePath, TargetPath, OpResult: string;
+                                    const ErrorMsg: string = ''; ExecutionTime: Integer = 0): Boolean;
+begin
+  Result := False;
+  if Assigned(FDatabaseManager) and FDatabaseManager.IsInitialized then
+    Result := FDatabaseManager.LogOperation(OpType, Detail, SourcePath, TargetPath, OpResult, ErrorMsg, ExecutionTime);
+end;
+
+// 获取备份记录
+function TConfigManager.GetBackupRecords: TArray<TBackupInfo>;
+begin
+  SetLength(Result, 0);
+  if Assigned(FDatabaseManager) and FDatabaseManager.IsInitialized then
+    Result := FDatabaseManager.GetBackupRecords;
+end;
+
+// 添加备份记录
+function TConfigManager.AddBackupRecord(const BackupInfo: TBackupInfo): Boolean;
+begin
+  Result := False;
+  if Assigned(FDatabaseManager) and FDatabaseManager.IsInitialized then
+    Result := FDatabaseManager.AddBackupRecord(BackupInfo);
 end;
 
 end.

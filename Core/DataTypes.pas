@@ -1,4 +1,4 @@
-unit DataTypes;
+﻿unit DataTypes;
 
 interface
 
@@ -84,6 +84,79 @@ type
     Files: TArray<string>;
     RegistryEntries: TArray<string>;
     SymbolicLinks: TArray<string>;
+  end;
+
+  // 数据库相关类型定义
+
+  // 备份信息记录
+  TBackupInfo = record
+    BackupId: string;
+    SourcePath: string;
+    TargetPath: string;
+    BackupTime: TDateTime;
+    BackupSize: Int64;
+    FileCount: Integer;
+    Status: string;
+    Description: string;
+  end;
+
+  // 操作日志记录
+  TOperationLog = record
+    Id: Integer;
+    OperationType: string;
+    OperationDetail: string;
+    SourcePath: string;
+    TargetPath: string;
+    Result: string;
+    ErrorMessage: string;
+    ExecutionTime: Integer;
+    UserName: string;
+    MachineCode: string;
+    CreatedAt: TDateTime;
+  end;
+
+  // 配置项记录
+  TConfigItem = record
+    Category: string;
+    KeyName: string;
+    ValueData: string;
+    ValueType: string;
+    IsEncrypted: Boolean;
+    Description: string;
+    CreatedAt: TDateTime;
+    UpdatedAt: TDateTime;
+  end;
+
+  // 打赏地址记录（数据库版本）
+  TDonationAddress = record
+    AddressType: string;
+    AddressValue: string;
+    Description: string;
+    IsActive: Boolean;
+    DisplayOrder: Integer;
+    CreatedAt: TDateTime;
+    UpdatedAt: TDateTime;
+  end;
+
+  // 语言字符串项记录
+  TLanguageStringItem = record
+    LanguageCode: string;
+    StringKey: string;
+    StringValue: string;
+    CreatedAt: TDateTime;
+    UpdatedAt: TDateTime;
+  end;
+
+  // 数据库信息记录
+  TDatabaseInfo = record
+    DatabasePath: string;
+    FileSize: Int64;
+    IsConnected: Boolean;
+    BackupRecordCount: Integer;
+    LogRecordCount: Integer;
+    ConfigRecordCount: Integer;
+    DonationRecordCount: Integer;
+    LanguageStringCount: Integer;
   end;
 
 implementation

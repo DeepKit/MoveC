@@ -1,4 +1,4 @@
-unit IMigrationManager2;
+﻿unit IMigrationManager2;
 
 interface
 
