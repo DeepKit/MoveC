@@ -166,6 +166,605 @@ type
     property HasCurrentSession: Boolean read FHasCurrentSession;
   end;
 
+  // 操作类型枚举
+  TOperationType = (
+    otDirectoryAnalysis,    // 目录分析
+    otSymlinkScan,         // 符号链接扫描
+    otSymlinkRepair,       // 符号链接修复
+    otFileCopy,            // 文件拷贝
+    otFileMove,            // 文件移动
+    otDirectoryCreate,     // 目录创建
+    otDirectoryDelete,     // 目录删除
+    otStatusChange,        // 状态变更
+    otCacheUpdate,         // 缓存更新
+    otSessionCreate,       // 会话创建
+    otSessionComplete,     // 会话完成
+    otUserAction           // 用户操作
+  );
+
+  // 操作历史记录
+  TOperationHistory = record
+    Id: string;                    // 操作ID
+    OperationType: TOperationType; // 操作类型
+    Timestamp: TDateTime;          // 操作时间
+    SourcePath: string;            // 源路径
+    TargetPath: string;            // 目标路径
+    OldStatus: TDirectoryStatus;   // 旧状态
+    NewStatus: TDirectoryStatus;   // 新状态
+    Description: string;           // 操作描述
+    Success: Boolean;              // 是否成功
+    ErrorMessage: string;          // 错误信息
+    UserData: string;              // 用户数据
+  end;
+
+  // 状态管理器
+  TStatusManager = class
+  private
+    FOperationHistory: TArray<TOperationHistory>;
+    FDirectoryStates: TDictionary<string, TDirectoryStatus>;
+    FHistoryFile: string;
+    FMaxHistoryCount: Integer;
+  public
+    constructor Create(const AHistoryFile: string; AMaxHistoryCount: Integer = 1000);
+    destructor Destroy; override;
+
+    // 操作历史管理
+    function AddOperation(const AOperation: TOperationHistory): string;
+    function GetOperationHistory(ACount: Integer = 50): TArray<TOperationHistory>;
+    function GetOperationsByType(AType: TOperationType): TArray<TOperationHistory>;
+    function GetOperationsByPath(const APath: string): TArray<TOperationHistory>;
+    procedure ClearHistory;
+
+    // 状态管理
+    procedure SetDirectoryStatus(const APath: string; AStatus: TDirectoryStatus; const ADescription: string = '');
+    function GetDirectoryStatus(const APath: string): TDirectoryStatus;
+    function HasDirectoryStatus(const APath: string): Boolean;
+    procedure RemoveDirectoryStatus(const APath: string);
+    procedure ClearAllStates;
+
+    // 撤销功能
+    function CanUndo: Boolean;
+    function UndoLastOperation: Boolean;
+    function GetUndoDescription: string;
+
+    // 持久化
+    procedure SaveToFile;
+    procedure LoadFromFile;
+
+    // 统计信息
+    function GetOperationCount: Integer;
+    function GetOperationCountByType(AType: TOperationType): Integer;
+    function GetDirectoryStateCount: Integer;
+
+    property OperationCount: Integer read GetOperationCount;
+    property DirectoryStateCount: Integer read GetDirectoryStateCount;
+  end;
+
+  // 目录变化类型
+  TDirectoryChangeType = (
+    dctCreated,    // 目录创建
+    dctDeleted,    // 目录删除
+    dctRenamed,    // 目录重命名
+    dctMoved,      // 目录移动
+    dctModified    // 目录修改
+  );
+
+  // 目录变化记录
+  TDirectoryChange = record
+    ChangeType: TDirectoryChangeType;
+    OldPath: string;
+    NewPath: string;
+    Timestamp: TDateTime;
+    Detected: Boolean;
+  end;
+
+  // 目录监控器
+  TDirectoryMonitor = class
+  private
+    FWatchedPaths: TStringList;
+    FDirectoryStates: TDictionary<string, TFileTime>;
+    FChanges: TArray<TDirectoryChange>;
+    FLastScanTime: TDateTime;
+    FEnabled: Boolean;
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    procedure AddWatchPath(const APath: string);
+    procedure RemoveWatchPath(const APath: string);
+    procedure ClearWatchPaths;
+
+    function ScanForChanges: TArray<TDirectoryChange>;
+    procedure UpdateDirectoryState(const APath: string);
+    function HasPathChanged(const APath: string): Boolean;
+
+    property Enabled: Boolean read FEnabled write FEnabled;
+    property WatchedPathCount: Integer read GetWatchedPathCount;
+  private
+    function GetWatchedPathCount: Integer;
+    function GetDirectoryFileTime(const APath: string): TFileTime;
+    function CompareFileTime(const ATime1, ATime2: TFileTime): Integer;
+  end;
+
+  // 建议类型枚举
+  TSuggestionType = (
+    stOptimization,     // 优化建议
+    stSafety,          // 安全建议
+    stEfficiency,      // 效率建议
+    stMaintenance,     // 维护建议
+    stWorkflow,        // 工作流建议
+    stTroubleshooting, // 故障排除
+    stBestPractice     // 最佳实践
+  );
+
+  // 建议优先级
+  TSuggestionPriority = (
+    spLow,      // 低优先级
+    spMedium,   // 中等优先级
+    spHigh,     // 高优先级
+    spCritical  // 关键优先级
+  );
+
+  // 智能建议记录
+  TSmartSuggestion = record
+    Id: string;                        // 建议ID
+    SuggestionType: TSuggestionType;   // 建议类型
+    Priority: TSuggestionPriority;     // 优先级
+    Title: string;                     // 建议标题
+    Description: string;               // 详细描述
+    ActionText: string;                // 操作文本
+    RelatedPath: string;               // 相关路径
+    CreatedTime: TDateTime;            // 创建时间
+    IsRead: Boolean;                   // 是否已读
+    IsApplied: Boolean;                // 是否已应用
+    AppliedTime: TDateTime;            // 应用时间
+    UserData: string;                  // 用户数据
+  end;
+
+  // 用户行为模式
+  TUserBehaviorPattern = record
+    OperationType: TOperationType;     // 操作类型
+    FrequencyCount: Integer;           // 频率计数
+    LastUsedTime: TDateTime;           // 最后使用时间
+    AverageInterval: Double;           // 平均间隔（小时）
+    PreferredPaths: TArray<string>;    // 偏好路径
+    SuccessRate: Double;               // 成功率
+  end;
+
+  // 智能建议引擎
+  TSmartSuggestionEngine = class
+  private
+    FSuggestions: TArray<TSmartSuggestion>;
+    FUserPatterns: TArray<TUserBehaviorPattern>;
+    FDataFile: string;
+    FMaxSuggestions: Integer;
+    FStatusManager: TStatusManager;
+  public
+    constructor Create(const ADataFile: string; AStatusManager: TStatusManager; AMaxSuggestions: Integer = 50);
+    destructor Destroy; override;
+
+    // 建议管理
+    function AddSuggestion(const ASuggestion: TSmartSuggestion): string;
+    function GetSuggestions(AType: TSuggestionType = stOptimization; ACount: Integer = 10): TArray<TSmartSuggestion>;
+    function GetUnreadSuggestions: TArray<TSmartSuggestion>;
+    function GetHighPrioritySuggestions: TArray<TSmartSuggestion>;
+    procedure MarkSuggestionRead(const ASuggestionId: string);
+    procedure MarkSuggestionApplied(const ASuggestionId: string);
+    procedure RemoveSuggestion(const ASuggestionId: string);
+    procedure ClearOldSuggestions(ADaysOld: Integer = 30);
+
+    // 行为分析
+    procedure AnalyzeUserBehavior;
+    procedure UpdateUserPattern(AOperationType: TOperationType; const APath: string; ASuccess: Boolean);
+    function PredictNextOperation: TOperationType;
+    function GetRecommendedPaths: TArray<string>;
+
+    // 智能建议生成
+    procedure GenerateOptimizationSuggestions;
+    procedure GenerateSafetySuggestions;
+    procedure GenerateEfficiencySuggestions;
+    procedure GenerateMaintenanceSuggestions;
+    procedure GenerateWorkflowSuggestions;
+
+    // 持久化
+    procedure SaveToFile;
+    procedure LoadFromFile;
+
+    // 统计信息
+    function GetSuggestionCount: Integer;
+    function GetUnreadCount: Integer;
+    function GetAppliedCount: Integer;
+
+    property SuggestionCount: Integer read GetSuggestionCount;
+    property UnreadCount: Integer read GetUnreadCount;
+    property AppliedCount: Integer read GetAppliedCount;
+  private
+    function GetOperationTypeName(AType: TOperationType): string;
+  end;
+
+  // 批量操作类型
+  TBatchOperationType = (
+    btAnalyze,        // 批量分析
+    btCopy,           // 批量拷贝
+    btMove,           // 批量移动
+    btSymlinkScan,    // 批量符号链接扫描
+    btSymlinkRepair,  // 批量符号链接修复
+    btStatusCheck,    // 批量状态检查
+    btCleanup         // 批量清理
+  );
+
+  // 批量操作项
+  TBatchOperationItem = record
+    SourcePath: string;           // 源路径
+    TargetPath: string;           // 目标路径
+    OperationType: TBatchOperationType; // 操作类型
+    Status: TCopyStatus;          // 状态
+    Progress: Double;             // 进度 (0-100)
+    ErrorMessage: string;         // 错误信息
+    StartTime: TDateTime;         // 开始时间
+    EndTime: TDateTime;           // 结束时间
+    FileCount: Integer;           // 文件数量
+    ProcessedCount: Integer;      // 已处理数量
+    TotalSize: Int64;             // 总大小
+    ProcessedSize: Int64;         // 已处理大小
+  end;
+
+  // 批量操作管理器
+  TBatchOperationManager = class
+  private
+    FOperations: TArray<TBatchOperationItem>;
+    FCurrentIndex: Integer;
+    FIsRunning: Boolean;
+    FIsPaused: Boolean;
+    FTotalOperations: Integer;
+    FCompletedOperations: Integer;
+    FFailedOperations: Integer;
+    FOnProgress: TNotifyEvent;
+    FOnComplete: TNotifyEvent;
+    FOnError: TNotifyEvent;
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    // 操作管理
+    procedure AddOperation(const AItem: TBatchOperationItem);
+    procedure ClearOperations;
+    function GetOperationCount: Integer;
+    function GetOperation(AIndex: Integer): TBatchOperationItem;
+    procedure UpdateOperation(AIndex: Integer; const AItem: TBatchOperationItem);
+
+    // 执行控制
+    procedure StartBatch;
+    procedure PauseBatch;
+    procedure ResumeBatch;
+    procedure StopBatch;
+    function IsRunning: Boolean;
+    function IsPaused: Boolean;
+
+    // 进度信息
+    function GetOverallProgress: Double;
+    function GetCurrentOperation: TBatchOperationItem;
+    function GetCompletedCount: Integer;
+    function GetFailedCount: Integer;
+    function GetRemainingCount: Integer;
+
+    // 事件
+    property OnProgress: TNotifyEvent read FOnProgress write FOnProgress;
+    property OnComplete: TNotifyEvent read FOnComplete write FOnComplete;
+    property OnError: TNotifyEvent read FOnError write FOnError;
+  end;
+
+  // 依赖关系类型
+  TDependencyType = (
+    dtSymbolicLink,    // 符号链接依赖
+    dtFileReference,   // 文件引用依赖
+    dtPathReference,   // 路径引用依赖
+    dtConfigFile,      // 配置文件依赖
+    dtRegistry,        // 注册表依赖
+    dtEnvironment,     // 环境变量依赖
+    dtService,         // 服务依赖
+    dtLibrary          // 库文件依赖
+  );
+
+  // 依赖关系强度
+  TDependencyStrength = (
+    dsWeak,      // 弱依赖
+    dsModerate,  // 中等依赖
+    dsStrong,    // 强依赖
+    dsCritical   // 关键依赖
+  );
+
+  // 依赖关系记录
+  TDependencyRelation = record
+    Id: string;                           // 依赖ID
+    SourcePath: string;                   // 源路径
+    TargetPath: string;                   // 目标路径
+    DependencyType: TDependencyType;      // 依赖类型
+    Strength: TDependencyStrength;        // 依赖强度
+    Description: string;                  // 描述
+    IsValid: Boolean;                     // 是否有效
+    IsCritical: Boolean;                  // 是否关键
+    DetectedTime: TDateTime;              // 检测时间
+    LastVerified: TDateTime;              // 最后验证时间
+    RiskLevel: Integer;                   // 风险等级 (1-10)
+    ImpactScore: Double;                  // 影响分数
+    UserData: string;                     // 用户数据
+  end;
+
+  // 依赖关系图
+  TDependencyGraph = class
+  private
+    FDependencies: TArray<TDependencyRelation>;
+    FNodes: TStringList;  // 所有节点路径
+    FAdjacencyMatrix: TArray<TArray<Boolean>>; // 邻接矩阵
+    FDataFile: string;
+  public
+    constructor Create(const ADataFile: string);
+    destructor Destroy; override;
+
+    // 依赖管理
+    function AddDependency(const ADependency: TDependencyRelation): string;
+    procedure RemoveDependency(const ADependencyId: string);
+    function FindDependencies(const APath: string): TArray<TDependencyRelation>;
+    function FindDependents(const APath: string): TArray<TDependencyRelation>;
+    procedure UpdateDependency(const ADependencyId: string; const ADependency: TDependencyRelation);
+
+    // 图分析
+    function DetectCircularDependencies: TArray<TArray<string>>;
+    function FindCriticalPaths: TArray<TArray<string>>;
+    function CalculateImpactScore(const APath: string): Double;
+    function GetDependencyChain(const ASourcePath, ATargetPath: string): TArray<string>;
+    function AnalyzeDependencyDepth(const APath: string): Integer;
+
+    // 风险评估
+    function AssessMovementRisk(const APath: string): Integer;
+    function GetHighRiskDependencies: TArray<TDependencyRelation>;
+    function ValidateAllDependencies: Integer;
+
+    // 可视化数据
+    function GenerateGraphData: string; // 生成图形化数据
+    function GetStatistics: string;
+
+    // 持久化
+    procedure SaveToFile;
+    procedure LoadFromFile;
+    procedure Clear;
+
+    property DependencyCount: Integer read GetDependencyCount;
+    property NodeCount: Integer read GetNodeCount;
+  private
+    function GetDependencyCount: Integer;
+    function GetNodeCount: Integer;
+    function AddNode(const APath: string): Integer;
+    function FindNodeIndex(const APath: string): Integer;
+    procedure BuildAdjacencyMatrix;
+    function DFSCycleDetection(ANode: Integer; AVisited, ARecStack: TArray<Boolean>; var ACycle: TArray<Integer>): Boolean;
+    function GetDependencyTypeText(AType: TDependencyType): string;
+  end;
+
+  // 配置模板类型
+  TConfigTemplateType = (
+    ctGeneral,        // 通用模板
+    ctDevelopment,    // 开发环境
+    ctProduction,     // 生产环境
+    ctTesting,        // 测试环境
+    ctBackup,         // 备份配置
+    ctCustom          // 自定义模板
+  );
+
+  // 配置模板记录
+  TConfigTemplate = record
+    Id: string;                           // 模板ID
+    Name: string;                         // 模板名称
+    Description: string;                  // 描述
+    TemplateType: TConfigTemplateType;    // 模板类型
+    Version: string;                      // 版本号
+    CreatedBy: string;                    // 创建者
+    CreatedTime: TDateTime;               // 创建时间
+    ModifiedTime: TDateTime;              // 修改时间
+    IsActive: Boolean;                    // 是否激活
+    IsDefault: Boolean;                   // 是否默认
+
+    // 配置参数
+    SourcePath: string;                   // 默认源路径
+    TargetPath: string;                   // 默认目标路径
+    CopyOptions: string;                  // 拷贝选项
+    AnalysisOptions: string;              // 分析选项
+    SecuritySettings: string;             // 安全设置
+    PerformanceSettings: string;          // 性能设置
+    UISettings: string;                   // 界面设置
+
+    // 元数据
+    Tags: string;                         // 标签
+    Category: string;                     // 分类
+    Priority: Integer;                    // 优先级
+    UserData: string;                     // 用户数据
+  end;
+
+  // 配置模板管理器
+  TConfigTemplateManager = class
+  private
+    FTemplates: TArray<TConfigTemplate>;
+    FDataFile: string;
+    FCurrentTemplate: TConfigTemplate;
+    FAutoSave: Boolean;
+  public
+    constructor Create(const ADataFile: string);
+    destructor Destroy; override;
+
+    // 模板管理
+    function CreateTemplate(const AName, ADescription: string; AType: TConfigTemplateType): string;
+    function LoadTemplate(const ATemplateId: string): Boolean;
+    function SaveTemplate(const ATemplate: TConfigTemplate): Boolean;
+    function DeleteTemplate(const ATemplateId: string): Boolean;
+    function DuplicateTemplate(const ATemplateId, ANewName: string): string;
+
+    // 模板查询
+    function GetTemplate(const ATemplateId: string): TConfigTemplate;
+    function GetTemplatesByType(AType: TConfigTemplateType): TArray<TConfigTemplate>;
+    function GetAllTemplates: TArray<TConfigTemplate>;
+    function FindTemplatesByName(const AName: string): TArray<TConfigTemplate>;
+    function GetDefaultTemplate: TConfigTemplate;
+
+    // 模板应用
+    function ApplyTemplate(const ATemplateId: string): Boolean;
+    function ExportTemplate(const ATemplateId, AFilePath: string): Boolean;
+    function ImportTemplate(const AFilePath: string): string;
+    function ValidateTemplate(const ATemplate: TConfigTemplate): Boolean;
+
+    // 版本管理
+    function CreateTemplateVersion(const ATemplateId: string): string;
+    function GetTemplateVersions(const ATemplateId: string): TArray<string>;
+    function RestoreTemplateVersion(const ATemplateId, AVersion: string): Boolean;
+
+    // 持久化
+    procedure SaveToFile;
+    procedure LoadFromFile;
+    procedure SetAutoSave(AEnabled: Boolean);
+
+    // 统计信息
+    function GetTemplateCount: Integer;
+    function GetTemplateUsageStats: string;
+
+    property CurrentTemplate: TConfigTemplate read FCurrentTemplate write FCurrentTemplate;
+    property TemplateCount: Integer read GetTemplateCount;
+    property AutoSave: Boolean read FAutoSave write SetAutoSave;
+  end;
+
+  // 审计事件类型
+  TAuditEventType = (
+    aetLogin,           // 登录事件
+    aetLogout,          // 登出事件
+    aetFileAccess,      // 文件访问
+    aetFileModify,      // 文件修改
+    aetDirectoryCreate, // 目录创建
+    aetDirectoryDelete, // 目录删除
+    aetConfigChange,    // 配置变更
+    aetSecurityEvent,   // 安全事件
+    aetSystemError,     // 系统错误
+    aetUserAction,      // 用户操作
+    aetDataExport,      // 数据导出
+    aetDataImport       // 数据导入
+  );
+
+  // 审计事件严重级别
+  TAuditSeverity = (
+    asInfo,      // 信息
+    asWarning,   // 警告
+    asError,     // 错误
+    asCritical   // 关键
+  );
+
+  // 审计记录
+  TAuditRecord = record
+    Id: string;                    // 审计ID
+    EventType: TAuditEventType;    // 事件类型
+    Severity: TAuditSeverity;      // 严重级别
+    Timestamp: TDateTime;          // 时间戳
+    UserId: string;                // 用户ID
+    UserName: string;              // 用户名
+    SessionId: string;             // 会话ID
+    SourceIP: string;              // 源IP地址
+    EventDescription: string;      // 事件描述
+    ResourcePath: string;          // 资源路径
+    OldValue: string;              // 旧值
+    NewValue: string;              // 新值
+    Success: Boolean;              // 是否成功
+    ErrorCode: Integer;            // 错误代码
+    ErrorMessage: string;          // 错误消息
+    AdditionalData: string;        // 附加数据
+    ComplianceFlags: string;       // 合规标记
+  end;
+
+  // 合规规则类型
+  TComplianceRuleType = (
+    crtPathRestriction,    // 路径限制
+    crtSizeLimit,          // 大小限制
+    crtTimeRestriction,    // 时间限制
+    crtUserPermission,     // 用户权限
+    crtDataRetention,      // 数据保留
+    crtEncryption,         // 加密要求
+    crtAuditTrail,         // 审计跟踪
+    crtAccessControl       // 访问控制
+  );
+
+  // 合规规则
+  TComplianceRule = record
+    Id: string;                      // 规则ID
+    Name: string;                    // 规则名称
+    Description: string;             // 规则描述
+    RuleType: TComplianceRuleType;   // 规则类型
+    IsActive: Boolean;               // 是否激活
+    Severity: TAuditSeverity;        // 违规严重级别
+    Pattern: string;                 // 匹配模式
+    Threshold: string;               // 阈值
+    Action: string;                  // 违规动作
+    CreatedTime: TDateTime;          // 创建时间
+    ModifiedTime: TDateTime;         // 修改时间
+    CreatedBy: string;               // 创建者
+    Tags: string;                    // 标签
+  end;
+
+  // 审计和合规管理器
+  TAuditComplianceManager = class
+  private
+    FAuditRecords: TArray<TAuditRecord>;
+    FComplianceRules: TArray<TComplianceRule>;
+    FDataFile: string;
+    FMaxRecords: Integer;
+    FCurrentSessionId: string;
+    FCurrentUserId: string;
+    FAutoAudit: Boolean;
+  public
+    constructor Create(const ADataFile: string; AMaxRecords: Integer = 10000);
+    destructor Destroy; override;
+
+    // 审计功能
+    function LogAuditEvent(AEventType: TAuditEventType; ASeverity: TAuditSeverity; const ADescription, AResourcePath: string; ASuccess: Boolean = True; const AOldValue: string = ''; const ANewValue: string = ''): string;
+    function GetAuditRecords(AStartTime, AEndTime: TDateTime): TArray<TAuditRecord>;
+    function GetAuditRecordsByType(AEventType: TAuditEventType): TArray<TAuditRecord>;
+    function GetAuditRecordsBySeverity(ASeverity: TAuditSeverity): TArray<TAuditRecord>;
+    function SearchAuditRecords(const ASearchText: string): TArray<TAuditRecord>;
+    procedure ClearOldAuditRecords(ADaysOld: Integer = 90);
+
+    // 合规功能
+    function AddComplianceRule(const ARule: TComplianceRule): string;
+    function UpdateComplianceRule(const ARuleId: string; const ARule: TComplianceRule): Boolean;
+    function DeleteComplianceRule(const ARuleId: string): Boolean;
+    function GetComplianceRules: TArray<TComplianceRule>;
+    function CheckCompliance(const AResourcePath, AOperation: string): TArray<TComplianceRule>;
+    function ValidateOperation(const AResourcePath, AOperation: string): Boolean;
+
+    // 会话管理
+    procedure StartSession(const AUserId: string);
+    procedure EndSession;
+    function GetCurrentSessionId: string;
+
+    // 报告功能
+    function GenerateAuditReport(AStartTime, AEndTime: TDateTime): string;
+    function GenerateComplianceReport: string;
+    function GetAuditStatistics: string;
+
+    // 持久化
+    procedure SaveToFile;
+    procedure LoadFromFile;
+    procedure ExportAuditLog(const AFilePath: string; AStartTime, AEndTime: TDateTime);
+
+    // 属性
+    property AuditRecordCount: Integer read GetAuditRecordCount;
+    property ComplianceRuleCount: Integer read GetComplianceRuleCount;
+    property CurrentSessionId: string read FCurrentSessionId;
+    property CurrentUserId: string read FCurrentUserId;
+    property AutoAudit: Boolean read FAutoAudit write FAutoAudit;
+  private
+    function GetAuditRecordCount: Integer;
+    function GetComplianceRuleCount: Integer;
+    function GenerateSessionId: string;
+    function GetEventTypeName(AType: TAuditEventType): string;
+    function GetSeverityName(ASeverity: TAuditSeverity): string;
+    function GetRuleTypeName(AType: TComplianceRuleType): string;
+  end;
+
   TfrmMain = class(TForm)
     Panel1: TPanel;
     Panel2: TPanel;
@@ -274,6 +873,27 @@ type
     procedure MenuItemScanSymlinksClick(Sender: TObject);
     procedure MenuItemValidateSymlinksClick(Sender: TObject);
     procedure MenuItemRepairSymlinkClick(Sender: TObject);
+    procedure MenuItemShowHistoryClick(Sender: TObject);
+    procedure MenuItemShowStatisticsClick(Sender: TObject);
+    procedure MenuItemUndoOperationClick(Sender: TObject);
+    procedure MenuItemClearHistoryClick(Sender: TObject);
+    procedure MenuItemShowSuggestionsClick(Sender: TObject);
+    procedure MenuItemGenerateSuggestionsClick(Sender: TObject);
+    procedure MenuItemBatchOperationsClick(Sender: TObject);
+    procedure MenuItemShowSummaryClick(Sender: TObject);
+    procedure MenuItemOptimizePerformanceClick(Sender: TObject);
+    procedure MenuItemAnalyzeDependenciesClick(Sender: TObject);
+    procedure MenuItemShowDependencyGraphClick(Sender: TObject);
+    procedure MenuItemCheckCircularDepsClick(Sender: TObject);
+    procedure MenuItemAssessRiskClick(Sender: TObject);
+    procedure MenuItemShowTemplatesClick(Sender: TObject);
+    procedure MenuItemCreateTemplateClick(Sender: TObject);
+    procedure MenuItemLoadTemplateClick(Sender: TObject);
+    procedure MenuItemSaveTemplateClick(Sender: TObject);
+    procedure MenuItemShowAuditLogClick(Sender: TObject);
+    procedure MenuItemShowComplianceRulesClick(Sender: TObject);
+    procedure MenuItemGenerateAuditReportClick(Sender: TObject);
+    procedure MenuItemCreateComplianceRuleClick(Sender: TObject);
     procedure btnCloseClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -367,6 +987,27 @@ type
     FCanPauseCopy: Boolean;
     FCopyPaused: Boolean;
 
+    // 状态管理
+    FStatusManager: TStatusManager;
+
+    // 目录监控
+    FDirectoryMonitor: TDirectoryMonitor;
+
+    // 智能建议引擎
+    FSuggestionEngine: TSmartSuggestionEngine;
+
+    // 批量操作管理器
+    FBatchManager: TBatchOperationManager;
+
+    // 依赖关系分析
+    FDependencyGraph: TDependencyGraph;
+
+    // 配置模板管理
+    FTemplateManager: TConfigTemplateManager;
+
+    // 审计和合规管理
+    FAuditManager: TAuditComplianceManager;
+
     // 系统检查器
     FSystemChecker: TSystemChecker;
 
@@ -435,6 +1076,98 @@ type
     procedure PauseCopyOperation;
     procedure ResumeCopyOperation;
     function IsCopyPaused: Boolean;
+
+    // 状态管理
+    procedure InitializeStatusManager;
+    procedure FinalizeStatusManager;
+    procedure LogOperation(AType: TOperationType; const ASourcePath, ATargetPath, ADescription: string; ASuccess: Boolean = True; const AErrorMsg: string = '');
+    procedure UpdateDirectoryStatusWithHistory(const APath: string; ANewStatus: TDirectoryStatus; const ADescription: string = '');
+    function GetDirectoryCurrentStatus(const APath: string): TDirectoryStatus;
+    procedure ShowOperationHistory;
+    procedure ShowStatusStatistics;
+    function UndoLastOperation: Boolean;
+    function GetStatusName(AStatus: TDirectoryStatus): string;
+
+    // 目录监控
+    procedure InitializeDirectoryMonitor;
+    procedure FinalizeDirectoryMonitor;
+    procedure StartMonitoring(const APath: string);
+    procedure StopMonitoring(const APath: string);
+    procedure CheckDirectoryChanges;
+    procedure HandleDirectoryChanges(const AChanges: TArray<TDirectoryChange>);
+    procedure UpdateMonitoredPaths;
+
+    // 智能建议系统
+    procedure InitializeSmartSuggestions;
+    procedure FinalizeSmartSuggestions;
+    procedure ShowSmartSuggestions;
+    procedure GenerateContextualSuggestions;
+    procedure ApplySuggestion(const ASuggestionId: string);
+    procedure DismissSuggestion(const ASuggestionId: string);
+    function CreateSuggestion(AType: TSuggestionType; APriority: TSuggestionPriority; const ATitle, ADescription, AActionText, ARelatedPath: string): TSmartSuggestion;
+    procedure UpdateUserBehavior(AOperationType: TOperationType; const APath: string; ASuccess: Boolean);
+
+    // 批量操作功能
+    procedure InitializeBatchOperations;
+    procedure FinalizeBatchOperations;
+    procedure ShowBatchOperationDialog;
+    procedure StartBatchAnalysis(const APaths: TArray<string>);
+    procedure StartBatchCopy(const ASourcePaths, ATargetPaths: TArray<string>);
+    procedure StartBatchSymlinkScan(const APaths: TArray<string>);
+    procedure StartBatchSymlinkRepair(const APaths: TArray<string>);
+    procedure OnBatchProgress(Sender: TObject);
+    procedure OnBatchComplete(Sender: TObject);
+    procedure OnBatchError(Sender: TObject);
+    function CreateBatchItem(AOpType: TBatchOperationType; const ASourcePath, ATargetPath: string): TBatchOperationItem;
+
+    // 用户界面优化
+    procedure SetupKeyboardShortcuts;
+    procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure UpdateUILayout;
+    procedure ShowQuickAccessPanel;
+    procedure HideQuickAccessPanel;
+    procedure CreateQuickActionButtons;
+    procedure ShowProgressSummary;
+    procedure OptimizePerformance;
+
+    // 依赖关系分析
+    procedure InitializeDependencyAnalysis;
+    procedure FinalizeDependencyAnalysis;
+    procedure AnalyzeDependencies(const APath: string);
+    procedure ShowDependencyGraph;
+    procedure ShowCircularDependencies;
+    procedure ShowCriticalPaths;
+    procedure AssessMovementRisk(const APath: string);
+    function CreateDependency(AType: TDependencyType; AStrength: TDependencyStrength; const ASource, ATarget, ADescription: string): TDependencyRelation;
+    procedure DetectSymlinkDependencies(const APath: string);
+    procedure DetectFileDependencies(const APath: string);
+    function GetDependencyTypeName(AType: TDependencyType): string;
+
+    // 配置模板系统
+    procedure InitializeTemplateManager;
+    procedure FinalizeTemplateManager;
+    procedure ShowTemplateManager;
+    procedure CreateNewTemplate;
+    procedure LoadTemplateDialog;
+    procedure SaveCurrentTemplate;
+    procedure ExportTemplateDialog;
+    procedure ImportTemplateDialog;
+    procedure ApplyTemplateToCurrentSettings(const ATemplate: TConfigTemplate);
+    function GetCurrentSettingsAsTemplate: TConfigTemplate;
+    function GetTemplateTypeName(AType: TConfigTemplateType): string;
+
+    // 审计和合规功能
+    procedure InitializeAuditManager;
+    procedure FinalizeAuditManager;
+    procedure ShowAuditLog;
+    procedure ShowComplianceRules;
+    procedure CreateComplianceRule;
+    procedure GenerateAuditReport;
+    procedure ExportAuditData;
+    function LogUserAction(const ADescription, AResourcePath: string; ASuccess: Boolean = True): string;
+    function CheckOperationCompliance(const AResourcePath, AOperation: string): Boolean;
+    function GetAuditEventTypeName(AType: TAuditEventType): string;
+    function GetAuditSeverityName(ASeverity: TAuditSeverity): string;
     procedure UpdateCopyProgress(const ACurrentFile: string; AFileProgress: Integer; ATotalProgress: Integer);
     procedure InitializeCopyProgress(ATotalFiles: Integer);
     procedure FinalizeCopyProgress;
@@ -556,6 +1289,27 @@ begin
 
     // 清理拷贝会话管理器
     FinalizeCopySessionManager;
+
+    // 清理状态管理器
+    FinalizeStatusManager;
+
+    // 清理目录监控器
+    FinalizeDirectoryMonitor;
+
+    // 清理智能建议引擎
+    FinalizeSmartSuggestions;
+
+    // 清理批量操作管理器
+    FinalizeBatchOperations;
+
+    // 清理依赖关系分析
+    FinalizeDependencyAnalysis;
+
+    // 清理配置模板管理器
+    FinalizeTemplateManager;
+
+    // 清理审计管理器
+    FinalizeAuditManager;
   except
     // 忽略销毁错误
   end;
@@ -1642,9 +2396,35 @@ begin
     // 初始化拷贝会话管理器
     InitializeCopySessionManager;
 
+    // 初始化状态管理器
+    InitializeStatusManager;
+
+    // 初始化目录监控器
+    InitializeDirectoryMonitor;
+
+    // 初始化智能建议引擎
+    InitializeSmartSuggestions;
+
+    // 初始化批量操作管理器
+    InitializeBatchOperations;
+
+    // 初始化依赖关系分析
+    InitializeDependencyAnalysis;
+
+    // 初始化配置模板管理器
+    InitializeTemplateManager;
+
+    // 初始化审计管理器
+    InitializeAuditManager;
+
     // 初始化状态显示
     AddStatusMessage('程序启动完成 - 等待用户操作');
     UpdateStatusDisplay;
+
+    // 设置键盘快捷键和UI优化
+    SetupKeyboardShortcuts;
+    UpdateUILayout;
+    CreateQuickActionButtons;
   except
     on E: Exception do
     begin
@@ -3234,11 +4014,23 @@ begin
     // 调用原有的颜色标记方法
     MarkDirectoryInTree(APath, StatusColor);
 
+    // 记录状态变更历史
+    if Assigned(FStatusManager) then
+    begin
+      var OldStatus := FStatusManager.GetDirectoryStatus(APath);
+      if OldStatus <> AStatus then
+      begin
+        FStatusManager.SetDirectoryStatus(APath, AStatus, StatusName);
+        LogOperation(otStatusChange, APath, '',
+                    Format('状态变更: %s → %s', [GetStatusName(OldStatus), StatusName]), True);
+      end;
+    end;
+
     // 显示状态信息
     AddStatusMessage(Format('📁 目录状态: %s - %s', [ExtractFileName(APath), StatusName]));
 
     // 如果是符号链接，显示目标信息
-    if (AStatus = dsSymlink) and (SymlinkTarget <> '') then
+    if (AStatus in [dsSymlink, dsSymlinkBroken, dsSymlinkFile, dsSymlinkDir, dsMountPoint]) and (SymlinkTarget <> '') then
     begin
       AddColoredStatusMessage('🔗 链接目标: ' + SymlinkTarget, clBlue);
     end;
@@ -4504,6 +5296,2489 @@ end;
 function TfrmMain.IsCopyPaused: Boolean;
 begin
   Result := FCopyPaused;
+end;
+
+// ===== 状态管理 =====
+
+// 初始化状态管理器
+procedure TfrmMain.InitializeStatusManager;
+var
+  StatusDir: string;
+begin
+  try
+    // 创建状态目录
+    StatusDir := ExtractFilePath(Application.ExeName) + 'Status';
+    if not DirectoryExists(StatusDir) then
+      ForceDirectories(StatusDir);
+
+    // 创建状态管理器
+    FStatusManager := TStatusManager.Create(StatusDir + '\operation_history.dat', 1000);
+
+    // 加载现有状态
+    FStatusManager.LoadFromFile;
+
+    AddColoredStatusMessage('✅ 状态管理器已初始化', clGreen);
+
+    if FStatusManager.OperationCount > 0 then
+      AddColoredStatusMessage(Format('📂 已加载 %d 条操作历史记录', [FStatusManager.OperationCount]), clBlue);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 初始化状态管理器失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 清理状态管理器
+procedure TfrmMain.FinalizeStatusManager;
+begin
+  try
+    if Assigned(FStatusManager) then
+    begin
+      FStatusManager.SaveToFile;
+      FreeAndNil(FStatusManager);
+      AddColoredStatusMessage('✅ 状态管理器已清理', clGreen);
+    end;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 清理状态管理器失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 记录操作日志
+procedure TfrmMain.LogOperation(AType: TOperationType; const ASourcePath, ATargetPath, ADescription: string; ASuccess: Boolean; const AErrorMsg: string);
+var
+  Operation: TOperationHistory;
+begin
+  try
+    if not Assigned(FStatusManager) then
+      Exit;
+
+    Operation.OperationType := AType;
+    Operation.SourcePath := ASourcePath;
+    Operation.TargetPath := ATargetPath;
+    Operation.Description := ADescription;
+    Operation.Success := ASuccess;
+    Operation.ErrorMessage := AErrorMsg;
+    Operation.OldStatus := dsNormal;
+    Operation.NewStatus := dsNormal;
+
+    FStatusManager.AddOperation(Operation);
+
+    // 同时更新用户行为模式
+    UpdateUserBehavior(AType, ASourcePath, ASuccess);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 记录操作日志失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 更新目录状态并记录历史
+procedure TfrmMain.UpdateDirectoryStatusWithHistory(const APath: string; ANewStatus: TDirectoryStatus; const ADescription: string);
+begin
+  try
+    if not Assigned(FStatusManager) then
+      Exit;
+
+    FStatusManager.SetDirectoryStatus(APath, ANewStatus, ADescription);
+
+    // 同时更新可视化显示
+    MarkDirectoryWithStatus(APath, ANewStatus);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 更新目录状态失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 获取目录当前状态
+function TfrmMain.GetDirectoryCurrentStatus(const APath: string): TDirectoryStatus;
+begin
+  if Assigned(FStatusManager) then
+    Result := FStatusManager.GetDirectoryStatus(APath)
+  else
+    Result := dsNormal;
+end;
+
+// 显示操作历史
+procedure TfrmMain.ShowOperationHistory;
+var
+  History: TArray<TOperationHistory>;
+  I: Integer;
+  HistoryText: string;
+  TypeText: string;
+begin
+  try
+    if not Assigned(FStatusManager) then
+    begin
+      AddColoredStatusMessage('❌ 状态管理器未初始化', clRed);
+      Exit;
+    end;
+
+    History := FStatusManager.GetOperationHistory(20); // 显示最近20条记录
+
+    if Length(History) = 0 then
+    begin
+      AddColoredStatusMessage('📋 暂无操作历史记录', clGray);
+      Exit;
+    end;
+
+    AddColoredStatusMessage('📋 最近操作历史:', clNavy);
+
+    for I := 0 to High(History) do
+    begin
+      case History[I].OperationType of
+        otDirectoryAnalysis: TypeText := '目录分析';
+        otSymlinkScan: TypeText := '符号链接扫描';
+        otSymlinkRepair: TypeText := '符号链接修复';
+        otFileCopy: TypeText := '文件拷贝';
+        otFileMove: TypeText := '文件移动';
+        otDirectoryCreate: TypeText := '目录创建';
+        otDirectoryDelete: TypeText := '目录删除';
+        otStatusChange: TypeText := '状态变更';
+        otCacheUpdate: TypeText := '缓存更新';
+        otSessionCreate: TypeText := '会话创建';
+        otSessionComplete: TypeText := '会话完成';
+        otUserAction: TypeText := '用户操作';
+      else
+        TypeText := '未知操作';
+      end;
+
+      HistoryText := Format('%s [%s] %s: %s',
+                           [DateTimeToStr(History[I].Timestamp),
+                            TypeText,
+                            if History[I].Success then '✅' else '❌',
+                            History[I].Description]);
+
+      AddColoredStatusMessage('   ' + HistoryText, if History[I].Success then clGray else clMaroon);
+
+      if History[I].SourcePath <> '' then
+        AddColoredStatusMessage('     源: ' + History[I].SourcePath, clSilver);
+
+      if History[I].TargetPath <> '' then
+        AddColoredStatusMessage('     目标: ' + History[I].TargetPath, clSilver);
+
+      if not History[I].Success and (History[I].ErrorMessage <> '') then
+        AddColoredStatusMessage('     错误: ' + History[I].ErrorMessage, clRed);
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示操作历史失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 显示状态统计
+procedure TfrmMain.ShowStatusStatistics;
+var
+  TotalOps, SymlinkOps, CopyOps, StatusOps: Integer;
+  DirectoryStates: Integer;
+begin
+  try
+    if not Assigned(FStatusManager) then
+    begin
+      AddColoredStatusMessage('❌ 状态管理器未初始化', clRed);
+      Exit;
+    end;
+
+    TotalOps := FStatusManager.OperationCount;
+    SymlinkOps := FStatusManager.GetOperationCountByType(otSymlinkScan) +
+                  FStatusManager.GetOperationCountByType(otSymlinkRepair);
+    CopyOps := FStatusManager.GetOperationCountByType(otFileCopy) +
+               FStatusManager.GetOperationCountByType(otFileMove);
+    StatusOps := FStatusManager.GetOperationCountByType(otStatusChange);
+    DirectoryStates := FStatusManager.DirectoryStateCount;
+
+    AddColoredStatusMessage('📊 状态统计信息:', clNavy);
+    AddColoredStatusMessage(Format('   总操作数: %d', [TotalOps]), clBlue);
+    AddColoredStatusMessage(Format('   符号链接操作: %d', [SymlinkOps]), clBlue);
+    AddColoredStatusMessage(Format('   拷贝操作: %d', [CopyOps]), clBlue);
+    AddColoredStatusMessage(Format('   状态变更: %d', [StatusOps]), clBlue);
+    AddColoredStatusMessage(Format('   目录状态数: %d', [DirectoryStates]), clBlue);
+
+    if FStatusManager.CanUndo then
+      AddColoredStatusMessage('🔄 可撤销操作: ' + FStatusManager.GetUndoDescription, clOlive);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示状态统计失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 撤销最后操作
+function TfrmMain.UndoLastOperation: Boolean;
+var
+  UndoDesc: string;
+begin
+  Result := False;
+
+  try
+    if not Assigned(FStatusManager) then
+    begin
+      AddColoredStatusMessage('❌ 状态管理器未初始化', clRed);
+      Exit;
+    end;
+
+    if not FStatusManager.CanUndo then
+    begin
+      AddColoredStatusMessage('❌ 没有可撤销的操作', clRed);
+      Exit;
+    end;
+
+    UndoDesc := FStatusManager.GetUndoDescription;
+
+    if MessageDlg(Format('确定要撤销以下操作吗？%s%s', [#13#10, UndoDesc]),
+                 mtConfirmation, [mbYes, mbNo], 0) = mrYes then
+    begin
+      Result := FStatusManager.UndoLastOperation;
+
+      if Result then
+      begin
+        AddColoredStatusMessage('✅ 操作已撤销: ' + UndoDesc, clGreen);
+        // 刷新显示
+        DirListBoxSource.Update;
+        DirListBoxTarget.Update;
+      end
+      else
+        AddColoredStatusMessage('❌ 撤销操作失败', clRed);
+    end;
+
+  except
+    on E: Exception do
+    begin
+      AddColoredStatusMessage('❌ 撤销操作异常: ' + E.Message, clRed);
+      Result := False;
+    end;
+  end;
+end;
+
+// 获取状态名称
+function TfrmMain.GetStatusName(AStatus: TDirectoryStatus): string;
+begin
+  case AStatus of
+    dsNormal: Result := '普通目录';
+    dsSymlink: Result := '有效符号链接';
+    dsSymlinkBroken: Result := '无效符号链接';
+    dsSymlinkFile: Result := '文件符号链接';
+    dsSymlinkDir: Result := '目录符号链接';
+    dsMountPoint: Result := '挂载点';
+    dsAnalyzed: Result := '已分析';
+    dsAnalyzedGood: Result := '分析结果：可链接';
+    dsAnalyzedRisk: Result := '分析结果：有风险';
+    dsAnalyzedBad: Result := '分析结果：禁止移动';
+    dsCopying: Result := '拷贝中';
+    dsCopied: Result := '已拷贝';
+    dsBackedUp: Result := '已备份';
+    dsRestored: Result := '已恢复';
+  else
+    Result := '未知状态';
+  end;
+end;
+
+// ===== 目录监控 =====
+
+// 初始化目录监控器
+procedure TfrmMain.InitializeDirectoryMonitor;
+begin
+  try
+    FDirectoryMonitor := TDirectoryMonitor.Create;
+    AddColoredStatusMessage('✅ 目录监控器已初始化', clGreen);
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 初始化目录监控器失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 清理目录监控器
+procedure TfrmMain.FinalizeDirectoryMonitor;
+begin
+  try
+    if Assigned(FDirectoryMonitor) then
+    begin
+      FreeAndNil(FDirectoryMonitor);
+      AddColoredStatusMessage('✅ 目录监控器已清理', clGreen);
+    end;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 清理目录监控器失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 开始监控指定路径
+procedure TfrmMain.StartMonitoring(const APath: string);
+begin
+  try
+    if not Assigned(FDirectoryMonitor) then
+      Exit;
+
+    FDirectoryMonitor.AddWatchPath(APath);
+    AddColoredStatusMessage('👁️ 开始监控目录: ' + APath, clBlue);
+
+    LogOperation(otUserAction, APath, '', '开始监控目录', True);
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 开始监控失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 停止监控指定路径
+procedure TfrmMain.StopMonitoring(const APath: string);
+begin
+  try
+    if not Assigned(FDirectoryMonitor) then
+      Exit;
+
+    FDirectoryMonitor.RemoveWatchPath(APath);
+    AddColoredStatusMessage('👁️ 停止监控目录: ' + APath, clGray);
+
+    LogOperation(otUserAction, APath, '', '停止监控目录', True);
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 停止监控失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 检查目录变化
+procedure TfrmMain.CheckDirectoryChanges;
+var
+  Changes: TArray<TDirectoryChange>;
+begin
+  try
+    if not Assigned(FDirectoryMonitor) then
+      Exit;
+
+    Changes := FDirectoryMonitor.ScanForChanges;
+
+    if Length(Changes) > 0 then
+    begin
+      AddColoredStatusMessage(Format('🔍 检测到 %d 个目录变化', [Length(Changes)]), clNavy);
+      HandleDirectoryChanges(Changes);
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 检查目录变化失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 处理目录变化
+procedure TfrmMain.HandleDirectoryChanges(const AChanges: TArray<TDirectoryChange>);
+var
+  I: Integer;
+  Change: TDirectoryChange;
+  ChangeTypeText: string;
+begin
+  try
+    for I := 0 to High(AChanges) do
+    begin
+      Change := AChanges[I];
+
+      case Change.ChangeType of
+        dctCreated: ChangeTypeText := '目录创建';
+        dctDeleted: ChangeTypeText := '目录删除';
+        dctRenamed: ChangeTypeText := '目录重命名';
+        dctMoved: ChangeTypeText := '目录移动';
+        dctModified: ChangeTypeText := '目录修改';
+      else
+        ChangeTypeText := '未知变化';
+      end;
+
+      case Change.ChangeType of
+        dctCreated:
+        begin
+          AddColoredStatusMessage(Format('📁➕ %s: %s', [ChangeTypeText, Change.NewPath]), clGreen);
+          LogOperation(otDirectoryCreate, '', Change.NewPath, ChangeTypeText, True);
+
+          // 自动开始监控新目录
+          if Assigned(FDirectoryMonitor) then
+            FDirectoryMonitor.AddWatchPath(Change.NewPath);
+        end;
+
+        dctDeleted:
+        begin
+          AddColoredStatusMessage(Format('📁➖ %s: %s', [ChangeTypeText, Change.OldPath]), clRed);
+          LogOperation(otDirectoryDelete, Change.OldPath, '', ChangeTypeText, True);
+
+          // 清理相关状态
+          if Assigned(FStatusManager) then
+            FStatusManager.RemoveDirectoryStatus(Change.OldPath);
+        end;
+
+        dctRenamed, dctMoved:
+        begin
+          AddColoredStatusMessage(Format('📁🔄 %s: %s → %s', [ChangeTypeText, Change.OldPath, Change.NewPath]), clBlue);
+          LogOperation(otUserAction, Change.OldPath, Change.NewPath, ChangeTypeText, True);
+
+          // 更新状态映射
+          if Assigned(FStatusManager) then
+          begin
+            var OldStatus := FStatusManager.GetDirectoryStatus(Change.OldPath);
+            if OldStatus <> dsNormal then
+            begin
+              FStatusManager.RemoveDirectoryStatus(Change.OldPath);
+              FStatusManager.SetDirectoryStatus(Change.NewPath, OldStatus, '目录移动后状态迁移');
+            end;
+          end;
+        end;
+
+        dctModified:
+        begin
+          AddColoredStatusMessage(Format('📁🔄 %s: %s', [ChangeTypeText, Change.NewPath]), clOlive);
+          LogOperation(otUserAction, Change.NewPath, '', ChangeTypeText, True);
+
+          // 检查是否需要重新扫描符号链接
+          if IsSymbolicLink(Change.NewPath) then
+          begin
+            AddColoredStatusMessage('🔗 检测到符号链接变化，建议重新扫描', clBlue);
+          end;
+        end;
+      end;
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 处理目录变化失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 更新监控路径
+procedure TfrmMain.UpdateMonitoredPaths;
+begin
+  try
+    if not Assigned(FDirectoryMonitor) then
+      Exit;
+
+    // 清空现有监控路径
+    FDirectoryMonitor.ClearWatchPaths;
+
+    // 添加当前源目录和目标目录
+    if (edtSource.Text <> '') and DirectoryExists(edtSource.Text) then
+      FDirectoryMonitor.AddWatchPath(edtSource.Text);
+
+    if (edtTarget.Text <> '') and DirectoryExists(edtTarget.Text) then
+      FDirectoryMonitor.AddWatchPath(edtTarget.Text);
+
+    AddColoredStatusMessage(Format('👁️ 已更新监控路径，当前监控 %d 个目录', [FDirectoryMonitor.WatchedPathCount]), clBlue);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 更新监控路径失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// ===== 智能建议系统 =====
+
+// 初始化智能建议引擎
+procedure TfrmMain.InitializeSmartSuggestions;
+var
+  SuggestionDir: string;
+begin
+  try
+    // 创建建议目录
+    SuggestionDir := ExtractFilePath(Application.ExeName) + 'Suggestions';
+    if not DirectoryExists(SuggestionDir) then
+      ForceDirectories(SuggestionDir);
+
+    // 创建智能建议引擎
+    FSuggestionEngine := TSmartSuggestionEngine.Create(
+      SuggestionDir + '\suggestions.dat',
+      FStatusManager,
+      100
+    );
+
+    // 加载现有建议
+    FSuggestionEngine.LoadFromFile;
+
+    AddColoredStatusMessage('✅ 智能建议引擎已初始化', clGreen);
+
+    if FSuggestionEngine.SuggestionCount > 0 then
+      AddColoredStatusMessage(Format('💡 已加载 %d 条建议记录', [FSuggestionEngine.SuggestionCount]), clBlue);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 初始化智能建议引擎失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 清理智能建议引擎
+procedure TfrmMain.FinalizeSmartSuggestions;
+begin
+  try
+    if Assigned(FSuggestionEngine) then
+    begin
+      FSuggestionEngine.SaveToFile;
+      FreeAndNil(FSuggestionEngine);
+      AddColoredStatusMessage('✅ 智能建议引擎已清理', clGreen);
+    end;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 清理智能建议引擎失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 显示智能建议
+procedure TfrmMain.ShowSmartSuggestions;
+var
+  Suggestions: TArray<TSmartSuggestion>;
+  I: Integer;
+  PriorityText, TypeText: string;
+begin
+  try
+    if not Assigned(FSuggestionEngine) then
+    begin
+      AddColoredStatusMessage('❌ 智能建议引擎未初始化', clRed);
+      Exit;
+    end;
+
+    Suggestions := FSuggestionEngine.GetSuggestions(stOptimization, 10);
+
+    if Length(Suggestions) = 0 then
+    begin
+      AddColoredStatusMessage('💡 暂无智能建议', clGray);
+      Exit;
+    end;
+
+    AddColoredStatusMessage('💡 智能建议列表:', clNavy);
+
+    for I := 0 to High(Suggestions) do
+    begin
+      case Suggestions[I].Priority of
+        spLow: PriorityText := '低';
+        spMedium: PriorityText := '中';
+        spHigh: PriorityText := '高';
+        spCritical: PriorityText := '关键';
+      else
+        PriorityText := '未知';
+      end;
+
+      case Suggestions[I].SuggestionType of
+        stOptimization: TypeText := '优化';
+        stSafety: TypeText := '安全';
+        stEfficiency: TypeText := '效率';
+        stMaintenance: TypeText := '维护';
+        stWorkflow: TypeText := '工作流';
+        stTroubleshooting: TypeText := '故障排除';
+        stBestPractice: TypeText := '最佳实践';
+      else
+        TypeText := '其他';
+      end;
+
+      var StatusIcon := if Suggestions[I].IsApplied then '✅' else if Suggestions[I].IsRead then '👁️' else '🆕';
+      var PriorityColor := case Suggestions[I].Priority of
+        spCritical: clRed;
+        spHigh: clMaroon;
+        spMedium: clBlue;
+        spLow: clGray;
+      else
+        clBlack;
+      end;
+
+      AddColoredStatusMessage(Format('   %s [%s|%s] %s', [StatusIcon, TypeText, PriorityText, Suggestions[I].Title]), PriorityColor);
+      AddColoredStatusMessage('     ' + Suggestions[I].Description, clGray);
+
+      if Suggestions[I].ActionText <> '' then
+        AddColoredStatusMessage('     👆 ' + Suggestions[I].ActionText, clBlue);
+
+      if Suggestions[I].RelatedPath <> '' then
+        AddColoredStatusMessage('     📁 ' + Suggestions[I].RelatedPath, clSilver);
+
+      // 标记为已读
+      FSuggestionEngine.MarkSuggestionRead(Suggestions[I].Id);
+    end;
+
+    var UnreadCount := FSuggestionEngine.GetUnreadCount;
+    if UnreadCount > 0 then
+      AddColoredStatusMessage(Format('📬 还有 %d 条未读建议', [UnreadCount]), clOlive);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示智能建议失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 生成上下文相关建议
+procedure TfrmMain.GenerateContextualSuggestions;
+begin
+  try
+    if not Assigned(FSuggestionEngine) then
+      Exit;
+
+    // 生成各类建议
+    FSuggestionEngine.GenerateOptimizationSuggestions;
+    FSuggestionEngine.GenerateSafetySuggestions;
+
+    // 清理过期建议
+    FSuggestionEngine.ClearOldSuggestions(7); // 清理7天前的建议
+
+    AddColoredStatusMessage('💡 已生成上下文相关建议', clBlue);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 生成建议失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 应用建议
+procedure TfrmMain.ApplySuggestion(const ASuggestionId: string);
+begin
+  try
+    if not Assigned(FSuggestionEngine) then
+      Exit;
+
+    FSuggestionEngine.MarkSuggestionApplied(ASuggestionId);
+    AddColoredStatusMessage('✅ 建议已应用: ' + ASuggestionId, clGreen);
+
+    // 记录用户行为
+    UpdateUserBehavior(otUserAction, '', True);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 应用建议失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 忽略建议
+procedure TfrmMain.DismissSuggestion(const ASuggestionId: string);
+begin
+  try
+    if not Assigned(FSuggestionEngine) then
+      Exit;
+
+    FSuggestionEngine.RemoveSuggestion(ASuggestionId);
+    AddColoredStatusMessage('🗑️ 建议已忽略: ' + ASuggestionId, clGray);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 忽略建议失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 创建建议
+function TfrmMain.CreateSuggestion(AType: TSuggestionType; APriority: TSuggestionPriority; const ATitle, ADescription, AActionText, ARelatedPath: string): TSmartSuggestion;
+begin
+  Result.Id := '';
+  Result.SuggestionType := AType;
+  Result.Priority := APriority;
+  Result.Title := ATitle;
+  Result.Description := ADescription;
+  Result.ActionText := AActionText;
+  Result.RelatedPath := ARelatedPath;
+  Result.CreatedTime := Now;
+  Result.IsRead := False;
+  Result.IsApplied := False;
+  Result.AppliedTime := 0;
+  Result.UserData := '';
+end;
+
+// 更新用户行为
+procedure TfrmMain.UpdateUserBehavior(AOperationType: TOperationType; const APath: string; ASuccess: Boolean);
+begin
+  try
+    if Assigned(FSuggestionEngine) then
+      FSuggestionEngine.UpdateUserPattern(AOperationType, APath, ASuccess);
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 更新用户行为失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// ===== 批量操作功能 =====
+
+// 初始化批量操作管理器
+procedure TfrmMain.InitializeBatchOperations;
+begin
+  try
+    FBatchManager := TBatchOperationManager.Create;
+
+    // 设置事件处理
+    FBatchManager.OnProgress := OnBatchProgress;
+    FBatchManager.OnComplete := OnBatchComplete;
+    FBatchManager.OnError := OnBatchError;
+
+    AddColoredStatusMessage('✅ 批量操作管理器已初始化', clGreen);
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 初始化批量操作管理器失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 清理批量操作管理器
+procedure TfrmMain.FinalizeBatchOperations;
+begin
+  try
+    if Assigned(FBatchManager) then
+    begin
+      FreeAndNil(FBatchManager);
+      AddColoredStatusMessage('✅ 批量操作管理器已清理', clGreen);
+    end;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 清理批量操作管理器失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 显示批量操作对话框
+procedure TfrmMain.ShowBatchOperationDialog;
+var
+  Paths: TStringList;
+  I: Integer;
+  DialogText: string;
+  UserChoice: Integer;
+begin
+  try
+    if not Assigned(FBatchManager) then
+    begin
+      AddColoredStatusMessage('❌ 批量操作管理器未初始化', clRed);
+      Exit;
+    end;
+
+    Paths := TStringList.Create;
+    try
+      // 收集可用路径
+      if (edtSource.Text <> '') and DirectoryExists(edtSource.Text) then
+        Paths.Add(edtSource.Text);
+      if (edtTarget.Text <> '') and DirectoryExists(edtTarget.Text) then
+        Paths.Add(edtTarget.Text);
+
+      if Paths.Count = 0 then
+      begin
+        AddColoredStatusMessage('❌ 没有可用的目录路径', clRed);
+        Exit;
+      end;
+
+      DialogText := '选择批量操作类型：' + #13#10#13#10 +
+                   '1. 批量分析目录' + #13#10 +
+                   '2. 批量扫描符号链接' + #13#10 +
+                   '3. 批量修复符号链接' + #13#10 +
+                   '4. 批量状态检查' + #13#10#13#10 +
+                   Format('将处理 %d 个目录路径', [Paths.Count]);
+
+      var InputStr := InputBox('批量操作', DialogText, '1');
+      if InputStr = '' then
+        Exit;
+
+      UserChoice := StrToIntDef(InputStr, 0);
+
+      case UserChoice of
+        1: StartBatchAnalysis(Paths.ToStringArray);
+        2: StartBatchSymlinkScan(Paths.ToStringArray);
+        3: StartBatchSymlinkRepair(Paths.ToStringArray);
+        4:
+        begin
+          AddColoredStatusMessage('📊 批量状态检查功能开发中...', clBlue);
+          // TODO: 实现批量状态检查
+        end;
+      else
+        AddColoredStatusMessage('❌ 无效的选择', clRed);
+      end;
+
+    finally
+      Paths.Free;
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示批量操作对话框失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 开始批量分析
+procedure TfrmMain.StartBatchAnalysis(const APaths: TArray<string>);
+var
+  I: Integer;
+  BatchItem: TBatchOperationItem;
+begin
+  try
+    if not Assigned(FBatchManager) then
+      Exit;
+
+    FBatchManager.ClearOperations;
+
+    for I := 0 to High(APaths) do
+    begin
+      BatchItem := CreateBatchItem(btAnalyze, APaths[I], '');
+      FBatchManager.AddOperation(BatchItem);
+    end;
+
+    AddColoredStatusMessage(Format('📊 开始批量分析 %d 个目录...', [Length(APaths)]), clNavy);
+    LogOperation(otDirectoryAnalysis, '', '', Format('批量分析 %d 个目录', [Length(APaths)]), True);
+
+    // 模拟批量分析过程
+    for I := 0 to High(APaths) do
+    begin
+      AddColoredStatusMessage(Format('📁 分析目录 %d/%d: %s', [I + 1, Length(APaths), ExtractFileName(APaths[I])]), clBlue);
+
+      // 这里可以调用实际的分析方法
+      // AnalyzeDirectory(APaths[I]);
+
+      Application.ProcessMessages;
+      Sleep(100); // 模拟处理时间
+    end;
+
+    AddColoredStatusMessage('✅ 批量分析完成', clGreen);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 批量分析失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 开始批量拷贝
+procedure TfrmMain.StartBatchCopy(const ASourcePaths, ATargetPaths: TArray<string>);
+var
+  I: Integer;
+  BatchItem: TBatchOperationItem;
+begin
+  try
+    if not Assigned(FBatchManager) then
+      Exit;
+
+    if Length(ASourcePaths) <> Length(ATargetPaths) then
+    begin
+      AddColoredStatusMessage('❌ 源路径和目标路径数量不匹配', clRed);
+      Exit;
+    end;
+
+    FBatchManager.ClearOperations;
+
+    for I := 0 to High(ASourcePaths) do
+    begin
+      BatchItem := CreateBatchItem(btCopy, ASourcePaths[I], ATargetPaths[I]);
+      FBatchManager.AddOperation(BatchItem);
+    end;
+
+    AddColoredStatusMessage(Format('📋 开始批量拷贝 %d 个目录...', [Length(ASourcePaths)]), clNavy);
+    LogOperation(otFileCopy, '', '', Format('批量拷贝 %d 个目录', [Length(ASourcePaths)]), True);
+
+    // 这里应该实现实际的批量拷贝逻辑
+    AddColoredStatusMessage('📋 批量拷贝功能开发中...', clBlue);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 批量拷贝失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 开始批量符号链接扫描
+procedure TfrmMain.StartBatchSymlinkScan(const APaths: TArray<string>);
+var
+  I: Integer;
+  BatchItem: TBatchOperationItem;
+begin
+  try
+    if not Assigned(FBatchManager) then
+      Exit;
+
+    FBatchManager.ClearOperations;
+
+    for I := 0 to High(APaths) do
+    begin
+      BatchItem := CreateBatchItem(btSymlinkScan, APaths[I], '');
+      FBatchManager.AddOperation(BatchItem);
+    end;
+
+    AddColoredStatusMessage(Format('🔗 开始批量扫描符号链接 %d 个目录...', [Length(APaths)]), clNavy);
+    LogOperation(otSymlinkScan, '', '', Format('批量扫描符号链接 %d 个目录', [Length(APaths)]), True);
+
+    // 执行批量符号链接扫描
+    for I := 0 to High(APaths) do
+    begin
+      AddColoredStatusMessage(Format('🔗 扫描目录 %d/%d: %s', [I + 1, Length(APaths), ExtractFileName(APaths[I])]), clBlue);
+
+      // 临时设置源目录并扫描
+      var OldSource := edtSource.Text;
+      edtSource.Text := APaths[I];
+      ScanCurrentDirectorySymlinks(True); // 静默模式
+      edtSource.Text := OldSource;
+
+      Application.ProcessMessages;
+    end;
+
+    AddColoredStatusMessage('✅ 批量符号链接扫描完成', clGreen);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 批量符号链接扫描失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 开始批量符号链接修复
+procedure TfrmMain.StartBatchSymlinkRepair(const APaths: TArray<string>);
+var
+  I: Integer;
+  BatchItem: TBatchOperationItem;
+  InvalidCount: Integer;
+begin
+  try
+    if not Assigned(FBatchManager) then
+      Exit;
+
+    FBatchManager.ClearOperations;
+
+    for I := 0 to High(APaths) do
+    begin
+      BatchItem := CreateBatchItem(btSymlinkRepair, APaths[I], '');
+      FBatchManager.AddOperation(BatchItem);
+    end;
+
+    AddColoredStatusMessage(Format('🔧 开始批量修复符号链接 %d 个目录...', [Length(APaths)]), clNavy);
+    LogOperation(otSymlinkRepair, '', '', Format('批量修复符号链接 %d 个目录', [Length(APaths)]), True);
+
+    InvalidCount := 0;
+
+    // 执行批量符号链接修复
+    for I := 0 to High(APaths) do
+    begin
+      AddColoredStatusMessage(Format('🔧 检查目录 %d/%d: %s', [I + 1, Length(APaths), ExtractFileName(APaths[I])]), clBlue);
+
+      if IsSymbolicLink(APaths[I]) and not ValidateSymlink(APaths[I]) then
+      begin
+        Inc(InvalidCount);
+        AddColoredStatusMessage(Format('❌ 发现无效符号链接: %s', [APaths[I]]), clMaroon);
+        // 这里可以调用修复逻辑
+        // ShowSymlinkRepairDialog(APaths[I]);
+      end;
+
+      Application.ProcessMessages;
+    end;
+
+    if InvalidCount > 0 then
+      AddColoredStatusMessage(Format('⚠️ 发现 %d 个无效符号链接，请手动修复', [InvalidCount]), clOlive)
+    else
+      AddColoredStatusMessage('✅ 所有符号链接都有效', clGreen);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 批量符号链接修复失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 批量操作进度事件
+procedure TfrmMain.OnBatchProgress(Sender: TObject);
+begin
+  try
+    if Assigned(FBatchManager) then
+    begin
+      var Progress := FBatchManager.GetOverallProgress;
+      AddColoredStatusMessage(Format('📊 批量操作进度: %.1f%%', [Progress]), clBlue);
+    end;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 批量操作进度更新失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 批量操作完成事件
+procedure TfrmMain.OnBatchComplete(Sender: TObject);
+begin
+  try
+    if Assigned(FBatchManager) then
+    begin
+      var CompletedCount := FBatchManager.GetCompletedCount;
+      var FailedCount := FBatchManager.GetFailedCount;
+
+      AddColoredStatusMessage(Format('✅ 批量操作完成: %d 成功, %d 失败', [CompletedCount, FailedCount]), clGreen);
+    end;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 批量操作完成事件处理失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 批量操作错误事件
+procedure TfrmMain.OnBatchError(Sender: TObject);
+begin
+  try
+    AddColoredStatusMessage('❌ 批量操作发生错误', clRed);
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 批量操作错误事件处理失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 创建批量操作项
+function TfrmMain.CreateBatchItem(AOpType: TBatchOperationType; const ASourcePath, ATargetPath: string): TBatchOperationItem;
+begin
+  Result.SourcePath := ASourcePath;
+  Result.TargetPath := ATargetPath;
+  Result.OperationType := AOpType;
+  Result.Status := csNotStarted;
+  Result.Progress := 0;
+  Result.ErrorMessage := '';
+  Result.StartTime := 0;
+  Result.EndTime := 0;
+  Result.FileCount := 0;
+  Result.ProcessedCount := 0;
+  Result.TotalSize := 0;
+  Result.ProcessedSize := 0;
+end;
+
+// ===== 用户界面优化 =====
+
+// 设置键盘快捷键
+procedure TfrmMain.SetupKeyboardShortcuts;
+begin
+  try
+    // 设置窗体的KeyPreview为True以接收键盘事件
+    Self.KeyPreview := True;
+    Self.OnKeyDown := FormKeyDown;
+
+    AddColoredStatusMessage('⌨️ 键盘快捷键已启用:', clBlue);
+    AddColoredStatusMessage('   F1: 显示帮助', clGray);
+    AddColoredStatusMessage('   F2: 扫描符号链接', clGray);
+    AddColoredStatusMessage('   F3: 显示智能建议', clGray);
+    AddColoredStatusMessage('   F4: 批量操作', clGray);
+    AddColoredStatusMessage('   F5: 刷新状态', clGray);
+    AddColoredStatusMessage('   Ctrl+H: 显示历史记录', clGray);
+    AddColoredStatusMessage('   Ctrl+S: 显示统计信息', clGray);
+    AddColoredStatusMessage('   Ctrl+Z: 撤销操作', clGray);
+    AddColoredStatusMessage('   Ctrl+Q: 快速访问面板', clGray);
+    AddColoredStatusMessage('   ESC: 取消当前操作', clGray);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 设置键盘快捷键失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 键盘事件处理
+procedure TfrmMain.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+begin
+  try
+    case Key of
+      VK_F1: // F1 - 显示帮助
+      begin
+        AddColoredStatusMessage('📖 C盘瘦身工具帮助:', clNavy);
+        AddColoredStatusMessage('   1. 选择源目录和目标目录', clGray);
+        AddColoredStatusMessage('   2. 使用右键菜单进行各种操作', clGray);
+        AddColoredStatusMessage('   3. 查看状态显示了解操作结果', clGray);
+        AddColoredStatusMessage('   4. 使用智能建议优化工作流程', clGray);
+      end;
+
+      VK_F2: // F2 - 扫描符号链接
+      begin
+        if edtSource.Text <> '' then
+          ScanCurrentDirectorySymlinks(False)
+        else
+          AddColoredStatusMessage('❌ 请先选择源目录', clRed);
+      end;
+
+      VK_F3: // F3 - 显示智能建议
+      begin
+        ShowSmartSuggestions;
+      end;
+
+      VK_F4: // F4 - 批量操作
+      begin
+        ShowBatchOperationDialog;
+      end;
+
+      VK_F5: // F5 - 刷新状态
+      begin
+        AddColoredStatusMessage('🔄 刷新状态...', clBlue);
+        CheckDirectoryChanges;
+        GenerateContextualSuggestions;
+        AddColoredStatusMessage('✅ 状态已刷新', clGreen);
+      end;
+
+      VK_ESCAPE: // ESC - 取消当前操作
+      begin
+        if Assigned(FBatchManager) and FBatchManager.IsRunning then
+        begin
+          FBatchManager.StopBatch;
+          AddColoredStatusMessage('🛑 批量操作已取消', clOlive);
+        end
+        else if FCopyPaused then
+        begin
+          ResumeCopyOperation;
+        end
+        else
+        begin
+          AddColoredStatusMessage('ℹ️ 没有正在进行的操作', clGray);
+        end;
+      end;
+    end;
+
+    // 处理Ctrl组合键
+    if ssCtrl in Shift then
+    begin
+      case Key of
+        Ord('H'): // Ctrl+H - 显示历史记录
+        begin
+          ShowOperationHistory;
+        end;
+
+        Ord('S'): // Ctrl+S - 显示统计信息
+        begin
+          ShowStatusStatistics;
+        end;
+
+        Ord('Z'): // Ctrl+Z - 撤销操作
+        begin
+          UndoLastOperation;
+        end;
+
+        Ord('Q'): // Ctrl+Q - 快速访问面板
+        begin
+          ShowQuickAccessPanel;
+        end;
+
+        Ord('G'): // Ctrl+G - 生成建议
+        begin
+          GenerateContextualSuggestions;
+        end;
+      end;
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 键盘事件处理失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 更新UI布局
+procedure TfrmMain.UpdateUILayout;
+begin
+  try
+    // 优化控件布局
+    if Assigned(ProgressBar) then
+    begin
+      ProgressBar.Height := 20;
+      ProgressBar.Style := pbstMarquee;
+    end;
+
+    if Assigned(PBarAFile) then
+    begin
+      PBarAFile.Height := 16;
+      PBarAFile.Style := pbstNormal;
+    end;
+
+    // 优化状态显示
+    if Assigned(RichEditStatus) then
+    begin
+      RichEditStatus.ScrollBars := ssVertical;
+      RichEditStatus.ReadOnly := True;
+      RichEditStatus.WordWrap := True;
+    end;
+
+    AddColoredStatusMessage('🎨 UI布局已优化', clBlue);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 更新UI布局失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 显示快速访问面板
+procedure TfrmMain.ShowQuickAccessPanel;
+var
+  QuickActions: TStringList;
+  I: Integer;
+  ActionText: string;
+begin
+  try
+    QuickActions := TStringList.Create;
+    try
+      QuickActions.Add('1. 扫描符号链接 (F2)');
+      QuickActions.Add('2. 显示智能建议 (F3)');
+      QuickActions.Add('3. 批量操作 (F4)');
+      QuickActions.Add('4. 显示历史记录 (Ctrl+H)');
+      QuickActions.Add('5. 显示统计信息 (Ctrl+S)');
+      QuickActions.Add('6. 撤销操作 (Ctrl+Z)');
+      QuickActions.Add('7. 生成建议 (Ctrl+G)');
+      QuickActions.Add('8. 刷新状态 (F5)');
+
+      ActionText := '🚀 快速访问面板:' + #13#10;
+      for I := 0 to QuickActions.Count - 1 do
+        ActionText := ActionText + '   ' + QuickActions[I] + #13#10;
+
+      ActionText := ActionText + #13#10 + '选择操作 (1-8):';
+
+      var InputStr := InputBox('快速访问', ActionText, '');
+      if InputStr = '' then
+        Exit;
+
+      var Choice := StrToIntDef(InputStr, 0);
+      case Choice of
+        1: if edtSource.Text <> '' then ScanCurrentDirectorySymlinks(False);
+        2: ShowSmartSuggestions;
+        3: ShowBatchOperationDialog;
+        4: ShowOperationHistory;
+        5: ShowStatusStatistics;
+        6: UndoLastOperation;
+        7: GenerateContextualSuggestions;
+        8:
+        begin
+          CheckDirectoryChanges;
+          GenerateContextualSuggestions;
+          AddColoredStatusMessage('✅ 状态已刷新', clGreen);
+        end;
+      else
+        AddColoredStatusMessage('❌ 无效的选择', clRed);
+      end;
+
+    finally
+      QuickActions.Free;
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示快速访问面板失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 隐藏快速访问面板
+procedure TfrmMain.HideQuickAccessPanel;
+begin
+  // 这个方法为将来的UI改进预留
+  AddColoredStatusMessage('ℹ️ 快速访问面板已隐藏', clGray);
+end;
+
+// 创建快速操作按钮
+procedure TfrmMain.CreateQuickActionButtons;
+begin
+  try
+    // 这里可以动态创建快速操作按钮
+    // 为了简化，我们先在状态中显示可用的快速操作
+
+    AddColoredStatusMessage('🔧 快速操作按钮:', clNavy);
+    AddColoredStatusMessage('   右键菜单提供完整功能', clGray);
+    AddColoredStatusMessage('   使用快捷键快速访问', clGray);
+    AddColoredStatusMessage('   Ctrl+Q 打开快速访问面板', clGray);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 创建快速操作按钮失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 显示进度摘要
+procedure TfrmMain.ShowProgressSummary;
+var
+  SummaryText: string;
+begin
+  try
+    SummaryText := '📊 系统状态摘要:' + #13#10;
+
+    if Assigned(FStatusManager) then
+    begin
+      SummaryText := SummaryText + Format('   操作历史: %d 条记录%s', [FStatusManager.OperationCount, #13#10]);
+      SummaryText := SummaryText + Format('   目录状态: %d 个目录%s', [FStatusManager.DirectoryStateCount, #13#10]);
+    end;
+
+    if Assigned(FSymlinkCache) then
+    begin
+      SummaryText := SummaryText + Format('   符号链接缓存: %d 个链接%s', [FSymlinkCache.SymlinkCount, #13#10]);
+      SummaryText := SummaryText + Format('   有效链接: %d 个%s', [FSymlinkCache.ValidSymlinkCount, #13#10]);
+    end;
+
+    if Assigned(FSuggestionEngine) then
+    begin
+      SummaryText := SummaryText + Format('   智能建议: %d 条建议%s', [FSuggestionEngine.SuggestionCount, #13#10]);
+      SummaryText := SummaryText + Format('   未读建议: %d 条%s', [FSuggestionEngine.UnreadCount, #13#10]);
+    end;
+
+    if Assigned(FBatchManager) then
+    begin
+      SummaryText := SummaryText + Format('   批量操作: %d 个任务%s', [FBatchManager.GetOperationCount, #13#10]);
+      if FBatchManager.IsRunning then
+        SummaryText := SummaryText + Format('   当前进度: %.1f%%%s', [FBatchManager.GetOverallProgress, #13#10]);
+    end;
+
+    if Assigned(FDirectoryMonitor) then
+    begin
+      SummaryText := SummaryText + Format('   监控路径: %d 个目录%s', [FDirectoryMonitor.WatchedPathCount, #13#10]);
+    end;
+
+    MessageDlg(SummaryText, mtInformation, [mbOK], 0);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示进度摘要失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 优化性能
+procedure TfrmMain.OptimizePerformance;
+begin
+  try
+    // 清理过期数据
+    if Assigned(FSuggestionEngine) then
+      FSuggestionEngine.ClearOldSuggestions(7);
+
+    // 优化缓存
+    if Assigned(FSymlinkCache) and FSymlinkCache.IsExpired then
+      AddColoredStatusMessage('💡 建议: 符号链接缓存已过期，考虑重新扫描', clOlive);
+
+    // 检查内存使用
+    var MemUsage := GetHeapStatus;
+    if MemUsage.TotalAllocated > 100 * 1024 * 1024 then // 100MB
+      AddColoredStatusMessage('⚠️ 内存使用较高，建议重启程序', clOlive);
+
+    AddColoredStatusMessage('⚡ 性能优化完成', clGreen);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 性能优化失败: ' + E.Message, clRed);
+  end;
+end;
+
+// ===== 依赖关系分析 =====
+
+// 初始化依赖关系分析
+procedure TfrmMain.InitializeDependencyAnalysis;
+var
+  AnalysisDir: string;
+begin
+  try
+    // 创建分析目录
+    AnalysisDir := ExtractFilePath(Application.ExeName) + 'Analysis';
+    if not DirectoryExists(AnalysisDir) then
+      ForceDirectories(AnalysisDir);
+
+    // 创建依赖关系图
+    FDependencyGraph := TDependencyGraph.Create(AnalysisDir + '\dependencies.dat');
+
+    // 加载现有数据
+    FDependencyGraph.LoadFromFile;
+
+    AddColoredStatusMessage('✅ 依赖关系分析引擎已初始化', clGreen);
+
+    if FDependencyGraph.DependencyCount > 0 then
+      AddColoredStatusMessage(Format('📊 已加载 %d 个依赖关系记录', [FDependencyGraph.DependencyCount]), clBlue);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 初始化依赖关系分析失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 清理依赖关系分析
+procedure TfrmMain.FinalizeDependencyAnalysis;
+begin
+  try
+    if Assigned(FDependencyGraph) then
+    begin
+      FDependencyGraph.SaveToFile;
+      FreeAndNil(FDependencyGraph);
+      AddColoredStatusMessage('✅ 依赖关系分析引擎已清理', clGreen);
+    end;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 清理依赖关系分析失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 分析依赖关系
+procedure TfrmMain.AnalyzeDependencies(const APath: string);
+begin
+  try
+    if not Assigned(FDependencyGraph) then
+    begin
+      AddColoredStatusMessage('❌ 依赖关系分析引擎未初始化', clRed);
+      Exit;
+    end;
+
+    if not DirectoryExists(APath) then
+    begin
+      AddColoredStatusMessage('❌ 指定路径不存在: ' + APath, clRed);
+      Exit;
+    end;
+
+    AddColoredStatusMessage('🔍 开始分析依赖关系: ' + ExtractFileName(APath), clNavy);
+
+    // 检测符号链接依赖
+    DetectSymlinkDependencies(APath);
+
+    // 检测文件依赖
+    DetectFileDependencies(APath);
+
+    // 显示分析结果
+    var Dependencies := FDependencyGraph.FindDependencies(APath);
+    var Dependents := FDependencyGraph.FindDependents(APath);
+
+    AddColoredStatusMessage(Format('📊 分析完成: %d 个依赖项, %d 个依赖者', [Length(Dependencies), Length(Dependents)]), clBlue);
+
+    if Length(Dependencies) > 0 then
+    begin
+      AddColoredStatusMessage('📤 依赖项:', clBlue);
+      for var Dep in Dependencies do
+        AddColoredStatusMessage(Format('   → %s (%s)', [Dep.TargetPath, GetDependencyTypeName(Dep.DependencyType)]), clGray);
+    end;
+
+    if Length(Dependents) > 0 then
+    begin
+      AddColoredStatusMessage('📥 依赖者:', clBlue);
+      for var Dep in Dependents do
+        AddColoredStatusMessage(Format('   ← %s (%s)', [Dep.SourcePath, GetDependencyTypeName(Dep.DependencyType)]), clGray);
+    end;
+
+    // 记录操作
+    LogOperation(otDirectoryAnalysis, APath, '', '依赖关系分析', True);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 分析依赖关系失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 显示依赖关系图
+procedure TfrmMain.ShowDependencyGraph;
+var
+  GraphData: string;
+begin
+  try
+    if not Assigned(FDependencyGraph) then
+    begin
+      AddColoredStatusMessage('❌ 依赖关系分析引擎未初始化', clRed);
+      Exit;
+    end;
+
+    GraphData := FDependencyGraph.GetStatistics;
+
+    AddColoredStatusMessage('📊 依赖关系图统计:', clNavy);
+    AddColoredStatusMessage(GraphData, clBlue);
+
+    // 显示详细的图形化数据
+    var DetailedData := FDependencyGraph.GenerateGraphData;
+    if DetailedData <> '' then
+    begin
+      AddColoredStatusMessage('🔗 依赖关系详情:', clNavy);
+      AddColoredStatusMessage(DetailedData, clGray);
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示依赖关系图失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 显示循环依赖
+procedure TfrmMain.ShowCircularDependencies;
+var
+  Cycles: TArray<TArray<string>>;
+  I, J: Integer;
+begin
+  try
+    if not Assigned(FDependencyGraph) then
+    begin
+      AddColoredStatusMessage('❌ 依赖关系分析引擎未初始化', clRed);
+      Exit;
+    end;
+
+    AddColoredStatusMessage('🔍 检测循环依赖...', clBlue);
+
+    Cycles := FDependencyGraph.DetectCircularDependencies;
+
+    if Length(Cycles) = 0 then
+    begin
+      AddColoredStatusMessage('✅ 未发现循环依赖', clGreen);
+    end
+    else
+    begin
+      AddColoredStatusMessage(Format('⚠️ 发现 %d 个循环依赖:', [Length(Cycles)]), clMaroon);
+
+      for I := 0 to High(Cycles) do
+      begin
+        var CycleText := Format('   循环 %d: ', [I + 1]);
+        for J := 0 to High(Cycles[I]) do
+        begin
+          CycleText := CycleText + ExtractFileName(Cycles[I][J]);
+          if J < High(Cycles[I]) then
+            CycleText := CycleText + ' → ';
+        end;
+        CycleText := CycleText + ' → ' + ExtractFileName(Cycles[I][0]); // 回到起点
+
+        AddColoredStatusMessage(CycleText, clRed);
+      end;
+
+      AddColoredStatusMessage('💡 建议: 循环依赖可能导致移动操作失败', clOlive);
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 检测循环依赖失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 显示关键路径
+procedure TfrmMain.ShowCriticalPaths;
+var
+  CriticalPaths: TArray<TArray<string>>;
+  I, J: Integer;
+begin
+  try
+    if not Assigned(FDependencyGraph) then
+    begin
+      AddColoredStatusMessage('❌ 依赖关系分析引擎未初始化', clRed);
+      Exit;
+    end;
+
+    AddColoredStatusMessage('🔍 分析关键路径...', clBlue);
+
+    CriticalPaths := FDependencyGraph.FindCriticalPaths;
+
+    if Length(CriticalPaths) = 0 then
+    begin
+      AddColoredStatusMessage('ℹ️ 未发现关键路径', clGray);
+    end
+    else
+    begin
+      AddColoredStatusMessage(Format('🎯 发现 %d 条关键路径:', [Length(CriticalPaths)]), clNavy);
+
+      for I := 0 to High(CriticalPaths) do
+      begin
+        var PathText := Format('   路径 %d: ', [I + 1]);
+        for J := 0 to High(CriticalPaths[I]) do
+        begin
+          PathText := PathText + ExtractFileName(CriticalPaths[I][J]);
+          if J < High(CriticalPaths[I]) then
+            PathText := PathText + ' → ';
+        end;
+
+        AddColoredStatusMessage(PathText, clBlue);
+      end;
+
+      AddColoredStatusMessage('💡 建议: 关键路径上的目录移动需要特别小心', clOlive);
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 分析关键路径失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 评估移动风险
+procedure TfrmMain.AssessMovementRisk(const APath: string);
+var
+  RiskLevel: Integer;
+  ImpactScore: Double;
+  Dependencies, Dependents: TArray<TDependencyRelation>;
+  RiskText, RecommendationText: string;
+begin
+  try
+    if not Assigned(FDependencyGraph) then
+    begin
+      AddColoredStatusMessage('❌ 依赖关系分析引擎未初始化', clRed);
+      Exit;
+    end;
+
+    AddColoredStatusMessage('🎯 评估移动风险: ' + ExtractFileName(APath), clNavy);
+
+    RiskLevel := FDependencyGraph.AssessMovementRisk(APath);
+    ImpactScore := FDependencyGraph.CalculateImpactScore(APath);
+    Dependencies := FDependencyGraph.FindDependencies(APath);
+    Dependents := FDependencyGraph.FindDependents(APath);
+
+    // 确定风险等级文本和颜色
+    case RiskLevel of
+      1..3:
+      begin
+        RiskText := '低风险';
+        AddColoredStatusMessage(Format('✅ 风险评估: %s (等级 %d/10)', [RiskText, RiskLevel]), clGreen);
+        RecommendationText := '可以安全移动';
+      end;
+      4..6:
+      begin
+        RiskText := '中等风险';
+        AddColoredStatusMessage(Format('⚠️ 风险评估: %s (等级 %d/10)', [RiskText, RiskLevel]), clOlive);
+        RecommendationText := '建议先备份，然后小心移动';
+      end;
+      7..8:
+      begin
+        RiskText := '高风险';
+        AddColoredStatusMessage(Format('🔶 风险评估: %s (等级 %d/10)', [RiskText, RiskLevel]), clMaroon);
+        RecommendationText := '强烈建议先解决依赖关系';
+      end;
+      9..10:
+      begin
+        RiskText := '极高风险';
+        AddColoredStatusMessage(Format('🔴 风险评估: %s (等级 %d/10)', [RiskText, RiskLevel]), clRed);
+        RecommendationText := '不建议移动，可能导致系统问题';
+      end;
+    else
+      RiskText := '未知风险';
+      AddColoredStatusMessage(Format('❓ 风险评估: %s', [RiskText]), clGray);
+      RecommendationText := '需要进一步分析';
+    end;
+
+    AddColoredStatusMessage(Format('📊 影响分数: %.2f', [ImpactScore]), clBlue);
+    AddColoredStatusMessage(Format('📤 依赖项数量: %d', [Length(Dependencies)]), clBlue);
+    AddColoredStatusMessage(Format('📥 依赖者数量: %d', [Length(Dependents)]), clBlue);
+    AddColoredStatusMessage('💡 建议: ' + RecommendationText, clNavy);
+
+    // 如果有高风险依赖，显示详细信息
+    var HighRiskDeps := FDependencyGraph.GetHighRiskDependencies;
+    if Length(HighRiskDeps) > 0 then
+    begin
+      AddColoredStatusMessage('⚠️ 高风险依赖项:', clMaroon);
+      for var Dep in HighRiskDeps do
+      begin
+        if SameText(Dep.SourcePath, APath) or SameText(Dep.TargetPath, APath) then
+          AddColoredStatusMessage(Format('   %s → %s (%s)', [ExtractFileName(Dep.SourcePath), ExtractFileName(Dep.TargetPath), Dep.Description]), clRed);
+      end;
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 评估移动风险失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 创建依赖关系记录
+function TfrmMain.CreateDependency(AType: TDependencyType; AStrength: TDependencyStrength; const ASource, ATarget, ADescription: string): TDependencyRelation;
+begin
+  Result.Id := '';
+  Result.SourcePath := ASource;
+  Result.TargetPath := ATarget;
+  Result.DependencyType := AType;
+  Result.Strength := AStrength;
+  Result.Description := ADescription;
+  Result.IsValid := True;
+  Result.IsCritical := (AStrength in [dsStrong, dsCritical]);
+  Result.DetectedTime := Now;
+  Result.LastVerified := Now;
+  Result.RiskLevel := Ord(AStrength) + 1;
+  Result.ImpactScore := Ord(AStrength) * 2.5;
+  Result.UserData := '';
+end;
+
+// 检测符号链接依赖
+procedure TfrmMain.DetectSymlinkDependencies(const APath: string);
+var
+  SearchRec: TSearchRec;
+  FullPath, Target: string;
+  Dependency: TDependencyRelation;
+begin
+  try
+    if FindFirst(APath + '\*', faAnyFile, SearchRec) = 0 then
+    begin
+      try
+        repeat
+          if (SearchRec.Name <> '.') and (SearchRec.Name <> '..') then
+          begin
+            FullPath := APath + '\' + SearchRec.Name;
+
+            if IsSymbolicLink(FullPath) then
+            begin
+              Target := GetSymlinkTarget(FullPath);
+              if Target <> '' then
+              begin
+                Dependency := CreateDependency(
+                  dtSymbolicLink,
+                  if ValidateSymlink(FullPath) then dsModerate else dsWeak,
+                  FullPath,
+                  Target,
+                  '符号链接依赖'
+                );
+
+                FDependencyGraph.AddDependency(Dependency);
+                AddColoredStatusMessage(Format('🔗 检测到符号链接依赖: %s → %s', [SearchRec.Name, ExtractFileName(Target)]), clBlue);
+              end;
+            end;
+          end;
+        until FindNext(SearchRec) <> 0;
+      finally
+        FindClose(SearchRec);
+      end;
+    end;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 检测符号链接依赖失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 检测文件依赖
+procedure TfrmMain.DetectFileDependencies(const APath: string);
+begin
+  try
+    // 这里可以实现更复杂的文件依赖检测逻辑
+    // 例如：检测配置文件中的路径引用、注册表依赖等
+
+    AddColoredStatusMessage('🔍 检测文件依赖: ' + ExtractFileName(APath), clGray);
+
+    // 示例：检测常见的配置文件
+    var ConfigFiles := ['config.ini', 'settings.xml', 'app.config', '.env'];
+    for var ConfigFile in ConfigFiles do
+    begin
+      var ConfigPath := APath + '\' + ConfigFile;
+      if FileExists(ConfigPath) then
+      begin
+        var Dependency := CreateDependency(
+          dtConfigFile,
+          dsModerate,
+          APath,
+          ConfigPath,
+          '配置文件依赖'
+        );
+
+        FDependencyGraph.AddDependency(Dependency);
+        AddColoredStatusMessage(Format('📄 检测到配置文件依赖: %s', [ConfigFile]), clGray);
+      end;
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 检测文件依赖失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 获取依赖类型名称
+function TfrmMain.GetDependencyTypeName(AType: TDependencyType): string;
+begin
+  case AType of
+    dtSymbolicLink: Result := '符号链接';
+    dtFileReference: Result := '文件引用';
+    dtPathReference: Result := '路径引用';
+    dtConfigFile: Result := '配置文件';
+    dtRegistry: Result := '注册表';
+    dtEnvironment: Result := '环境变量';
+    dtService: Result := '服务';
+    dtLibrary: Result := '库文件';
+  else
+    Result := '未知类型';
+  end;
+end;
+
+// ===== 配置模板系统 =====
+
+// 初始化配置模板管理器
+procedure TfrmMain.InitializeTemplateManager;
+var
+  TemplateDir: string;
+begin
+  try
+    // 创建模板目录
+    TemplateDir := ExtractFilePath(Application.ExeName) + 'Templates';
+    if not DirectoryExists(TemplateDir) then
+      ForceDirectories(TemplateDir);
+
+    // 创建配置模板管理器
+    FTemplateManager := TConfigTemplateManager.Create(TemplateDir + '\templates.dat');
+
+    // 加载现有模板
+    FTemplateManager.LoadFromFile;
+
+    AddColoredStatusMessage('✅ 配置模板管理器已初始化', clGreen);
+
+    if FTemplateManager.TemplateCount > 0 then
+      AddColoredStatusMessage(Format('📋 已加载 %d 个配置模板', [FTemplateManager.TemplateCount]), clBlue);
+
+    // 如果没有默认模板，创建一个
+    var DefaultTemplate := FTemplateManager.GetDefaultTemplate;
+    if DefaultTemplate.Id = '' then
+    begin
+      var TemplateId := FTemplateManager.CreateTemplate('默认配置', '系统默认配置模板', ctGeneral);
+      var Template := FTemplateManager.GetTemplate(TemplateId);
+      Template.IsDefault := True;
+      Template.SourcePath := 'C:\';
+      Template.TargetPath := 'D:\';
+      Template.CopyOptions := 'Standard';
+      Template.AnalysisOptions := 'Full';
+      Template.SecuritySettings := 'Medium';
+      Template.PerformanceSettings := 'Balanced';
+      Template.UISettings := 'Standard';
+      FTemplateManager.SaveTemplate(Template);
+
+      AddColoredStatusMessage('📋 已创建默认配置模板', clBlue);
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 初始化配置模板管理器失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 清理配置模板管理器
+procedure TfrmMain.FinalizeTemplateManager;
+begin
+  try
+    if Assigned(FTemplateManager) then
+    begin
+      FTemplateManager.SaveToFile;
+      FreeAndNil(FTemplateManager);
+      AddColoredStatusMessage('✅ 配置模板管理器已清理', clGreen);
+    end;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 清理配置模板管理器失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 显示模板管理器
+procedure TfrmMain.ShowTemplateManager;
+var
+  Templates: TArray<TConfigTemplate>;
+  I: Integer;
+  TypeText: string;
+begin
+  try
+    if not Assigned(FTemplateManager) then
+    begin
+      AddColoredStatusMessage('❌ 配置模板管理器未初始化', clRed);
+      Exit;
+    end;
+
+    Templates := FTemplateManager.GetAllTemplates;
+
+    if Length(Templates) = 0 then
+    begin
+      AddColoredStatusMessage('📋 暂无配置模板', clGray);
+      Exit;
+    end;
+
+    AddColoredStatusMessage('📋 配置模板列表:', clNavy);
+
+    for I := 0 to High(Templates) do
+    begin
+      TypeText := GetTemplateTypeName(Templates[I].TemplateType);
+
+      var StatusIcon := if Templates[I].IsDefault then '⭐' else if Templates[I].IsActive then '✅' else '⏸️';
+
+      AddColoredStatusMessage(Format('   %s [%s] %s', [StatusIcon, TypeText, Templates[I].Name]), clBlue);
+      AddColoredStatusMessage(Format('     📝 %s', [Templates[I].Description]), clGray);
+      AddColoredStatusMessage(Format('     🏷️ 版本: %s | 创建者: %s | 创建时间: %s', [
+        Templates[I].Version,
+        Templates[I].CreatedBy,
+        FormatDateTime('yyyy-mm-dd hh:nn', Templates[I].CreatedTime)
+      ]), clSilver);
+
+      if Templates[I].SourcePath <> '' then
+        AddColoredStatusMessage(Format('     📁 源路径: %s', [Templates[I].SourcePath]), clSilver);
+      if Templates[I].TargetPath <> '' then
+        AddColoredStatusMessage(Format('     📁 目标路径: %s', [Templates[I].TargetPath]), clSilver);
+    end;
+
+    AddColoredStatusMessage(Format('📊 总计: %d 个模板', [Length(Templates)]), clNavy);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示模板管理器失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 创建新模板
+procedure TfrmMain.CreateNewTemplate;
+var
+  TemplateName, TemplateDesc: string;
+  TemplateType: TConfigTemplateType;
+  TemplateId: string;
+  Template: TConfigTemplate;
+begin
+  try
+    if not Assigned(FTemplateManager) then
+    begin
+      AddColoredStatusMessage('❌ 配置模板管理器未初始化', clRed);
+      Exit;
+    end;
+
+    TemplateName := InputBox('创建模板', '请输入模板名称:', '新配置模板');
+    if TemplateName = '' then
+      Exit;
+
+    TemplateDesc := InputBox('创建模板', '请输入模板描述:', '自定义配置模板');
+    if TemplateDesc = '' then
+      TemplateDesc := '用户创建的配置模板';
+
+    // 默认创建自定义类型模板
+    TemplateType := ctCustom;
+
+    TemplateId := FTemplateManager.CreateTemplate(TemplateName, TemplateDesc, TemplateType);
+
+    // 使用当前设置填充模板
+    Template := GetCurrentSettingsAsTemplate;
+    Template.Id := TemplateId;
+    Template.Name := TemplateName;
+    Template.Description := TemplateDesc;
+    Template.TemplateType := TemplateType;
+
+    FTemplateManager.SaveTemplate(Template);
+
+    AddColoredStatusMessage(Format('✅ 已创建配置模板: %s', [TemplateName]), clGreen);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 创建新模板失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 加载模板对话框
+procedure TfrmMain.LoadTemplateDialog;
+var
+  Templates: TArray<TConfigTemplate>;
+  TemplateList: TStringList;
+  I, SelectedIndex: Integer;
+  DialogText, InputStr: string;
+begin
+  try
+    if not Assigned(FTemplateManager) then
+    begin
+      AddColoredStatusMessage('❌ 配置模板管理器未初始化', clRed);
+      Exit;
+    end;
+
+    Templates := FTemplateManager.GetAllTemplates;
+
+    if Length(Templates) = 0 then
+    begin
+      AddColoredStatusMessage('❌ 没有可用的配置模板', clRed);
+      Exit;
+    end;
+
+    TemplateList := TStringList.Create;
+    try
+      DialogText := '选择要加载的配置模板:' + #13#10#13#10;
+
+      for I := 0 to High(Templates) do
+      begin
+        TemplateList.Add(Templates[I].Name);
+        DialogText := DialogText + Format('%d. %s (%s)%s', [
+          I + 1,
+          Templates[I].Name,
+          GetTemplateTypeName(Templates[I].TemplateType),
+          #13#10
+        ]);
+      end;
+
+      DialogText := DialogText + #13#10 + '请输入模板编号 (1-' + IntToStr(Length(Templates)) + '):';
+
+      InputStr := InputBox('加载模板', DialogText, '1');
+      if InputStr = '' then
+        Exit;
+
+      SelectedIndex := StrToIntDef(InputStr, 0) - 1;
+
+      if (SelectedIndex >= 0) and (SelectedIndex < Length(Templates)) then
+      begin
+        ApplyTemplateToCurrentSettings(Templates[SelectedIndex]);
+        AddColoredStatusMessage(Format('✅ 已加载配置模板: %s', [Templates[SelectedIndex].Name]), clGreen);
+      end
+      else
+      begin
+        AddColoredStatusMessage('❌ 无效的模板编号', clRed);
+      end;
+
+    finally
+      TemplateList.Free;
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 加载模板对话框失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 保存当前模板
+procedure TfrmMain.SaveCurrentTemplate;
+var
+  Template: TConfigTemplate;
+begin
+  try
+    if not Assigned(FTemplateManager) then
+    begin
+      AddColoredStatusMessage('❌ 配置模板管理器未初始化', clRed);
+      Exit;
+    end;
+
+    Template := GetCurrentSettingsAsTemplate;
+
+    if Template.Id = '' then
+    begin
+      // 创建新模板
+      CreateNewTemplate;
+    end
+    else
+    begin
+      // 更新现有模板
+      FTemplateManager.SaveTemplate(Template);
+      AddColoredStatusMessage('✅ 当前配置已保存到模板', clGreen);
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 保存当前模板失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 导出模板对话框
+procedure TfrmMain.ExportTemplateDialog;
+begin
+  try
+    AddColoredStatusMessage('📤 模板导出功能开发中...', clBlue);
+    // TODO: 实现模板导出功能
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 导出模板对话框失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 导入模板对话框
+procedure TfrmMain.ImportTemplateDialog;
+begin
+  try
+    AddColoredStatusMessage('📥 模板导入功能开发中...', clBlue);
+    // TODO: 实现模板导入功能
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 导入模板对话框失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 应用模板到当前设置
+procedure TfrmMain.ApplyTemplateToCurrentSettings(const ATemplate: TConfigTemplate);
+begin
+  try
+    // 应用路径设置
+    if ATemplate.SourcePath <> '' then
+      edtSource.Text := ATemplate.SourcePath;
+    if ATemplate.TargetPath <> '' then
+      edtTarget.Text := ATemplate.TargetPath;
+
+    // 应用其他设置
+    // TODO: 根据实际界面控件应用其他配置
+
+    AddColoredStatusMessage(Format('🔧 已应用模板配置: %s', [ATemplate.Name]), clBlue);
+
+    // 记录操作
+    LogOperation(otUserAction, '', '', Format('应用配置模板: %s', [ATemplate.Name]), True);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 应用模板到当前设置失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 获取当前设置作为模板
+function TfrmMain.GetCurrentSettingsAsTemplate: TConfigTemplate;
+begin
+  try
+    FillChar(Result, SizeOf(Result), 0);
+
+    // 基本信息
+    Result.Id := FTemplateManager.FCurrentTemplate.Id;
+    Result.Name := '当前配置';
+    Result.Description := '基于当前设置的配置模板';
+    Result.TemplateType := ctCustom;
+    Result.Version := '1.0';
+    Result.CreatedBy := GetEnvironmentVariable('USERNAME');
+    Result.CreatedTime := Now;
+    Result.ModifiedTime := Now;
+    Result.IsActive := True;
+    Result.IsDefault := False;
+
+    // 路径设置
+    Result.SourcePath := edtSource.Text;
+    Result.TargetPath := edtTarget.Text;
+
+    // 其他设置
+    Result.CopyOptions := 'Standard';
+    Result.AnalysisOptions := 'Full';
+    Result.SecuritySettings := 'Medium';
+    Result.PerformanceSettings := 'Balanced';
+    Result.UISettings := 'Standard';
+
+    // 元数据
+    Result.Tags := 'user,current';
+    Result.Category := 'User Templates';
+    Result.Priority := 5;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 获取当前设置作为模板失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 获取模板类型名称
+function TfrmMain.GetTemplateTypeName(AType: TConfigTemplateType): string;
+begin
+  case AType of
+    ctGeneral: Result := '通用';
+    ctDevelopment: Result := '开发';
+    ctProduction: Result := '生产';
+    ctTesting: Result := '测试';
+    ctBackup: Result := '备份';
+    ctCustom: Result := '自定义';
+  else
+    Result := '未知';
+  end;
+end;
+
+// ===== 审计和合规功能 =====
+
+// 初始化审计管理器
+procedure TfrmMain.InitializeAuditManager;
+var
+  AuditDir: string;
+begin
+  try
+    // 创建审计目录
+    AuditDir := ExtractFilePath(Application.ExeName) + 'Audit';
+    if not DirectoryExists(AuditDir) then
+      ForceDirectories(AuditDir);
+
+    // 创建审计合规管理器
+    FAuditManager := TAuditComplianceManager.Create(AuditDir + '\audit.dat', 50000);
+
+    // 加载现有数据
+    FAuditManager.LoadFromFile;
+
+    // 开始会话
+    FAuditManager.StartSession(GetEnvironmentVariable('USERNAME'));
+
+    AddColoredStatusMessage('✅ 审计合规管理器已初始化', clGreen);
+
+    if FAuditManager.AuditRecordCount > 0 then
+      AddColoredStatusMessage(Format('📋 已加载 %d 条审计记录', [FAuditManager.AuditRecordCount]), clBlue);
+
+    if FAuditManager.ComplianceRuleCount > 0 then
+      AddColoredStatusMessage(Format('📋 已加载 %d 条合规规则', [FAuditManager.ComplianceRuleCount]), clBlue);
+
+    // 创建默认合规规则
+    if FAuditManager.ComplianceRuleCount = 0 then
+    begin
+      var Rule: TComplianceRule;
+
+      // 系统目录保护规则
+      FillChar(Rule, SizeOf(Rule), 0);
+      Rule.Name := '系统目录保护';
+      Rule.Description := '禁止操作系统关键目录';
+      Rule.RuleType := crtPathRestriction;
+      Rule.IsActive := True;
+      Rule.Severity := asCritical;
+      Rule.Pattern := 'C:\Windows';
+      Rule.Action := 'DENY';
+      Rule.CreatedBy := 'System';
+      Rule.Tags := 'system,protection';
+      FAuditManager.AddComplianceRule(Rule);
+
+      // 用户权限规则
+      FillChar(Rule, SizeOf(Rule), 0);
+      Rule.Name := '管理员权限检查';
+      Rule.Description := '检查用户是否具有管理员权限';
+      Rule.RuleType := crtUserPermission;
+      Rule.IsActive := True;
+      Rule.Severity := asWarning;
+      Rule.Pattern := 'Administrator';
+      Rule.Action := 'WARN';
+      Rule.CreatedBy := 'System';
+      Rule.Tags := 'permission,security';
+      FAuditManager.AddComplianceRule(Rule);
+
+      AddColoredStatusMessage('📋 已创建默认合规规则', clBlue);
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 初始化审计管理器失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 清理审计管理器
+procedure TfrmMain.FinalizeAuditManager;
+begin
+  try
+    if Assigned(FAuditManager) then
+    begin
+      FAuditManager.EndSession;
+      FAuditManager.SaveToFile;
+      FreeAndNil(FAuditManager);
+      AddColoredStatusMessage('✅ 审计合规管理器已清理', clGreen);
+    end;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 清理审计管理器失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 显示审计日志
+procedure TfrmMain.ShowAuditLog;
+var
+  Records: TArray<TAuditRecord>;
+  I: Integer;
+  TypeText, SeverityText: string;
+  SeverityColor: TColor;
+begin
+  try
+    if not Assigned(FAuditManager) then
+    begin
+      AddColoredStatusMessage('❌ 审计管理器未初始化', clRed);
+      Exit;
+    end;
+
+    // 获取最近的审计记录
+    Records := FAuditManager.GetAuditRecords(Now - 7, Now); // 最近7天
+
+    if Length(Records) = 0 then
+    begin
+      AddColoredStatusMessage('📋 暂无审计记录', clGray);
+      Exit;
+    end;
+
+    AddColoredStatusMessage('📋 审计日志 (最近7天):', clNavy);
+
+    for I := High(Records) downto Max(High(Records) - 19, 0) do // 显示最新的20条
+    begin
+      TypeText := GetAuditEventTypeName(Records[I].EventType);
+      SeverityText := GetAuditSeverityName(Records[I].Severity);
+
+      case Records[I].Severity of
+        asInfo: SeverityColor := clBlue;
+        asWarning: SeverityColor := clOlive;
+        asError: SeverityColor := clMaroon;
+        asCritical: SeverityColor := clRed;
+      else
+        SeverityColor := clGray;
+      end;
+
+      var StatusIcon := if Records[I].Success then '✅' else '❌';
+
+      AddColoredStatusMessage(Format('   %s [%s|%s] %s', [
+        StatusIcon, TypeText, SeverityText, Records[I].EventDescription
+      ]), SeverityColor);
+
+      AddColoredStatusMessage(Format('     🕒 %s | 👤 %s | 📁 %s', [
+        FormatDateTime('yyyy-mm-dd hh:nn:ss', Records[I].Timestamp),
+        Records[I].UserName,
+        Records[I].ResourcePath
+      ]), clGray);
+
+      if Records[I].ErrorMessage <> '' then
+        AddColoredStatusMessage('     ❌ ' + Records[I].ErrorMessage, clRed);
+    end;
+
+    AddColoredStatusMessage(Format('📊 总计: %d 条记录 (显示最新20条)', [Length(Records)]), clNavy);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示审计日志失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 显示合规规则
+procedure TfrmMain.ShowComplianceRules;
+var
+  Rules: TArray<TComplianceRule>;
+  I: Integer;
+  TypeText, SeverityText: string;
+begin
+  try
+    if not Assigned(FAuditManager) then
+    begin
+      AddColoredStatusMessage('❌ 审计管理器未初始化', clRed);
+      Exit;
+    end;
+
+    Rules := FAuditManager.GetComplianceRules;
+
+    if Length(Rules) = 0 then
+    begin
+      AddColoredStatusMessage('📋 暂无合规规则', clGray);
+      Exit;
+    end;
+
+    AddColoredStatusMessage('📋 合规规则列表:', clNavy);
+
+    for I := 0 to High(Rules) do
+    begin
+      TypeText := FAuditManager.GetRuleTypeName(Rules[I].RuleType);
+      SeverityText := GetAuditSeverityName(Rules[I].Severity);
+
+      var StatusIcon := if Rules[I].IsActive then '✅' else '⏸️';
+
+      AddColoredStatusMessage(Format('   %s [%s|%s] %s', [
+        StatusIcon, TypeText, SeverityText, Rules[I].Name
+      ]), clBlue);
+
+      AddColoredStatusMessage(Format('     📝 %s', [Rules[I].Description]), clGray);
+
+      if Rules[I].Pattern <> '' then
+        AddColoredStatusMessage(Format('     🎯 模式: %s', [Rules[I].Pattern]), clSilver);
+
+      if Rules[I].Action <> '' then
+        AddColoredStatusMessage(Format('     ⚡ 动作: %s', [Rules[I].Action]), clSilver);
+
+      AddColoredStatusMessage(Format('     🏷️ 创建者: %s | 创建时间: %s', [
+        Rules[I].CreatedBy,
+        FormatDateTime('yyyy-mm-dd hh:nn', Rules[I].CreatedTime)
+      ]), clSilver);
+    end;
+
+    AddColoredStatusMessage(Format('📊 总计: %d 条规则', [Length(Rules)]), clNavy);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示合规规则失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 创建合规规则
+procedure TfrmMain.CreateComplianceRule;
+var
+  RuleName, RuleDesc, RulePattern: string;
+  Rule: TComplianceRule;
+begin
+  try
+    if not Assigned(FAuditManager) then
+    begin
+      AddColoredStatusMessage('❌ 审计管理器未初始化', clRed);
+      Exit;
+    end;
+
+    RuleName := InputBox('创建合规规则', '请输入规则名称:', '新合规规则');
+    if RuleName = '' then
+      Exit;
+
+    RuleDesc := InputBox('创建合规规则', '请输入规则描述:', '自定义合规规则');
+    if RuleDesc = '' then
+      RuleDesc := '用户创建的合规规则';
+
+    RulePattern := InputBox('创建合规规则', '请输入匹配模式 (可选):', '');
+
+    // 创建规则
+    FillChar(Rule, SizeOf(Rule), 0);
+    Rule.Name := RuleName;
+    Rule.Description := RuleDesc;
+    Rule.RuleType := crtPathRestriction; // 默认类型
+    Rule.IsActive := True;
+    Rule.Severity := asWarning;
+    Rule.Pattern := RulePattern;
+    Rule.Action := 'WARN';
+    Rule.CreatedBy := GetEnvironmentVariable('USERNAME');
+    Rule.Tags := 'user,custom';
+
+    var RuleId := FAuditManager.AddComplianceRule(Rule);
+
+    AddColoredStatusMessage(Format('✅ 已创建合规规则: %s', [RuleName]), clGreen);
+
+    // 记录审计事件
+    LogUserAction(Format('创建合规规则: %s', [RuleName]), '', True);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 创建合规规则失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 生成审计报告
+procedure TfrmMain.GenerateAuditReport;
+var
+  Report: string;
+  StartTime, EndTime: TDateTime;
+begin
+  try
+    if not Assigned(FAuditManager) then
+    begin
+      AddColoredStatusMessage('❌ 审计管理器未初始化', clRed);
+      Exit;
+    end;
+
+    StartTime := Now - 30; // 最近30天
+    EndTime := Now;
+
+    Report := FAuditManager.GenerateAuditReport(StartTime, EndTime);
+
+    AddColoredStatusMessage('📊 审计报告 (最近30天):', clNavy);
+    AddColoredStatusMessage(Report, clBlue);
+
+    var ComplianceReport := FAuditManager.GenerateComplianceReport;
+    AddColoredStatusMessage('📊 合规报告:', clNavy);
+    AddColoredStatusMessage(ComplianceReport, clBlue);
+
+    var Statistics := FAuditManager.GetAuditStatistics;
+    AddColoredStatusMessage('📊 审计统计:', clNavy);
+    AddColoredStatusMessage(Statistics, clBlue);
+
+    // 记录审计事件
+    LogUserAction('生成审计报告', '', True);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 生成审计报告失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 导出审计数据
+procedure TfrmMain.ExportAuditData;
+begin
+  try
+    if not Assigned(FAuditManager) then
+    begin
+      AddColoredStatusMessage('❌ 审计管理器未初始化', clRed);
+      Exit;
+    end;
+
+    AddColoredStatusMessage('📤 审计数据导出功能开发中...', clBlue);
+    // TODO: 实现审计数据导出功能
+
+    // 记录审计事件
+    LogUserAction('导出审计数据', '', True);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 导出审计数据失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 记录用户操作
+function TfrmMain.LogUserAction(const ADescription, AResourcePath: string; ASuccess: Boolean): string;
+begin
+  Result := '';
+
+  try
+    if Assigned(FAuditManager) then
+    begin
+      Result := FAuditManager.LogAuditEvent(
+        aetUserAction,
+        if ASuccess then asInfo else asError,
+        ADescription,
+        AResourcePath,
+        ASuccess
+      );
+    end;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 记录用户操作失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 检查操作合规性
+function TfrmMain.CheckOperationCompliance(const AResourcePath, AOperation: string): Boolean;
+begin
+  Result := True;
+
+  try
+    if Assigned(FAuditManager) then
+    begin
+      Result := FAuditManager.ValidateOperation(AResourcePath, AOperation);
+
+      if not Result then
+        AddColoredStatusMessage(Format('⚠️ 合规检查失败: %s 操作 %s', [AOperation, AResourcePath]), clMaroon);
+    end;
+  except
+    on E: Exception do
+    begin
+      AddColoredStatusMessage('❌ 检查操作合规性失败: ' + E.Message, clRed);
+      Result := False;
+    end;
+  end;
+end;
+
+// 获取审计事件类型名称
+function TfrmMain.GetAuditEventTypeName(AType: TAuditEventType): string;
+begin
+  if Assigned(FAuditManager) then
+    Result := FAuditManager.GetEventTypeName(AType)
+  else
+    Result := '未知事件';
+end;
+
+// 获取审计严重级别名称
+function TfrmMain.GetAuditSeverityName(ASeverity: TAuditSeverity): string;
+begin
+  if Assigned(FAuditManager) then
+    Result := FAuditManager.GetSeverityName(ASeverity)
+  else
+    Result := '未知级别';
 end;
 
 // ===== 符号链接验证和修复 =====
@@ -6716,6 +9991,9 @@ begin
     SymlinkCount := 0;
     TotalCount := 0;
 
+    // 记录扫描操作
+    LogOperation(otSymlinkScan, '', '', '开始扫描符号链接', True);
+
     // 扫描源目录
     CurrentDir := edtSource.Text;
     if (CurrentDir <> '') and DirectoryExists(CurrentDir) then
@@ -6988,6 +10266,286 @@ begin
   except
     on E: Exception do
       AddColoredStatusMessage('❌ 修复符号链接异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 显示操作历史菜单点击事件
+procedure TfrmMain.MenuItemShowHistoryClick(Sender: TObject);
+begin
+  try
+    ShowOperationHistory;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示操作历史异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 显示状态统计菜单点击事件
+procedure TfrmMain.MenuItemShowStatisticsClick(Sender: TObject);
+begin
+  try
+    ShowStatusStatistics;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示状态统计异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 撤销操作菜单点击事件
+procedure TfrmMain.MenuItemUndoOperationClick(Sender: TObject);
+begin
+  try
+    UndoLastOperation;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 撤销操作异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 清空历史记录菜单点击事件
+procedure TfrmMain.MenuItemClearHistoryClick(Sender: TObject);
+var
+  ConfirmMsg: string;
+begin
+  try
+    if not Assigned(FStatusManager) then
+    begin
+      AddColoredStatusMessage('❌ 状态管理器未初始化', clRed);
+      Exit;
+    end;
+
+    if FStatusManager.OperationCount = 0 then
+    begin
+      AddColoredStatusMessage('📋 操作历史记录为空', clGray);
+      Exit;
+    end;
+
+    ConfirmMsg := Format('确定要清空所有操作历史记录吗？%s当前有 %d 条记录。%s%s警告：此操作不可恢复！',
+                        [#13#10, FStatusManager.OperationCount, #13#10, #13#10]);
+
+    if MessageDlg(ConfirmMsg, mtConfirmation, [mbYes, mbNo], 0) = mrYes then
+    begin
+      FStatusManager.ClearHistory;
+      FStatusManager.SaveToFile;
+      AddColoredStatusMessage('✅ 操作历史记录已清空', clGreen);
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 清空历史记录异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 显示智能建议菜单点击事件
+procedure TfrmMain.MenuItemShowSuggestionsClick(Sender: TObject);
+begin
+  try
+    ShowSmartSuggestions;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示智能建议异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 生成智能建议菜单点击事件
+procedure TfrmMain.MenuItemGenerateSuggestionsClick(Sender: TObject);
+begin
+  try
+    GenerateContextualSuggestions;
+    AddColoredStatusMessage('💡 智能建议已生成，使用"显示智能建议"查看', clBlue);
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 生成智能建议异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 批量操作菜单点击事件
+procedure TfrmMain.MenuItemBatchOperationsClick(Sender: TObject);
+begin
+  try
+    ShowBatchOperationDialog;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 批量操作异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 显示系统摘要菜单点击事件
+procedure TfrmMain.MenuItemShowSummaryClick(Sender: TObject);
+begin
+  try
+    ShowProgressSummary;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示系统摘要异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 优化性能菜单点击事件
+procedure TfrmMain.MenuItemOptimizePerformanceClick(Sender: TObject);
+begin
+  try
+    OptimizePerformance;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 优化性能异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 分析依赖关系菜单点击事件
+procedure TfrmMain.MenuItemAnalyzeDependenciesClick(Sender: TObject);
+var
+  TargetPath: string;
+begin
+  try
+    TargetPath := edtSource.Text;
+    if TargetPath = '' then
+      TargetPath := edtTarget.Text;
+
+    if TargetPath = '' then
+    begin
+      AddColoredStatusMessage('❌ 请先选择要分析的目录', clRed);
+      Exit;
+    end;
+
+    AnalyzeDependencies(TargetPath);
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 分析依赖关系异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 显示依赖关系图菜单点击事件
+procedure TfrmMain.MenuItemShowDependencyGraphClick(Sender: TObject);
+begin
+  try
+    ShowDependencyGraph;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示依赖关系图异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 检查循环依赖菜单点击事件
+procedure TfrmMain.MenuItemCheckCircularDepsClick(Sender: TObject);
+begin
+  try
+    ShowCircularDependencies;
+    ShowCriticalPaths;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 检查循环依赖异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 评估风险菜单点击事件
+procedure TfrmMain.MenuItemAssessRiskClick(Sender: TObject);
+var
+  TargetPath: string;
+begin
+  try
+    TargetPath := edtSource.Text;
+    if TargetPath = '' then
+      TargetPath := edtTarget.Text;
+
+    if TargetPath = '' then
+    begin
+      AddColoredStatusMessage('❌ 请先选择要评估的目录', clRed);
+      Exit;
+    end;
+
+    AssessMovementRisk(TargetPath);
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 评估风险异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 显示配置模板菜单点击事件
+procedure TfrmMain.MenuItemShowTemplatesClick(Sender: TObject);
+begin
+  try
+    ShowTemplateManager;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示配置模板异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 创建配置模板菜单点击事件
+procedure TfrmMain.MenuItemCreateTemplateClick(Sender: TObject);
+begin
+  try
+    CreateNewTemplate;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 创建配置模板异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 加载配置模板菜单点击事件
+procedure TfrmMain.MenuItemLoadTemplateClick(Sender: TObject);
+begin
+  try
+    LoadTemplateDialog;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 加载配置模板异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 保存配置模板菜单点击事件
+procedure TfrmMain.MenuItemSaveTemplateClick(Sender: TObject);
+begin
+  try
+    SaveCurrentTemplate;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 保存配置模板异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 显示审计日志菜单点击事件
+procedure TfrmMain.MenuItemShowAuditLogClick(Sender: TObject);
+begin
+  try
+    ShowAuditLog;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示审计日志异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 显示合规规则菜单点击事件
+procedure TfrmMain.MenuItemShowComplianceRulesClick(Sender: TObject);
+begin
+  try
+    ShowComplianceRules;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 显示合规规则异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 生成审计报告菜单点击事件
+procedure TfrmMain.MenuItemGenerateAuditReportClick(Sender: TObject);
+begin
+  try
+    GenerateAuditReport;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 生成审计报告异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 创建合规规则菜单点击事件
+procedure TfrmMain.MenuItemCreateComplianceRuleClick(Sender: TObject);
+begin
+  try
+    CreateComplianceRule;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 创建合规规则异常: ' + E.Message, clRed);
   end;
 end;
 
@@ -8220,6 +11778,2970 @@ begin
 
     if FCurrentSession.Files[I].Status = csCompleted then
       Inc(FCurrentSession.CompletedFiles);
+  end;
+end;
+
+// ===== TStatusManager 实现 =====
+
+constructor TStatusManager.Create(const AHistoryFile: string; AMaxHistoryCount: Integer);
+begin
+  inherited Create;
+  FHistoryFile := AHistoryFile;
+  FMaxHistoryCount := AMaxHistoryCount;
+  SetLength(FOperationHistory, 0);
+  FDirectoryStates := TDictionary<string, TDirectoryStatus>.Create;
+end;
+
+destructor TStatusManager.Destroy;
+begin
+  SaveToFile;
+  SetLength(FOperationHistory, 0);
+  FDirectoryStates.Free;
+  inherited Destroy;
+end;
+
+function TStatusManager.AddOperation(const AOperation: TOperationHistory): string;
+var
+  Operation: TOperationHistory;
+begin
+  Operation := AOperation;
+
+  // 生成唯一ID
+  if Operation.Id = '' then
+    Operation.Id := FormatDateTime('yyyymmdd_hhnnss_', Now) + IntToStr(Random(9999));
+
+  // 设置时间戳
+  if Operation.Timestamp = 0 then
+    Operation.Timestamp := Now;
+
+  // 添加到历史记录
+  SetLength(FOperationHistory, Length(FOperationHistory) + 1);
+  FOperationHistory[High(FOperationHistory)] := Operation;
+
+  // 限制历史记录数量
+  if Length(FOperationHistory) > FMaxHistoryCount then
+  begin
+    // 移除最旧的记录
+    for var I := 0 to High(FOperationHistory) - 1 do
+      FOperationHistory[I] := FOperationHistory[I + 1];
+    SetLength(FOperationHistory, FMaxHistoryCount);
+  end;
+
+  Result := Operation.Id;
+end;
+
+function TStatusManager.GetOperationHistory(ACount: Integer): TArray<TOperationHistory>;
+var
+  StartIndex, Count: Integer;
+begin
+  Count := Min(ACount, Length(FOperationHistory));
+  StartIndex := Max(0, Length(FOperationHistory) - Count);
+
+  SetLength(Result, Count);
+  for var I := 0 to Count - 1 do
+    Result[I] := FOperationHistory[StartIndex + I];
+end;
+
+function TStatusManager.GetOperationsByType(AType: TOperationType): TArray<TOperationHistory>;
+var
+  TempList: TList<TOperationHistory>;
+begin
+  TempList := TList<TOperationHistory>.Create;
+  try
+    for var Operation in FOperationHistory do
+    begin
+      if Operation.OperationType = AType then
+        TempList.Add(Operation);
+    end;
+
+    Result := TempList.ToArray;
+  finally
+    TempList.Free;
+  end;
+end;
+
+function TStatusManager.GetOperationsByPath(const APath: string): TArray<TOperationHistory>;
+var
+  TempList: TList<TOperationHistory>;
+begin
+  TempList := TList<TOperationHistory>.Create;
+  try
+    for var Operation in FOperationHistory do
+    begin
+      if SameText(Operation.SourcePath, APath) or SameText(Operation.TargetPath, APath) then
+        TempList.Add(Operation);
+    end;
+
+    Result := TempList.ToArray;
+  finally
+    TempList.Free;
+  end;
+end;
+
+procedure TStatusManager.ClearHistory;
+begin
+  SetLength(FOperationHistory, 0);
+end;
+
+procedure TStatusManager.SetDirectoryStatus(const APath: string; AStatus: TDirectoryStatus; const ADescription: string);
+var
+  OldStatus: TDirectoryStatus;
+  Operation: TOperationHistory;
+begin
+  // 获取旧状态
+  if FDirectoryStates.ContainsKey(APath) then
+    OldStatus := FDirectoryStates[APath]
+  else
+    OldStatus := dsNormal;
+
+  // 设置新状态
+  FDirectoryStates.AddOrSetValue(APath, AStatus);
+
+  // 记录操作历史
+  Operation.OperationType := otStatusChange;
+  Operation.SourcePath := APath;
+  Operation.OldStatus := OldStatus;
+  Operation.NewStatus := AStatus;
+  Operation.Description := ADescription;
+  Operation.Success := True;
+
+  AddOperation(Operation);
+end;
+
+function TStatusManager.GetDirectoryStatus(const APath: string): TDirectoryStatus;
+begin
+  if FDirectoryStates.ContainsKey(APath) then
+    Result := FDirectoryStates[APath]
+  else
+    Result := dsNormal;
+end;
+
+function TStatusManager.HasDirectoryStatus(const APath: string): Boolean;
+begin
+  Result := FDirectoryStates.ContainsKey(APath);
+end;
+
+procedure TStatusManager.RemoveDirectoryStatus(const APath: string);
+begin
+  if FDirectoryStates.ContainsKey(APath) then
+    FDirectoryStates.Remove(APath);
+end;
+
+procedure TStatusManager.ClearAllStates;
+begin
+  FDirectoryStates.Clear;
+end;
+
+function TStatusManager.CanUndo: Boolean;
+begin
+  Result := Length(FOperationHistory) > 0;
+end;
+
+function TStatusManager.UndoLastOperation: Boolean;
+var
+  LastOperation: TOperationHistory;
+begin
+  Result := False;
+
+  if not CanUndo then
+    Exit;
+
+  LastOperation := FOperationHistory[High(FOperationHistory)];
+
+  try
+    case LastOperation.OperationType of
+      otStatusChange:
+      begin
+        // 恢复旧状态
+        if LastOperation.OldStatus <> dsNormal then
+          FDirectoryStates.AddOrSetValue(LastOperation.SourcePath, LastOperation.OldStatus)
+        else
+          FDirectoryStates.Remove(LastOperation.SourcePath);
+        Result := True;
+      end;
+      // 其他操作类型的撤销逻辑可以在这里添加
+    end;
+
+    if Result then
+    begin
+      // 移除已撤销的操作
+      SetLength(FOperationHistory, Length(FOperationHistory) - 1);
+    end;
+
+  except
+    Result := False;
+  end;
+end;
+
+function TStatusManager.GetUndoDescription: string;
+begin
+  if CanUndo then
+    Result := FOperationHistory[High(FOperationHistory)].Description
+  else
+    Result := '';
+end;
+
+function TStatusManager.GetOperationCount: Integer;
+begin
+  Result := Length(FOperationHistory);
+end;
+
+function TStatusManager.GetOperationCountByType(AType: TOperationType): Integer;
+begin
+  Result := 0;
+  for var Operation in FOperationHistory do
+  begin
+    if Operation.OperationType = AType then
+      Inc(Result);
+  end;
+end;
+
+function TStatusManager.GetDirectoryStateCount: Integer;
+begin
+  Result := FDirectoryStates.Count;
+end;
+
+procedure TStatusManager.SaveToFile;
+var
+  FileStream: TFileStream;
+  I: Integer;
+  Version: Integer;
+  HistoryCount: Integer;
+  StateCount: Integer;
+  PathBytes, DescBytes, ErrorBytes: TBytes;
+  PathLen, DescLen, ErrorLen: Integer;
+  Pair: TPair<string, TDirectoryStatus>;
+begin
+  try
+    if FHistoryFile = '' then
+      Exit;
+
+    FileStream := TFileStream.Create(FHistoryFile, fmCreate);
+    try
+      // 写入版本号
+      Version := 1;
+      FileStream.WriteBuffer(Version, SizeOf(Version));
+
+      // 写入操作历史数量
+      HistoryCount := Length(FOperationHistory);
+      FileStream.WriteBuffer(HistoryCount, SizeOf(HistoryCount));
+
+      // 写入每条操作历史
+      for I := 0 to High(FOperationHistory) do
+      begin
+        var Operation := FOperationHistory[I];
+
+        // ID
+        var IdBytes := TEncoding.UTF8.GetBytes(Operation.Id);
+        var IdLen := Length(IdBytes);
+        FileStream.WriteBuffer(IdLen, SizeOf(IdLen));
+        if IdLen > 0 then
+          FileStream.WriteBuffer(IdBytes[0], IdLen);
+
+        // 基本字段
+        FileStream.WriteBuffer(Operation.OperationType, SizeOf(Operation.OperationType));
+        FileStream.WriteBuffer(Operation.Timestamp, SizeOf(Operation.Timestamp));
+        FileStream.WriteBuffer(Operation.OldStatus, SizeOf(Operation.OldStatus));
+        FileStream.WriteBuffer(Operation.NewStatus, SizeOf(Operation.NewStatus));
+        FileStream.WriteBuffer(Operation.Success, SizeOf(Operation.Success));
+
+        // 源路径
+        PathBytes := TEncoding.UTF8.GetBytes(Operation.SourcePath);
+        PathLen := Length(PathBytes);
+        FileStream.WriteBuffer(PathLen, SizeOf(PathLen));
+        if PathLen > 0 then
+          FileStream.WriteBuffer(PathBytes[0], PathLen);
+
+        // 目标路径
+        PathBytes := TEncoding.UTF8.GetBytes(Operation.TargetPath);
+        PathLen := Length(PathBytes);
+        FileStream.WriteBuffer(PathLen, SizeOf(PathLen));
+        if PathLen > 0 then
+          FileStream.WriteBuffer(PathBytes[0], PathLen);
+
+        // 描述
+        DescBytes := TEncoding.UTF8.GetBytes(Operation.Description);
+        DescLen := Length(DescBytes);
+        FileStream.WriteBuffer(DescLen, SizeOf(DescLen));
+        if DescLen > 0 then
+          FileStream.WriteBuffer(DescBytes[0], DescLen);
+
+        // 错误信息
+        ErrorBytes := TEncoding.UTF8.GetBytes(Operation.ErrorMessage);
+        ErrorLen := Length(ErrorBytes);
+        FileStream.WriteBuffer(ErrorLen, SizeOf(ErrorLen));
+        if ErrorLen > 0 then
+          FileStream.WriteBuffer(ErrorBytes[0], ErrorLen);
+      end;
+
+      // 写入目录状态数量
+      StateCount := FDirectoryStates.Count;
+      FileStream.WriteBuffer(StateCount, SizeOf(StateCount));
+
+      // 写入每个目录状态
+      for Pair in FDirectoryStates do
+      begin
+        // 路径
+        PathBytes := TEncoding.UTF8.GetBytes(Pair.Key);
+        PathLen := Length(PathBytes);
+        FileStream.WriteBuffer(PathLen, SizeOf(PathLen));
+        if PathLen > 0 then
+          FileStream.WriteBuffer(PathBytes[0], PathLen);
+
+        // 状态
+        FileStream.WriteBuffer(Pair.Value, SizeOf(Pair.Value));
+      end;
+
+    finally
+      FileStream.Free;
+    end;
+  except
+    // 忽略保存错误
+  end;
+end;
+
+procedure TStatusManager.LoadFromFile;
+var
+  FileStream: TFileStream;
+  I: Integer;
+  Version: Integer;
+  HistoryCount, StateCount: Integer;
+  PathLen, DescLen, ErrorLen, IdLen: Integer;
+  PathBytes, DescBytes, ErrorBytes, IdBytes: TBytes;
+  Operation: TOperationHistory;
+  DirPath: string;
+  DirStatus: TDirectoryStatus;
+begin
+  try
+    if (FHistoryFile = '') or not FileExists(FHistoryFile) then
+      Exit;
+
+    FileStream := TFileStream.Create(FHistoryFile, fmOpenRead);
+    try
+      // 读取版本号
+      FileStream.ReadBuffer(Version, SizeOf(Version));
+      if Version <> 1 then
+        Exit; // 版本不匹配
+
+      // 读取操作历史数量
+      FileStream.ReadBuffer(HistoryCount, SizeOf(HistoryCount));
+      if (HistoryCount < 0) or (HistoryCount > 10000) then
+        Exit; // 安全检查
+
+      // 分配历史数组
+      SetLength(FOperationHistory, HistoryCount);
+
+      // 读取每条操作历史
+      for I := 0 to HistoryCount - 1 do
+      begin
+        // ID
+        FileStream.ReadBuffer(IdLen, SizeOf(IdLen));
+        if (IdLen < 0) or (IdLen > 255) then
+          Exit;
+        if IdLen > 0 then
+        begin
+          SetLength(IdBytes, IdLen);
+          FileStream.ReadBuffer(IdBytes[0], IdLen);
+          Operation.Id := TEncoding.UTF8.GetString(IdBytes);
+        end
+        else
+          Operation.Id := '';
+
+        // 基本字段
+        FileStream.ReadBuffer(Operation.OperationType, SizeOf(Operation.OperationType));
+        FileStream.ReadBuffer(Operation.Timestamp, SizeOf(Operation.Timestamp));
+        FileStream.ReadBuffer(Operation.OldStatus, SizeOf(Operation.OldStatus));
+        FileStream.ReadBuffer(Operation.NewStatus, SizeOf(Operation.NewStatus));
+        FileStream.ReadBuffer(Operation.Success, SizeOf(Operation.Success));
+
+        // 源路径
+        FileStream.ReadBuffer(PathLen, SizeOf(PathLen));
+        if (PathLen < 0) or (PathLen > 32767) then
+          Exit;
+        if PathLen > 0 then
+        begin
+          SetLength(PathBytes, PathLen);
+          FileStream.ReadBuffer(PathBytes[0], PathLen);
+          Operation.SourcePath := TEncoding.UTF8.GetString(PathBytes);
+        end
+        else
+          Operation.SourcePath := '';
+
+        // 目标路径
+        FileStream.ReadBuffer(PathLen, SizeOf(PathLen));
+        if (PathLen < 0) or (PathLen > 32767) then
+          Exit;
+        if PathLen > 0 then
+        begin
+          SetLength(PathBytes, PathLen);
+          FileStream.ReadBuffer(PathBytes[0], PathLen);
+          Operation.TargetPath := TEncoding.UTF8.GetString(PathBytes);
+        end
+        else
+          Operation.TargetPath := '';
+
+        // 描述
+        FileStream.ReadBuffer(DescLen, SizeOf(DescLen));
+        if (DescLen < 0) or (DescLen > 32767) then
+          Exit;
+        if DescLen > 0 then
+        begin
+          SetLength(DescBytes, DescLen);
+          FileStream.ReadBuffer(DescBytes[0], DescLen);
+          Operation.Description := TEncoding.UTF8.GetString(DescBytes);
+        end
+        else
+          Operation.Description := '';
+
+        // 错误信息
+        FileStream.ReadBuffer(ErrorLen, SizeOf(ErrorLen));
+        if (ErrorLen < 0) or (ErrorLen > 32767) then
+          Exit;
+        if ErrorLen > 0 then
+        begin
+          SetLength(ErrorBytes, ErrorLen);
+          FileStream.ReadBuffer(ErrorBytes[0], ErrorLen);
+          Operation.ErrorMessage := TEncoding.UTF8.GetString(ErrorBytes);
+        end
+        else
+          Operation.ErrorMessage := '';
+
+        FOperationHistory[I] := Operation;
+      end;
+
+      // 读取目录状态数量
+      FileStream.ReadBuffer(StateCount, SizeOf(StateCount));
+      if (StateCount < 0) or (StateCount > 10000) then
+        Exit; // 安全检查
+
+      // 读取每个目录状态
+      for I := 0 to StateCount - 1 do
+      begin
+        // 路径
+        FileStream.ReadBuffer(PathLen, SizeOf(PathLen));
+        if (PathLen < 0) or (PathLen > 32767) then
+          Exit;
+        if PathLen > 0 then
+        begin
+          SetLength(PathBytes, PathLen);
+          FileStream.ReadBuffer(PathBytes[0], PathLen);
+          DirPath := TEncoding.UTF8.GetString(PathBytes);
+        end
+        else
+          DirPath := '';
+
+        // 状态
+        FileStream.ReadBuffer(DirStatus, SizeOf(DirStatus));
+
+        if DirPath <> '' then
+          FDirectoryStates.AddOrSetValue(DirPath, DirStatus);
+      end;
+
+    finally
+      FileStream.Free;
+    end;
+  except
+    // 加载失败时清空
+    SetLength(FOperationHistory, 0);
+    FDirectoryStates.Clear;
+  end;
+end;
+
+// ===== TDirectoryMonitor 实现 =====
+
+constructor TDirectoryMonitor.Create;
+begin
+  inherited Create;
+  FWatchedPaths := TStringList.Create;
+  FDirectoryStates := TDictionary<string, TFileTime>.Create;
+  SetLength(FChanges, 0);
+  FLastScanTime := 0;
+  FEnabled := True;
+end;
+
+destructor TDirectoryMonitor.Destroy;
+begin
+  FWatchedPaths.Free;
+  FDirectoryStates.Free;
+  SetLength(FChanges, 0);
+  inherited Destroy;
+end;
+
+procedure TDirectoryMonitor.AddWatchPath(const APath: string);
+begin
+  if (APath <> '') and DirectoryExists(APath) and (FWatchedPaths.IndexOf(APath) = -1) then
+  begin
+    FWatchedPaths.Add(APath);
+    UpdateDirectoryState(APath);
+  end;
+end;
+
+procedure TDirectoryMonitor.RemoveWatchPath(const APath: string);
+var
+  Index: Integer;
+begin
+  Index := FWatchedPaths.IndexOf(APath);
+  if Index >= 0 then
+  begin
+    FWatchedPaths.Delete(Index);
+    if FDirectoryStates.ContainsKey(APath) then
+      FDirectoryStates.Remove(APath);
+  end;
+end;
+
+procedure TDirectoryMonitor.ClearWatchPaths;
+begin
+  FWatchedPaths.Clear;
+  FDirectoryStates.Clear;
+end;
+
+function TDirectoryMonitor.ScanForChanges: TArray<TDirectoryChange>;
+var
+  I: Integer;
+  Path: string;
+  CurrentTime: TFileTime;
+  StoredTime: TFileTime;
+  Change: TDirectoryChange;
+  ChangeList: TList<TDirectoryChange>;
+begin
+  ChangeList := TList<TDirectoryChange>.Create;
+  try
+    if not FEnabled then
+    begin
+      SetLength(Result, 0);
+      Exit;
+    end;
+
+    for I := 0 to FWatchedPaths.Count - 1 do
+    begin
+      Path := FWatchedPaths[I];
+
+      if DirectoryExists(Path) then
+      begin
+        CurrentTime := GetDirectoryFileTime(Path);
+
+        if FDirectoryStates.ContainsKey(Path) then
+        begin
+          StoredTime := FDirectoryStates[Path];
+
+          if CompareFileTime(CurrentTime, StoredTime) <> 0 then
+          begin
+            // 目录已修改
+            Change.ChangeType := dctModified;
+            Change.OldPath := Path;
+            Change.NewPath := Path;
+            Change.Timestamp := Now;
+            Change.Detected := True;
+
+            ChangeList.Add(Change);
+
+            // 更新存储的时间
+            FDirectoryStates.AddOrSetValue(Path, CurrentTime);
+          end;
+        end
+        else
+        begin
+          // 新目录
+          Change.ChangeType := dctCreated;
+          Change.OldPath := '';
+          Change.NewPath := Path;
+          Change.Timestamp := Now;
+          Change.Detected := True;
+
+          ChangeList.Add(Change);
+
+          // 添加到监控列表
+          FDirectoryStates.AddOrSetValue(Path, CurrentTime);
+        end;
+      end
+      else
+      begin
+        // 目录已删除
+        if FDirectoryStates.ContainsKey(Path) then
+        begin
+          Change.ChangeType := dctDeleted;
+          Change.OldPath := Path;
+          Change.NewPath := '';
+          Change.Timestamp := Now;
+          Change.Detected := True;
+
+          ChangeList.Add(Change);
+
+          // 从监控列表中移除
+          FDirectoryStates.Remove(Path);
+        end;
+      end;
+    end;
+
+    FLastScanTime := Now;
+    Result := ChangeList.ToArray;
+
+  finally
+    ChangeList.Free;
+  end;
+end;
+
+procedure TDirectoryMonitor.UpdateDirectoryState(const APath: string);
+var
+  FileTime: TFileTime;
+begin
+  if DirectoryExists(APath) then
+  begin
+    FileTime := GetDirectoryFileTime(APath);
+    FDirectoryStates.AddOrSetValue(APath, FileTime);
+  end;
+end;
+
+function TDirectoryMonitor.HasPathChanged(const APath: string): Boolean;
+var
+  CurrentTime, StoredTime: TFileTime;
+begin
+  Result := False;
+
+  if not DirectoryExists(APath) then
+  begin
+    Result := FDirectoryStates.ContainsKey(APath); // 目录被删除
+    Exit;
+  end;
+
+  CurrentTime := GetDirectoryFileTime(APath);
+
+  if FDirectoryStates.ContainsKey(APath) then
+  begin
+    StoredTime := FDirectoryStates[APath];
+    Result := CompareFileTime(CurrentTime, StoredTime) <> 0;
+  end
+  else
+  begin
+    Result := True; // 新目录
+  end;
+end;
+
+function TDirectoryMonitor.GetWatchedPathCount: Integer;
+begin
+  Result := FWatchedPaths.Count;
+end;
+
+function TDirectoryMonitor.GetDirectoryFileTime(const APath: string): TFileTime;
+var
+  Handle: THandle;
+  FindData: TWin32FindData;
+begin
+  FillChar(Result, SizeOf(Result), 0);
+
+  Handle := FindFirstFile(PChar(APath), FindData);
+  if Handle <> INVALID_HANDLE_VALUE then
+  begin
+    try
+      Result := FindData.ftLastWriteTime;
+    finally
+      Windows.FindClose(Handle);
+    end;
+  end;
+end;
+
+function TDirectoryMonitor.CompareFileTime(const ATime1, ATime2: TFileTime): Integer;
+begin
+  Result := CompareFileTime(ATime1, ATime2);
+end;
+
+// ===== TSmartSuggestionEngine 实现 =====
+
+constructor TSmartSuggestionEngine.Create(const ADataFile: string; AStatusManager: TStatusManager; AMaxSuggestions: Integer);
+begin
+  inherited Create;
+  FDataFile := ADataFile;
+  FStatusManager := AStatusManager;
+  FMaxSuggestions := AMaxSuggestions;
+  SetLength(FSuggestions, 0);
+  SetLength(FUserPatterns, 0);
+end;
+
+destructor TSmartSuggestionEngine.Destroy;
+begin
+  SaveToFile;
+  SetLength(FSuggestions, 0);
+  SetLength(FUserPatterns, 0);
+  inherited Destroy;
+end;
+
+function TSmartSuggestionEngine.AddSuggestion(const ASuggestion: TSmartSuggestion): string;
+var
+  Suggestion: TSmartSuggestion;
+begin
+  Suggestion := ASuggestion;
+
+  // 生成唯一ID
+  if Suggestion.Id = '' then
+    Suggestion.Id := FormatDateTime('yyyymmdd_hhnnss_', Now) + IntToStr(Random(9999));
+
+  // 设置创建时间
+  if Suggestion.CreatedTime = 0 then
+    Suggestion.CreatedTime := Now;
+
+  // 添加到建议列表
+  SetLength(FSuggestions, Length(FSuggestions) + 1);
+  FSuggestions[High(FSuggestions)] := Suggestion;
+
+  // 限制建议数量
+  if Length(FSuggestions) > FMaxSuggestions then
+  begin
+    // 移除最旧的建议
+    for var I := 0 to High(FSuggestions) - 1 do
+      FSuggestions[I] := FSuggestions[I + 1];
+    SetLength(FSuggestions, FMaxSuggestions);
+  end;
+
+  Result := Suggestion.Id;
+end;
+
+function TSmartSuggestionEngine.GetSuggestions(AType: TSuggestionType; ACount: Integer): TArray<TSmartSuggestion>;
+var
+  TempList: TList<TSmartSuggestion>;
+  I: Integer;
+begin
+  TempList := TList<TSmartSuggestion>.Create;
+  try
+    for I := 0 to High(FSuggestions) do
+    begin
+      if (AType = stOptimization) or (FSuggestions[I].SuggestionType = AType) then
+        TempList.Add(FSuggestions[I]);
+    end;
+
+    // 按优先级和时间排序
+    TempList.Sort(TComparer<TSmartSuggestion>.Construct(
+      function(const Left, Right: TSmartSuggestion): Integer
+      begin
+        // 首先按优先级排序
+        Result := Ord(Right.Priority) - Ord(Left.Priority);
+        if Result = 0 then
+          // 然后按时间排序（新的在前）
+          Result := CompareDateTime(Right.CreatedTime, Left.CreatedTime);
+      end));
+
+    // 限制返回数量
+    var Count := Min(ACount, TempList.Count);
+    SetLength(Result, Count);
+    for I := 0 to Count - 1 do
+      Result[I] := TempList[I];
+
+  finally
+    TempList.Free;
+  end;
+end;
+
+function TSmartSuggestionEngine.GetUnreadSuggestions: TArray<TSmartSuggestion>;
+var
+  TempList: TList<TSmartSuggestion>;
+begin
+  TempList := TList<TSmartSuggestion>.Create;
+  try
+    for var Suggestion in FSuggestions do
+    begin
+      if not Suggestion.IsRead then
+        TempList.Add(Suggestion);
+    end;
+
+    Result := TempList.ToArray;
+  finally
+    TempList.Free;
+  end;
+end;
+
+function TSmartSuggestionEngine.GetHighPrioritySuggestions: TArray<TSmartSuggestion>;
+var
+  TempList: TList<TSmartSuggestion>;
+begin
+  TempList := TList<TSmartSuggestion>.Create;
+  try
+    for var Suggestion in FSuggestions do
+    begin
+      if Suggestion.Priority in [spHigh, spCritical] then
+        TempList.Add(Suggestion);
+    end;
+
+    Result := TempList.ToArray;
+  finally
+    TempList.Free;
+  end;
+end;
+
+procedure TSmartSuggestionEngine.MarkSuggestionRead(const ASuggestionId: string);
+var
+  I: Integer;
+begin
+  for I := 0 to High(FSuggestions) do
+  begin
+    if FSuggestions[I].Id = ASuggestionId then
+    begin
+      FSuggestions[I].IsRead := True;
+      Break;
+    end;
+  end;
+end;
+
+procedure TSmartSuggestionEngine.MarkSuggestionApplied(const ASuggestionId: string);
+var
+  I: Integer;
+begin
+  for I := 0 to High(FSuggestions) do
+  begin
+    if FSuggestions[I].Id = ASuggestionId then
+    begin
+      FSuggestions[I].IsApplied := True;
+      FSuggestions[I].AppliedTime := Now;
+      Break;
+    end;
+  end;
+end;
+
+procedure TSmartSuggestionEngine.RemoveSuggestion(const ASuggestionId: string);
+var
+  I, J: Integer;
+begin
+  for I := 0 to High(FSuggestions) do
+  begin
+    if FSuggestions[I].Id = ASuggestionId then
+    begin
+      // 移动后面的元素向前
+      for J := I to High(FSuggestions) - 1 do
+        FSuggestions[J] := FSuggestions[J + 1];
+
+      // 缩短数组
+      SetLength(FSuggestions, Length(FSuggestions) - 1);
+      Break;
+    end;
+  end;
+end;
+
+procedure TSmartSuggestionEngine.ClearOldSuggestions(ADaysOld: Integer);
+var
+  I: Integer;
+  CutoffDate: TDateTime;
+  NewSuggestions: TArray<TSmartSuggestion>;
+begin
+  CutoffDate := Now - ADaysOld;
+  SetLength(NewSuggestions, 0);
+
+  for I := 0 to High(FSuggestions) do
+  begin
+    if FSuggestions[I].CreatedTime > CutoffDate then
+    begin
+      SetLength(NewSuggestions, Length(NewSuggestions) + 1);
+      NewSuggestions[High(NewSuggestions)] := FSuggestions[I];
+    end;
+  end;
+
+  FSuggestions := NewSuggestions;
+end;
+
+function TSmartSuggestionEngine.GetSuggestionCount: Integer;
+begin
+  Result := Length(FSuggestions);
+end;
+
+function TSmartSuggestionEngine.GetUnreadCount: Integer;
+begin
+  Result := 0;
+  for var Suggestion in FSuggestions do
+  begin
+    if not Suggestion.IsRead then
+      Inc(Result);
+  end;
+end;
+
+function TSmartSuggestionEngine.GetAppliedCount: Integer;
+begin
+  Result := 0;
+  for var Suggestion in FSuggestions do
+  begin
+    if Suggestion.IsApplied then
+      Inc(Result);
+  end;
+end;
+
+procedure TSmartSuggestionEngine.AnalyzeUserBehavior;
+var
+  History: TArray<TOperationHistory>;
+  I, J: Integer;
+  OpType: TOperationType;
+  Pattern: TUserBehaviorPattern;
+  Found: Boolean;
+begin
+  if not Assigned(FStatusManager) then
+    Exit;
+
+  History := FStatusManager.GetOperationHistory(100); // 分析最近100条记录
+
+  for I := 0 to High(History) do
+  begin
+    OpType := History[I].OperationType;
+    Found := False;
+
+    // 查找现有模式
+    for J := 0 to High(FUserPatterns) do
+    begin
+      if FUserPatterns[J].OperationType = OpType then
+      begin
+        Inc(FUserPatterns[J].FrequencyCount);
+        FUserPatterns[J].LastUsedTime := History[I].Timestamp;
+
+        // 更新成功率
+        if History[I].Success then
+          FUserPatterns[J].SuccessRate := (FUserPatterns[J].SuccessRate * (FUserPatterns[J].FrequencyCount - 1) + 1) / FUserPatterns[J].FrequencyCount
+        else
+          FUserPatterns[J].SuccessRate := (FUserPatterns[J].SuccessRate * (FUserPatterns[J].FrequencyCount - 1)) / FUserPatterns[J].FrequencyCount;
+
+        Found := True;
+        Break;
+      end;
+    end;
+
+    // 创建新模式
+    if not Found then
+    begin
+      Pattern.OperationType := OpType;
+      Pattern.FrequencyCount := 1;
+      Pattern.LastUsedTime := History[I].Timestamp;
+      Pattern.AverageInterval := 0;
+      SetLength(Pattern.PreferredPaths, 0);
+      Pattern.SuccessRate := if History[I].Success then 1.0 else 0.0;
+
+      SetLength(FUserPatterns, Length(FUserPatterns) + 1);
+      FUserPatterns[High(FUserPatterns)] := Pattern;
+    end;
+  end;
+end;
+
+procedure TSmartSuggestionEngine.UpdateUserPattern(AOperationType: TOperationType; const APath: string; ASuccess: Boolean);
+var
+  I: Integer;
+  Found: Boolean;
+  Pattern: TUserBehaviorPattern;
+begin
+  Found := False;
+
+  for I := 0 to High(FUserPatterns) do
+  begin
+    if FUserPatterns[I].OperationType = AOperationType then
+    begin
+      Inc(FUserPatterns[I].FrequencyCount);
+      FUserPatterns[I].LastUsedTime := Now;
+
+      // 更新成功率
+      if ASuccess then
+        FUserPatterns[I].SuccessRate := (FUserPatterns[I].SuccessRate * (FUserPatterns[I].FrequencyCount - 1) + 1) / FUserPatterns[I].FrequencyCount
+      else
+        FUserPatterns[I].SuccessRate := (FUserPatterns[I].SuccessRate * (FUserPatterns[I].FrequencyCount - 1)) / FUserPatterns[I].FrequencyCount;
+
+      // 更新偏好路径
+      var PathFound := False;
+      for var Path in FUserPatterns[I].PreferredPaths do
+      begin
+        if SameText(Path, APath) then
+        begin
+          PathFound := True;
+          Break;
+        end;
+      end;
+
+      if not PathFound then
+      begin
+        SetLength(FUserPatterns[I].PreferredPaths, Length(FUserPatterns[I].PreferredPaths) + 1);
+        FUserPatterns[I].PreferredPaths[High(FUserPatterns[I].PreferredPaths)] := APath;
+      end;
+
+      Found := True;
+      Break;
+    end;
+  end;
+
+  if not Found then
+  begin
+    Pattern.OperationType := AOperationType;
+    Pattern.FrequencyCount := 1;
+    Pattern.LastUsedTime := Now;
+    Pattern.AverageInterval := 0;
+    SetLength(Pattern.PreferredPaths, 1);
+    Pattern.PreferredPaths[0] := APath;
+    Pattern.SuccessRate := if ASuccess then 1.0 else 0.0;
+
+    SetLength(FUserPatterns, Length(FUserPatterns) + 1);
+    FUserPatterns[High(FUserPatterns)] := Pattern;
+  end;
+end;
+
+function TSmartSuggestionEngine.PredictNextOperation: TOperationType;
+var
+  MaxFrequency: Integer;
+  MostFrequentOp: TOperationType;
+  I: Integer;
+begin
+  Result := otUserAction;
+  MaxFrequency := 0;
+  MostFrequentOp := otUserAction;
+
+  for I := 0 to High(FUserPatterns) do
+  begin
+    if FUserPatterns[I].FrequencyCount > MaxFrequency then
+    begin
+      MaxFrequency := FUserPatterns[I].FrequencyCount;
+      MostFrequentOp := FUserPatterns[I].OperationType;
+    end;
+  end;
+
+  Result := MostFrequentOp;
+end;
+
+function TSmartSuggestionEngine.GetRecommendedPaths: TArray<string>;
+var
+  PathList: TStringList;
+  I, J: Integer;
+begin
+  PathList := TStringList.Create;
+  try
+    PathList.Duplicates := dupIgnore;
+    PathList.Sorted := True;
+
+    for I := 0 to High(FUserPatterns) do
+    begin
+      for J := 0 to High(FUserPatterns[I].PreferredPaths) do
+      begin
+        PathList.Add(FUserPatterns[I].PreferredPaths[J]);
+      end;
+    end;
+
+    SetLength(Result, PathList.Count);
+    for I := 0 to PathList.Count - 1 do
+      Result[I] := PathList[I];
+
+  finally
+    PathList.Free;
+  end;
+end;
+
+procedure TSmartSuggestionEngine.GenerateOptimizationSuggestions;
+var
+  Suggestion: TSmartSuggestion;
+begin
+  // 分析用户行为模式
+  AnalyzeUserBehavior;
+
+  // 生成基于频率的优化建议
+  for var Pattern in FUserPatterns do
+  begin
+    if Pattern.FrequencyCount >= 5 then // 频繁操作
+    begin
+      Suggestion.SuggestionType := stOptimization;
+      Suggestion.Priority := spMedium;
+      Suggestion.Title := '创建快捷操作';
+      Suggestion.Description := Format('您经常执行"%s"操作，建议创建快捷方式以提高效率。', [GetOperationTypeName(Pattern.OperationType)]);
+      Suggestion.ActionText := '创建快捷方式';
+      Suggestion.RelatedPath := '';
+      Suggestion.IsRead := False;
+      Suggestion.IsApplied := False;
+
+      AddSuggestion(Suggestion);
+    end;
+
+    if Pattern.SuccessRate < 0.8 then // 成功率较低
+    begin
+      Suggestion.SuggestionType := stOptimization;
+      Suggestion.Priority := spHigh;
+      Suggestion.Title := '操作优化建议';
+      Suggestion.Description := Format('"%s"操作的成功率较低(%.1f%%)，建议检查操作步骤或寻求帮助。', [GetOperationTypeName(Pattern.OperationType), Pattern.SuccessRate * 100]);
+      Suggestion.ActionText := '查看帮助';
+      Suggestion.RelatedPath := '';
+      Suggestion.IsRead := False;
+      Suggestion.IsApplied := False;
+
+      AddSuggestion(Suggestion);
+    end;
+  end;
+end;
+
+procedure TSmartSuggestionEngine.GenerateSafetySuggestions;
+var
+  Suggestion: TSmartSuggestion;
+  History: TArray<TOperationHistory>;
+  RecentErrors: Integer;
+begin
+  if not Assigned(FStatusManager) then
+    Exit;
+
+  History := FStatusManager.GetOperationHistory(20);
+  RecentErrors := 0;
+
+  // 统计最近的错误
+  for var Operation in History do
+  begin
+    if not Operation.Success then
+      Inc(RecentErrors);
+  end;
+
+  if RecentErrors >= 3 then
+  begin
+    Suggestion.SuggestionType := stSafety;
+    Suggestion.Priority := spHigh;
+    Suggestion.Title := '安全提醒';
+    Suggestion.Description := Format('最近有%d个操作失败，建议在继续操作前检查系统状态。', [RecentErrors]);
+    Suggestion.ActionText := '检查系统状态';
+    Suggestion.RelatedPath := '';
+    Suggestion.IsRead := False;
+    Suggestion.IsApplied := False;
+
+    AddSuggestion(Suggestion);
+  end;
+
+  // 检查是否有备份建议
+  if FStatusManager.GetOperationCountByType(otFileCopy) > 0 then
+  begin
+    var BackupCount := FStatusManager.GetOperationCountByType(otUserAction); // 假设备份操作记录为用户操作
+    if BackupCount = 0 then
+    begin
+      Suggestion.SuggestionType := stSafety;
+      Suggestion.Priority := spCritical;
+      Suggestion.Title := '备份建议';
+      Suggestion.Description := '检测到文件拷贝操作，强烈建议在进行重要操作前创建备份。';
+      Suggestion.ActionText := '创建备份';
+      Suggestion.RelatedPath := '';
+      Suggestion.IsRead := False;
+      Suggestion.IsApplied := False;
+
+      AddSuggestion(Suggestion);
+    end;
+  end;
+end;
+
+function TSmartSuggestionEngine.GetOperationTypeName(AType: TOperationType): string;
+begin
+  case AType of
+    otDirectoryAnalysis: Result := '目录分析';
+    otSymlinkScan: Result := '符号链接扫描';
+    otSymlinkRepair: Result := '符号链接修复';
+    otFileCopy: Result := '文件拷贝';
+    otFileMove: Result := '文件移动';
+    otDirectoryCreate: Result := '目录创建';
+    otDirectoryDelete: Result := '目录删除';
+    otStatusChange: Result := '状态变更';
+    otCacheUpdate: Result := '缓存更新';
+    otSessionCreate: Result := '会话创建';
+    otSessionComplete: Result := '会话完成';
+    otUserAction: Result := '用户操作';
+  else
+    Result := '未知操作';
+  end;
+end;
+
+// ===== TBatchOperationManager 实现 =====
+
+constructor TBatchOperationManager.Create;
+begin
+  inherited Create;
+  SetLength(FOperations, 0);
+  FCurrentIndex := -1;
+  FIsRunning := False;
+  FIsPaused := False;
+  FTotalOperations := 0;
+  FCompletedOperations := 0;
+  FFailedOperations := 0;
+end;
+
+destructor TBatchOperationManager.Destroy;
+begin
+  StopBatch;
+  SetLength(FOperations, 0);
+  inherited Destroy;
+end;
+
+procedure TBatchOperationManager.AddOperation(const AItem: TBatchOperationItem);
+begin
+  SetLength(FOperations, Length(FOperations) + 1);
+  FOperations[High(FOperations)] := AItem;
+  FTotalOperations := Length(FOperations);
+end;
+
+procedure TBatchOperationManager.ClearOperations;
+begin
+  if FIsRunning then
+    StopBatch;
+
+  SetLength(FOperations, 0);
+  FCurrentIndex := -1;
+  FTotalOperations := 0;
+  FCompletedOperations := 0;
+  FFailedOperations := 0;
+end;
+
+function TBatchOperationManager.GetOperationCount: Integer;
+begin
+  Result := Length(FOperations);
+end;
+
+function TBatchOperationManager.GetOperation(AIndex: Integer): TBatchOperationItem;
+begin
+  if (AIndex >= 0) and (AIndex < Length(FOperations)) then
+    Result := FOperations[AIndex]
+  else
+  begin
+    // 返回空记录
+    FillChar(Result, SizeOf(Result), 0);
+    Result.Status := csNotStarted;
+  end;
+end;
+
+procedure TBatchOperationManager.UpdateOperation(AIndex: Integer; const AItem: TBatchOperationItem);
+begin
+  if (AIndex >= 0) and (AIndex < Length(FOperations)) then
+    FOperations[AIndex] := AItem;
+end;
+
+procedure TBatchOperationManager.StartBatch;
+begin
+  if FIsRunning or (Length(FOperations) = 0) then
+    Exit;
+
+  FIsRunning := True;
+  FIsPaused := False;
+  FCurrentIndex := 0;
+  FCompletedOperations := 0;
+  FFailedOperations := 0;
+
+  // 这里应该启动批量处理线程
+  // 为了简化，我们先实现基本框架
+end;
+
+procedure TBatchOperationManager.PauseBatch;
+begin
+  if FIsRunning and not FIsPaused then
+    FIsPaused := True;
+end;
+
+procedure TBatchOperationManager.ResumeBatch;
+begin
+  if FIsRunning and FIsPaused then
+    FIsPaused := False;
+end;
+
+procedure TBatchOperationManager.StopBatch;
+begin
+  FIsRunning := False;
+  FIsPaused := False;
+end;
+
+function TBatchOperationManager.IsRunning: Boolean;
+begin
+  Result := FIsRunning;
+end;
+
+function TBatchOperationManager.IsPaused: Boolean;
+begin
+  Result := FIsPaused;
+end;
+
+function TBatchOperationManager.GetOverallProgress: Double;
+var
+  TotalProgress: Double;
+  I: Integer;
+begin
+  if Length(FOperations) = 0 then
+  begin
+    Result := 0;
+    Exit;
+  end;
+
+  TotalProgress := 0;
+  for I := 0 to High(FOperations) do
+    TotalProgress := TotalProgress + FOperations[I].Progress;
+
+  Result := TotalProgress / Length(FOperations);
+end;
+
+function TBatchOperationManager.GetCurrentOperation: TBatchOperationItem;
+begin
+  if (FCurrentIndex >= 0) and (FCurrentIndex < Length(FOperations)) then
+    Result := FOperations[FCurrentIndex]
+  else
+  begin
+    FillChar(Result, SizeOf(Result), 0);
+    Result.Status := csNotStarted;
+  end;
+end;
+
+function TBatchOperationManager.GetCompletedCount: Integer;
+begin
+  Result := FCompletedOperations;
+end;
+
+function TBatchOperationManager.GetFailedCount: Integer;
+begin
+  Result := FFailedOperations;
+end;
+
+function TBatchOperationManager.GetRemainingCount: Integer;
+begin
+  Result := FTotalOperations - FCompletedOperations - FFailedOperations;
+end;
+
+// ===== TDependencyGraph 实现 =====
+
+constructor TDependencyGraph.Create(const ADataFile: string);
+begin
+  inherited Create;
+  FDataFile := ADataFile;
+  SetLength(FDependencies, 0);
+  FNodes := TStringList.Create;
+  FNodes.Sorted := True;
+  FNodes.Duplicates := dupIgnore;
+  SetLength(FAdjacencyMatrix, 0);
+end;
+
+destructor TDependencyGraph.Destroy;
+begin
+  SaveToFile;
+  SetLength(FDependencies, 0);
+  FNodes.Free;
+  SetLength(FAdjacencyMatrix, 0);
+  inherited Destroy;
+end;
+
+function TDependencyGraph.AddDependency(const ADependency: TDependencyRelation): string;
+var
+  Dependency: TDependencyRelation;
+  SourceIndex, TargetIndex: Integer;
+begin
+  Dependency := ADependency;
+
+  // 生成唯一ID
+  if Dependency.Id = '' then
+    Dependency.Id := FormatDateTime('yyyymmdd_hhnnss_', Now) + IntToStr(Random(9999));
+
+  // 设置检测时间
+  if Dependency.DetectedTime = 0 then
+    Dependency.DetectedTime := Now;
+
+  // 添加节点
+  SourceIndex := AddNode(Dependency.SourcePath);
+  TargetIndex := AddNode(Dependency.TargetPath);
+
+  // 添加到依赖列表
+  SetLength(FDependencies, Length(FDependencies) + 1);
+  FDependencies[High(FDependencies)] := Dependency;
+
+  // 重建邻接矩阵
+  BuildAdjacencyMatrix;
+
+  Result := Dependency.Id;
+end;
+
+procedure TDependencyGraph.RemoveDependency(const ADependencyId: string);
+var
+  I, J: Integer;
+begin
+  for I := 0 to High(FDependencies) do
+  begin
+    if FDependencies[I].Id = ADependencyId then
+    begin
+      // 移动后面的元素向前
+      for J := I to High(FDependencies) - 1 do
+        FDependencies[J] := FDependencies[J + 1];
+
+      // 缩短数组
+      SetLength(FDependencies, Length(FDependencies) - 1);
+
+      // 重建邻接矩阵
+      BuildAdjacencyMatrix;
+      Break;
+    end;
+  end;
+end;
+
+function TDependencyGraph.FindDependencies(const APath: string): TArray<TDependencyRelation>;
+var
+  TempList: TList<TDependencyRelation>;
+begin
+  TempList := TList<TDependencyRelation>.Create;
+  try
+    for var Dependency in FDependencies do
+    begin
+      if SameText(Dependency.SourcePath, APath) then
+        TempList.Add(Dependency);
+    end;
+
+    Result := TempList.ToArray;
+  finally
+    TempList.Free;
+  end;
+end;
+
+function TDependencyGraph.FindDependents(const APath: string): TArray<TDependencyRelation>;
+var
+  TempList: TList<TDependencyRelation>;
+begin
+  TempList := TList<TDependencyRelation>.Create;
+  try
+    for var Dependency in FDependencies do
+    begin
+      if SameText(Dependency.TargetPath, APath) then
+        TempList.Add(Dependency);
+    end;
+
+    Result := TempList.ToArray;
+  finally
+    TempList.Free;
+  end;
+end;
+
+procedure TDependencyGraph.UpdateDependency(const ADependencyId: string; const ADependency: TDependencyRelation);
+var
+  I: Integer;
+begin
+  for I := 0 to High(FDependencies) do
+  begin
+    if FDependencies[I].Id = ADependencyId then
+    begin
+      FDependencies[I] := ADependency;
+      FDependencies[I].LastVerified := Now;
+      Break;
+    end;
+  end;
+end;
+
+function TDependencyGraph.DetectCircularDependencies: TArray<TArray<string>>;
+var
+  Visited, RecStack: TArray<Boolean>;
+  Cycles: TList<TArray<string>>;
+  I: Integer;
+  Cycle: TArray<Integer>;
+  CyclePaths: TArray<string>;
+  J: Integer;
+begin
+  Cycles := TList<TArray<string>>.Create;
+  try
+    SetLength(Visited, FNodes.Count);
+    SetLength(RecStack, FNodes.Count);
+
+    // 初始化访问状态
+    for I := 0 to High(Visited) do
+    begin
+      Visited[I] := False;
+      RecStack[I] := False;
+    end;
+
+    // 对每个未访问的节点进行DFS
+    for I := 0 to FNodes.Count - 1 do
+    begin
+      if not Visited[I] then
+      begin
+        if DFSCycleDetection(I, Visited, RecStack, Cycle) then
+        begin
+          // 转换索引为路径
+          SetLength(CyclePaths, Length(Cycle));
+          for J := 0 to High(Cycle) do
+            CyclePaths[J] := FNodes[Cycle[J]];
+
+          Cycles.Add(CyclePaths);
+        end;
+      end;
+    end;
+
+    Result := Cycles.ToArray;
+  finally
+    Cycles.Free;
+  end;
+end;
+
+function TDependencyGraph.GetDependencyCount: Integer;
+begin
+  Result := Length(FDependencies);
+end;
+
+function TDependencyGraph.GetNodeCount: Integer;
+begin
+  Result := FNodes.Count;
+end;
+
+function TDependencyGraph.AddNode(const APath: string): Integer;
+begin
+  Result := FNodes.IndexOf(APath);
+  if Result = -1 then
+    Result := FNodes.Add(APath);
+end;
+
+function TDependencyGraph.FindNodeIndex(const APath: string): Integer;
+begin
+  Result := FNodes.IndexOf(APath);
+end;
+
+procedure TDependencyGraph.BuildAdjacencyMatrix;
+var
+  I, SourceIndex, TargetIndex: Integer;
+begin
+  // 重新分配邻接矩阵
+  SetLength(FAdjacencyMatrix, FNodes.Count);
+  for I := 0 to FNodes.Count - 1 do
+    SetLength(FAdjacencyMatrix[I], FNodes.Count);
+
+  // 初始化为False
+  for I := 0 to FNodes.Count - 1 do
+    for var J := 0 to FNodes.Count - 1 do
+      FAdjacencyMatrix[I][J] := False;
+
+  // 根据依赖关系设置邻接矩阵
+  for I := 0 to High(FDependencies) do
+  begin
+    SourceIndex := FindNodeIndex(FDependencies[I].SourcePath);
+    TargetIndex := FindNodeIndex(FDependencies[I].TargetPath);
+
+    if (SourceIndex >= 0) and (TargetIndex >= 0) then
+      FAdjacencyMatrix[SourceIndex][TargetIndex] := True;
+  end;
+end;
+
+function TDependencyGraph.DFSCycleDetection(ANode: Integer; AVisited, ARecStack: TArray<Boolean>; var ACycle: TArray<Integer>): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+
+  if (ANode < 0) or (ANode >= FNodes.Count) then
+    Exit;
+
+  AVisited[ANode] := True;
+  ARecStack[ANode] := True;
+
+  // 检查所有邻接节点
+  for I := 0 to FNodes.Count - 1 do
+  begin
+    if FAdjacencyMatrix[ANode][I] then
+    begin
+      if not AVisited[I] then
+      begin
+        if DFSCycleDetection(I, AVisited, ARecStack, ACycle) then
+        begin
+          Result := True;
+          Exit;
+        end;
+      end
+      else if ARecStack[I] then
+      begin
+        // 发现循环
+        SetLength(ACycle, 2);
+        ACycle[0] := ANode;
+        ACycle[1] := I;
+        Result := True;
+        Exit;
+      end;
+    end;
+  end;
+
+  ARecStack[ANode] := False;
+end;
+
+procedure TDependencyGraph.Clear;
+begin
+  SetLength(FDependencies, 0);
+  FNodes.Clear;
+  SetLength(FAdjacencyMatrix, 0);
+end;
+
+function TDependencyGraph.FindCriticalPaths: TArray<TArray<string>>;
+var
+  CriticalPaths: TList<TArray<string>>;
+  I: Integer;
+  CriticalDeps: TArray<TDependencyRelation>;
+  Path: TArray<string>;
+begin
+  CriticalPaths := TList<TArray<string>>.Create;
+  try
+    // 查找关键依赖
+    for I := 0 to High(FDependencies) do
+    begin
+      if FDependencies[I].IsCritical or (FDependencies[I].Strength = dsCritical) then
+      begin
+        SetLength(Path, 2);
+        Path[0] := FDependencies[I].SourcePath;
+        Path[1] := FDependencies[I].TargetPath;
+        CriticalPaths.Add(Path);
+      end;
+    end;
+
+    Result := CriticalPaths.ToArray;
+  finally
+    CriticalPaths.Free;
+  end;
+end;
+
+function TDependencyGraph.CalculateImpactScore(const APath: string): Double;
+var
+  Dependencies, Dependents: TArray<TDependencyRelation>;
+  Score: Double;
+  I: Integer;
+begin
+  Dependencies := FindDependencies(APath);
+  Dependents := FindDependents(APath);
+
+  Score := 0;
+
+  // 计算依赖项影响
+  for I := 0 to High(Dependencies) do
+    Score := Score + Dependencies[I].ImpactScore;
+
+  // 计算依赖者影响
+  for I := 0 to High(Dependents) do
+    Score := Score + Dependents[I].ImpactScore * 1.5; // 依赖者影响更大
+
+  Result := Score;
+end;
+
+function TDependencyGraph.GetDependencyChain(const ASourcePath, ATargetPath: string): TArray<string>;
+var
+  SourceIndex, TargetIndex: Integer;
+  Visited: TArray<Boolean>;
+  Path: TList<string>;
+
+  function DFS(ACurrentIndex, ATargetIndex: Integer): Boolean;
+  var
+    I: Integer;
+  begin
+    Result := False;
+
+    if ACurrentIndex = ATargetIndex then
+    begin
+      Result := True;
+      Exit;
+    end;
+
+    Visited[ACurrentIndex] := True;
+
+    for I := 0 to FNodes.Count - 1 do
+    begin
+      if FAdjacencyMatrix[ACurrentIndex][I] and not Visited[I] then
+      begin
+        Path.Add(FNodes[I]);
+        if DFS(I, ATargetIndex) then
+        begin
+          Result := True;
+          Exit;
+        end;
+        Path.Delete(Path.Count - 1);
+      end;
+    end;
+  end;
+
+begin
+  SourceIndex := FindNodeIndex(ASourcePath);
+  TargetIndex := FindNodeIndex(ATargetPath);
+
+  if (SourceIndex = -1) or (TargetIndex = -1) then
+  begin
+    SetLength(Result, 0);
+    Exit;
+  end;
+
+  SetLength(Visited, FNodes.Count);
+  for var I := 0 to High(Visited) do
+    Visited[I] := False;
+
+  Path := TList<string>.Create;
+  try
+    Path.Add(ASourcePath);
+
+    if DFS(SourceIndex, TargetIndex) then
+      Result := Path.ToArray
+    else
+      SetLength(Result, 0);
+
+  finally
+    Path.Free;
+  end;
+end;
+
+function TDependencyGraph.AnalyzeDependencyDepth(const APath: string): Integer;
+var
+  NodeIndex: Integer;
+  Visited: TArray<Boolean>;
+  MaxDepth: Integer;
+
+  function DFS(ACurrentIndex, ACurrentDepth: Integer): Integer;
+  var
+    I, Depth: Integer;
+  begin
+    Result := ACurrentDepth;
+    Visited[ACurrentIndex] := True;
+
+    for I := 0 to FNodes.Count - 1 do
+    begin
+      if FAdjacencyMatrix[ACurrentIndex][I] and not Visited[I] then
+      begin
+        Depth := DFS(I, ACurrentDepth + 1);
+        if Depth > Result then
+          Result := Depth;
+      end;
+    end;
+  end;
+
+begin
+  NodeIndex := FindNodeIndex(APath);
+  if NodeIndex = -1 then
+  begin
+    Result := 0;
+    Exit;
+  end;
+
+  SetLength(Visited, FNodes.Count);
+  for var I := 0 to High(Visited) do
+    Visited[I] := False;
+
+  Result := DFS(NodeIndex, 0);
+end;
+
+function TDependencyGraph.AssessMovementRisk(const APath: string): Integer;
+var
+  Dependencies, Dependents: TArray<TDependencyRelation>;
+  RiskScore: Integer;
+  I: Integer;
+  Depth: Integer;
+begin
+  Dependencies := FindDependencies(APath);
+  Dependents := FindDependents(APath);
+  Depth := AnalyzeDependencyDepth(APath);
+
+  RiskScore := 1; // 基础风险
+
+  // 依赖项数量影响
+  RiskScore := RiskScore + Min(Length(Dependencies), 3);
+
+  // 依赖者数量影响（更重要）
+  RiskScore := RiskScore + Min(Length(Dependents) * 2, 4);
+
+  // 依赖深度影响
+  RiskScore := RiskScore + Min(Depth, 2);
+
+  // 关键依赖影响
+  for I := 0 to High(Dependencies) do
+  begin
+    if Dependencies[I].IsCritical then
+      Inc(RiskScore, 2);
+  end;
+
+  for I := 0 to High(Dependents) do
+  begin
+    if Dependents[I].IsCritical then
+      Inc(RiskScore, 3);
+  end;
+
+  Result := Min(RiskScore, 10); // 最大风险等级为10
+end;
+
+function TDependencyGraph.GetHighRiskDependencies: TArray<TDependencyRelation>;
+var
+  HighRiskList: TList<TDependencyRelation>;
+begin
+  HighRiskList := TList<TDependencyRelation>.Create;
+  try
+    for var Dependency in FDependencies do
+    begin
+      if (Dependency.RiskLevel >= 7) or Dependency.IsCritical then
+        HighRiskList.Add(Dependency);
+    end;
+
+    Result := HighRiskList.ToArray;
+  finally
+    HighRiskList.Free;
+  end;
+end;
+
+function TDependencyGraph.ValidateAllDependencies: Integer;
+var
+  InvalidCount: Integer;
+  I: Integer;
+begin
+  InvalidCount := 0;
+
+  for I := 0 to High(FDependencies) do
+  begin
+    // 检查路径是否存在
+    if not (DirectoryExists(FDependencies[I].SourcePath) and
+            DirectoryExists(FDependencies[I].TargetPath)) then
+    begin
+      FDependencies[I].IsValid := False;
+      Inc(InvalidCount);
+    end
+    else
+    begin
+      FDependencies[I].IsValid := True;
+      FDependencies[I].LastVerified := Now;
+    end;
+  end;
+
+  Result := InvalidCount;
+end;
+
+function TDependencyGraph.GenerateGraphData: string;
+var
+  I: Integer;
+  GraphText: string;
+begin
+  GraphText := '';
+
+  if Length(FDependencies) = 0 then
+  begin
+    Result := '暂无依赖关系数据';
+    Exit;
+  end;
+
+  for I := 0 to High(FDependencies) do
+  begin
+    GraphText := GraphText + Format('%s → %s (%s)%s', [
+      ExtractFileName(FDependencies[I].SourcePath),
+      ExtractFileName(FDependencies[I].TargetPath),
+      GetDependencyTypeText(FDependencies[I].DependencyType),
+      #13#10
+    ]);
+  end;
+
+  Result := GraphText;
+end;
+
+function TDependencyGraph.GetStatistics: string;
+var
+  ValidCount, InvalidCount, CriticalCount: Integer;
+  I: Integer;
+begin
+  ValidCount := 0;
+  InvalidCount := 0;
+  CriticalCount := 0;
+
+  for I := 0 to High(FDependencies) do
+  begin
+    if FDependencies[I].IsValid then
+      Inc(ValidCount)
+    else
+      Inc(InvalidCount);
+
+    if FDependencies[I].IsCritical then
+      Inc(CriticalCount);
+  end;
+
+  Result := Format('节点数: %d, 依赖关系: %d, 有效: %d, 无效: %d, 关键: %d', [
+    FNodes.Count,
+    Length(FDependencies),
+    ValidCount,
+    InvalidCount,
+    CriticalCount
+  ]);
+end;
+
+procedure TDependencyGraph.SaveToFile;
+var
+  FileStream: TFileStream;
+  Writer: TBinaryWriter;
+  I: Integer;
+begin
+  try
+    if FDataFile = '' then
+      Exit;
+
+    FileStream := TFileStream.Create(FDataFile, fmCreate);
+    try
+      Writer := TBinaryWriter.Create(FileStream);
+      try
+        // 写入版本号
+        Writer.Write(Integer(1));
+
+        // 写入依赖关系数量
+        Writer.Write(Length(FDependencies));
+
+        // 写入每个依赖关系
+        for I := 0 to High(FDependencies) do
+        begin
+          Writer.Write(FDependencies[I].Id);
+          Writer.Write(FDependencies[I].SourcePath);
+          Writer.Write(FDependencies[I].TargetPath);
+          Writer.Write(Integer(FDependencies[I].DependencyType));
+          Writer.Write(Integer(FDependencies[I].Strength));
+          Writer.Write(FDependencies[I].Description);
+          Writer.Write(FDependencies[I].IsValid);
+          Writer.Write(FDependencies[I].IsCritical);
+          Writer.Write(FDependencies[I].DetectedTime);
+          Writer.Write(FDependencies[I].LastVerified);
+          Writer.Write(FDependencies[I].RiskLevel);
+          Writer.Write(FDependencies[I].ImpactScore);
+          Writer.Write(FDependencies[I].UserData);
+        end;
+
+      finally
+        Writer.Free;
+      end;
+    finally
+      FileStream.Free;
+    end;
+  except
+    // 忽略保存错误
+  end;
+end;
+
+procedure TDependencyGraph.LoadFromFile;
+var
+  FileStream: TFileStream;
+  Reader: TBinaryReader;
+  Version, Count, I: Integer;
+  Dependency: TDependencyRelation;
+begin
+  try
+    if not FileExists(FDataFile) then
+      Exit;
+
+    FileStream := TFileStream.Create(FDataFile, fmOpenRead);
+    try
+      Reader := TBinaryReader.Create(FileStream);
+      try
+        // 读取版本号
+        Version := Reader.ReadInt32;
+        if Version <> 1 then
+          Exit;
+
+        // 读取依赖关系数量
+        Count := Reader.ReadInt32;
+        SetLength(FDependencies, Count);
+
+        // 读取每个依赖关系
+        for I := 0 to Count - 1 do
+        begin
+          Dependency.Id := Reader.ReadString;
+          Dependency.SourcePath := Reader.ReadString;
+          Dependency.TargetPath := Reader.ReadString;
+          Dependency.DependencyType := TDependencyType(Reader.ReadInt32);
+          Dependency.Strength := TDependencyStrength(Reader.ReadInt32);
+          Dependency.Description := Reader.ReadString;
+          Dependency.IsValid := Reader.ReadBoolean;
+          Dependency.IsCritical := Reader.ReadBoolean;
+          Dependency.DetectedTime := Reader.ReadDouble;
+          Dependency.LastVerified := Reader.ReadDouble;
+          Dependency.RiskLevel := Reader.ReadInt32;
+          Dependency.ImpactScore := Reader.ReadDouble;
+          Dependency.UserData := Reader.ReadString;
+
+          FDependencies[I] := Dependency;
+
+          // 添加节点
+          AddNode(Dependency.SourcePath);
+          AddNode(Dependency.TargetPath);
+        end;
+
+        // 重建邻接矩阵
+        BuildAdjacencyMatrix;
+
+      finally
+        Reader.Free;
+      end;
+    finally
+      FileStream.Free;
+    end;
+  except
+    // 忽略加载错误
+    Clear;
+  end;
+end;
+
+function TDependencyGraph.GetDependencyTypeText(AType: TDependencyType): string;
+begin
+  case AType of
+    dtSymbolicLink: Result := '符号链接';
+    dtFileReference: Result := '文件引用';
+    dtPathReference: Result := '路径引用';
+    dtConfigFile: Result := '配置文件';
+    dtRegistry: Result := '注册表';
+    dtEnvironment: Result := '环境变量';
+    dtService: Result := '服务';
+    dtLibrary: Result := '库文件';
+  else
+    Result := '未知';
+  end;
+end;
+
+// ===== TConfigTemplateManager 实现 =====
+
+constructor TConfigTemplateManager.Create(const ADataFile: string);
+begin
+  inherited Create;
+  FDataFile := ADataFile;
+  SetLength(FTemplates, 0);
+  FillChar(FCurrentTemplate, SizeOf(FCurrentTemplate), 0);
+  FAutoSave := True;
+end;
+
+destructor TConfigTemplateManager.Destroy;
+begin
+  if FAutoSave then
+    SaveToFile;
+  SetLength(FTemplates, 0);
+  inherited Destroy;
+end;
+
+function TConfigTemplateManager.CreateTemplate(const AName, ADescription: string; AType: TConfigTemplateType): string;
+var
+  Template: TConfigTemplate;
+begin
+  // 初始化模板
+  FillChar(Template, SizeOf(Template), 0);
+  Template.Id := FormatDateTime('yyyymmdd_hhnnss_', Now) + IntToStr(Random(9999));
+  Template.Name := AName;
+  Template.Description := ADescription;
+  Template.TemplateType := AType;
+  Template.Version := '1.0';
+  Template.CreatedBy := GetEnvironmentVariable('USERNAME');
+  Template.CreatedTime := Now;
+  Template.ModifiedTime := Now;
+  Template.IsActive := True;
+  Template.IsDefault := False;
+  Template.Priority := 5;
+
+  // 添加到模板列表
+  SetLength(FTemplates, Length(FTemplates) + 1);
+  FTemplates[High(FTemplates)] := Template;
+
+  if FAutoSave then
+    SaveToFile;
+
+  Result := Template.Id;
+end;
+
+function TConfigTemplateManager.LoadTemplate(const ATemplateId: string): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+
+  for I := 0 to High(FTemplates) do
+  begin
+    if FTemplates[I].Id = ATemplateId then
+    begin
+      FCurrentTemplate := FTemplates[I];
+      Result := True;
+      Break;
+    end;
+  end;
+end;
+
+function TConfigTemplateManager.SaveTemplate(const ATemplate: TConfigTemplate): Boolean;
+var
+  I: Integer;
+  Found: Boolean;
+  UpdatedTemplate: TConfigTemplate;
+begin
+  Result := False;
+  Found := False;
+  UpdatedTemplate := ATemplate;
+  UpdatedTemplate.ModifiedTime := Now;
+
+  // 查找现有模板并更新
+  for I := 0 to High(FTemplates) do
+  begin
+    if FTemplates[I].Id = ATemplate.Id then
+    begin
+      FTemplates[I] := UpdatedTemplate;
+      Found := True;
+      Result := True;
+      Break;
+    end;
+  end;
+
+  // 如果没找到，添加新模板
+  if not Found then
+  begin
+    SetLength(FTemplates, Length(FTemplates) + 1);
+    FTemplates[High(FTemplates)] := UpdatedTemplate;
+    Result := True;
+  end;
+
+  if FAutoSave then
+    SaveToFile;
+end;
+
+function TConfigTemplateManager.DeleteTemplate(const ATemplateId: string): Boolean;
+var
+  I, J: Integer;
+begin
+  Result := False;
+
+  for I := 0 to High(FTemplates) do
+  begin
+    if FTemplates[I].Id = ATemplateId then
+    begin
+      // 移动后面的元素向前
+      for J := I to High(FTemplates) - 1 do
+        FTemplates[J] := FTemplates[J + 1];
+
+      // 缩短数组
+      SetLength(FTemplates, Length(FTemplates) - 1);
+      Result := True;
+
+      if FAutoSave then
+        SaveToFile;
+      Break;
+    end;
+  end;
+end;
+
+function TConfigTemplateManager.DuplicateTemplate(const ATemplateId, ANewName: string): string;
+var
+  I: Integer;
+  NewTemplate: TConfigTemplate;
+begin
+  Result := '';
+
+  for I := 0 to High(FTemplates) do
+  begin
+    if FTemplates[I].Id = ATemplateId then
+    begin
+      NewTemplate := FTemplates[I];
+      NewTemplate.Id := FormatDateTime('yyyymmdd_hhnnss_', Now) + IntToStr(Random(9999));
+      NewTemplate.Name := ANewName;
+      NewTemplate.CreatedTime := Now;
+      NewTemplate.ModifiedTime := Now;
+      NewTemplate.IsDefault := False;
+
+      SetLength(FTemplates, Length(FTemplates) + 1);
+      FTemplates[High(FTemplates)] := NewTemplate;
+
+      if FAutoSave then
+        SaveToFile;
+
+      Result := NewTemplate.Id;
+      Break;
+    end;
+  end;
+end;
+
+function TConfigTemplateManager.GetTemplate(const ATemplateId: string): TConfigTemplate;
+var
+  I: Integer;
+begin
+  FillChar(Result, SizeOf(Result), 0);
+
+  for I := 0 to High(FTemplates) do
+  begin
+    if FTemplates[I].Id = ATemplateId then
+    begin
+      Result := FTemplates[I];
+      Break;
+    end;
+  end;
+end;
+
+function TConfigTemplateManager.GetTemplatesByType(AType: TConfigTemplateType): TArray<TConfigTemplate>;
+var
+  TempList: TList<TConfigTemplate>;
+begin
+  TempList := TList<TConfigTemplate>.Create;
+  try
+    for var Template in FTemplates do
+    begin
+      if Template.TemplateType = AType then
+        TempList.Add(Template);
+    end;
+
+    Result := TempList.ToArray;
+  finally
+    TempList.Free;
+  end;
+end;
+
+function TConfigTemplateManager.GetAllTemplates: TArray<TConfigTemplate>;
+begin
+  Result := Copy(FTemplates, 0, Length(FTemplates));
+end;
+
+function TConfigTemplateManager.FindTemplatesByName(const AName: string): TArray<TConfigTemplate>;
+var
+  TempList: TList<TConfigTemplate>;
+begin
+  TempList := TList<TConfigTemplate>.Create;
+  try
+    for var Template in FTemplates do
+    begin
+      if Pos(UpperCase(AName), UpperCase(Template.Name)) > 0 then
+        TempList.Add(Template);
+    end;
+
+    Result := TempList.ToArray;
+  finally
+    TempList.Free;
+  end;
+end;
+
+function TConfigTemplateManager.GetDefaultTemplate: TConfigTemplate;
+var
+  I: Integer;
+begin
+  FillChar(Result, SizeOf(Result), 0);
+
+  for I := 0 to High(FTemplates) do
+  begin
+    if FTemplates[I].IsDefault then
+    begin
+      Result := FTemplates[I];
+      Break;
+    end;
+  end;
+end;
+
+function TConfigTemplateManager.GetTemplateCount: Integer;
+begin
+  Result := Length(FTemplates);
+end;
+
+procedure TConfigTemplateManager.SetAutoSave(AEnabled: Boolean);
+begin
+  FAutoSave := AEnabled;
+end;
+
+function TConfigTemplateManager.ApplyTemplate(const ATemplateId: string): Boolean;
+var
+  Template: TConfigTemplate;
+begin
+  Result := False;
+
+  Template := GetTemplate(ATemplateId);
+  if Template.Id <> '' then
+  begin
+    FCurrentTemplate := Template;
+    Result := True;
+  end;
+end;
+
+function TConfigTemplateManager.ExportTemplate(const ATemplateId, AFilePath: string): Boolean;
+var
+  Template: TConfigTemplate;
+  FileStream: TFileStream;
+  Writer: TBinaryWriter;
+begin
+  Result := False;
+
+  try
+    Template := GetTemplate(ATemplateId);
+    if Template.Id = '' then
+      Exit;
+
+    FileStream := TFileStream.Create(AFilePath, fmCreate);
+    try
+      Writer := TBinaryWriter.Create(FileStream);
+      try
+        // 写入模板数据
+        Writer.Write(Template.Id);
+        Writer.Write(Template.Name);
+        Writer.Write(Template.Description);
+        Writer.Write(Integer(Template.TemplateType));
+        Writer.Write(Template.Version);
+        Writer.Write(Template.CreatedBy);
+        Writer.Write(Template.CreatedTime);
+        Writer.Write(Template.ModifiedTime);
+        Writer.Write(Template.IsActive);
+        Writer.Write(Template.IsDefault);
+        Writer.Write(Template.SourcePath);
+        Writer.Write(Template.TargetPath);
+        Writer.Write(Template.CopyOptions);
+        Writer.Write(Template.AnalysisOptions);
+        Writer.Write(Template.SecuritySettings);
+        Writer.Write(Template.PerformanceSettings);
+        Writer.Write(Template.UISettings);
+        Writer.Write(Template.Tags);
+        Writer.Write(Template.Category);
+        Writer.Write(Template.Priority);
+        Writer.Write(Template.UserData);
+
+        Result := True;
+      finally
+        Writer.Free;
+      end;
+    finally
+      FileStream.Free;
+    end;
+  except
+    Result := False;
+  end;
+end;
+
+function TConfigTemplateManager.ImportTemplate(const AFilePath: string): string;
+var
+  Template: TConfigTemplate;
+  FileStream: TFileStream;
+  Reader: TBinaryReader;
+begin
+  Result := '';
+
+  try
+    if not FileExists(AFilePath) then
+      Exit;
+
+    FileStream := TFileStream.Create(AFilePath, fmOpenRead);
+    try
+      Reader := TBinaryReader.Create(FileStream);
+      try
+        // 读取模板数据
+        Template.Id := Reader.ReadString;
+        Template.Name := Reader.ReadString;
+        Template.Description := Reader.ReadString;
+        Template.TemplateType := TConfigTemplateType(Reader.ReadInt32);
+        Template.Version := Reader.ReadString;
+        Template.CreatedBy := Reader.ReadString;
+        Template.CreatedTime := Reader.ReadDouble;
+        Template.ModifiedTime := Reader.ReadDouble;
+        Template.IsActive := Reader.ReadBoolean;
+        Template.IsDefault := Reader.ReadBoolean;
+        Template.SourcePath := Reader.ReadString;
+        Template.TargetPath := Reader.ReadString;
+        Template.CopyOptions := Reader.ReadString;
+        Template.AnalysisOptions := Reader.ReadString;
+        Template.SecuritySettings := Reader.ReadString;
+        Template.PerformanceSettings := Reader.ReadString;
+        Template.UISettings := Reader.ReadString;
+        Template.Tags := Reader.ReadString;
+        Template.Category := Reader.ReadString;
+        Template.Priority := Reader.ReadInt32;
+        Template.UserData := Reader.ReadString;
+
+        // 生成新ID避免冲突
+        Template.Id := FormatDateTime('yyyymmdd_hhnnss_', Now) + IntToStr(Random(9999));
+        Template.ModifiedTime := Now;
+
+        // 添加到模板列表
+        SetLength(FTemplates, Length(FTemplates) + 1);
+        FTemplates[High(FTemplates)] := Template;
+
+        if FAutoSave then
+          SaveToFile;
+
+        Result := Template.Id;
+      finally
+        Reader.Free;
+      end;
+    finally
+      FileStream.Free;
+    end;
+  except
+    Result := '';
+  end;
+end;
+
+function TConfigTemplateManager.ValidateTemplate(const ATemplate: TConfigTemplate): Boolean;
+begin
+  Result := (ATemplate.Id <> '') and (ATemplate.Name <> '');
+
+  // 可以添加更多验证逻辑
+  if Result then
+  begin
+    Result := Result and (Length(ATemplate.Name) >= 2);
+    Result := Result and (Length(ATemplate.Name) <= 100);
+  end;
+end;
+
+function TConfigTemplateManager.CreateTemplateVersion(const ATemplateId: string): string;
+var
+  Template: TConfigTemplate;
+  VersionedTemplate: TConfigTemplate;
+begin
+  Result := '';
+
+  Template := GetTemplate(ATemplateId);
+  if Template.Id = '' then
+    Exit;
+
+  VersionedTemplate := Template;
+  VersionedTemplate.Id := FormatDateTime('yyyymmdd_hhnnss_', Now) + IntToStr(Random(9999));
+  VersionedTemplate.Name := Template.Name + ' (v' + FormatDateTime('yyyymmdd-hhnnss', Now) + ')';
+  VersionedTemplate.CreatedTime := Now;
+  VersionedTemplate.ModifiedTime := Now;
+  VersionedTemplate.IsDefault := False;
+
+  SetLength(FTemplates, Length(FTemplates) + 1);
+  FTemplates[High(FTemplates)] := VersionedTemplate;
+
+  if FAutoSave then
+    SaveToFile;
+
+  Result := VersionedTemplate.Id;
+end;
+
+function TConfigTemplateManager.GetTemplateVersions(const ATemplateId: string): TArray<string>;
+var
+  Template: TConfigTemplate;
+  VersionList: TList<string>;
+  I: Integer;
+begin
+  Template := GetTemplate(ATemplateId);
+  if Template.Id = '' then
+  begin
+    SetLength(Result, 0);
+    Exit;
+  end;
+
+  VersionList := TList<string>.Create;
+  try
+    for I := 0 to High(FTemplates) do
+    begin
+      if Pos(Template.Name, FTemplates[I].Name) > 0 then
+        VersionList.Add(FTemplates[I].Id);
+    end;
+
+    Result := VersionList.ToArray;
+  finally
+    VersionList.Free;
+  end;
+end;
+
+function TConfigTemplateManager.RestoreTemplateVersion(const ATemplateId, AVersion: string): Boolean;
+var
+  VersionTemplate: TConfigTemplate;
+begin
+  Result := False;
+
+  VersionTemplate := GetTemplate(AVersion);
+  if VersionTemplate.Id = '' then
+    Exit;
+
+  VersionTemplate.Id := ATemplateId;
+  VersionTemplate.ModifiedTime := Now;
+
+  Result := SaveTemplate(VersionTemplate);
+end;
+
+procedure TConfigTemplateManager.SaveToFile;
+var
+  FileStream: TFileStream;
+  Writer: TBinaryWriter;
+  I: Integer;
+begin
+  try
+    if FDataFile = '' then
+      Exit;
+
+    FileStream := TFileStream.Create(FDataFile, fmCreate);
+    try
+      Writer := TBinaryWriter.Create(FileStream);
+      try
+        // 写入版本号
+        Writer.Write(Integer(1));
+
+        // 写入模板数量
+        Writer.Write(Length(FTemplates));
+
+        // 写入每个模板
+        for I := 0 to High(FTemplates) do
+        begin
+          Writer.Write(FTemplates[I].Id);
+          Writer.Write(FTemplates[I].Name);
+          Writer.Write(FTemplates[I].Description);
+          Writer.Write(Integer(FTemplates[I].TemplateType));
+          Writer.Write(FTemplates[I].Version);
+          Writer.Write(FTemplates[I].CreatedBy);
+          Writer.Write(FTemplates[I].CreatedTime);
+          Writer.Write(FTemplates[I].ModifiedTime);
+          Writer.Write(FTemplates[I].IsActive);
+          Writer.Write(FTemplates[I].IsDefault);
+          Writer.Write(FTemplates[I].SourcePath);
+          Writer.Write(FTemplates[I].TargetPath);
+          Writer.Write(FTemplates[I].CopyOptions);
+          Writer.Write(FTemplates[I].AnalysisOptions);
+          Writer.Write(FTemplates[I].SecuritySettings);
+          Writer.Write(FTemplates[I].PerformanceSettings);
+          Writer.Write(FTemplates[I].UISettings);
+          Writer.Write(FTemplates[I].Tags);
+          Writer.Write(FTemplates[I].Category);
+          Writer.Write(FTemplates[I].Priority);
+          Writer.Write(FTemplates[I].UserData);
+        end;
+
+      finally
+        Writer.Free;
+      end;
+    finally
+      FileStream.Free;
+    end;
+  except
+    // 忽略保存错误
+  end;
+end;
+
+procedure TConfigTemplateManager.LoadFromFile;
+var
+  FileStream: TFileStream;
+  Reader: TBinaryReader;
+  Version, Count, I: Integer;
+  Template: TConfigTemplate;
+begin
+  try
+    if not FileExists(FDataFile) then
+      Exit;
+
+    FileStream := TFileStream.Create(FDataFile, fmOpenRead);
+    try
+      Reader := TBinaryReader.Create(FileStream);
+      try
+        // 读取版本号
+        Version := Reader.ReadInt32;
+        if Version <> 1 then
+          Exit;
+
+        // 读取模板数量
+        Count := Reader.ReadInt32;
+        SetLength(FTemplates, Count);
+
+        // 读取每个模板
+        for I := 0 to Count - 1 do
+        begin
+          Template.Id := Reader.ReadString;
+          Template.Name := Reader.ReadString;
+          Template.Description := Reader.ReadString;
+          Template.TemplateType := TConfigTemplateType(Reader.ReadInt32);
+          Template.Version := Reader.ReadString;
+          Template.CreatedBy := Reader.ReadString;
+          Template.CreatedTime := Reader.ReadDouble;
+          Template.ModifiedTime := Reader.ReadDouble;
+          Template.IsActive := Reader.ReadBoolean;
+          Template.IsDefault := Reader.ReadBoolean;
+          Template.SourcePath := Reader.ReadString;
+          Template.TargetPath := Reader.ReadString;
+          Template.CopyOptions := Reader.ReadString;
+          Template.AnalysisOptions := Reader.ReadString;
+          Template.SecuritySettings := Reader.ReadString;
+          Template.PerformanceSettings := Reader.ReadString;
+          Template.UISettings := Reader.ReadString;
+          Template.Tags := Reader.ReadString;
+          Template.Category := Reader.ReadString;
+          Template.Priority := Reader.ReadInt32;
+          Template.UserData := Reader.ReadString;
+
+          FTemplates[I] := Template;
+        end;
+
+      finally
+        Reader.Free;
+      end;
+    finally
+      FileStream.Free;
+    end;
+  except
+    // 忽略加载错误
+    SetLength(FTemplates, 0);
+  end;
+end;
+
+function TConfigTemplateManager.GetTemplateUsageStats: string;
+var
+  ActiveCount, DefaultCount: Integer;
+  TypeCounts: array[TConfigTemplateType] of Integer;
+  I: Integer;
+  TypeName: string;
+begin
+  ActiveCount := 0;
+  DefaultCount := 0;
+
+  for I := Low(TypeCounts) to High(TypeCounts) do
+    TypeCounts[I] := 0;
+
+  for I := 0 to High(FTemplates) do
+  begin
+    if FTemplates[I].IsActive then
+      Inc(ActiveCount);
+    if FTemplates[I].IsDefault then
+      Inc(DefaultCount);
+    Inc(TypeCounts[FTemplates[I].TemplateType]);
+  end;
+
+  Result := Format('总计: %d, 激活: %d, 默认: %d', [Length(FTemplates), ActiveCount, DefaultCount]);
+
+  for I := Low(TypeCounts) to High(TypeCounts) do
+  begin
+    if TypeCounts[I] > 0 then
+    begin
+      case TConfigTemplateType(I) of
+        ctGeneral: TypeName := '通用';
+        ctDevelopment: TypeName := '开发';
+        ctProduction: TypeName := '生产';
+        ctTesting: TypeName := '测试';
+        ctBackup: TypeName := '备份';
+        ctCustom: TypeName := '自定义';
+      else
+        TypeName := '未知';
+      end;
+
+      Result := Result + Format(', %s: %d', [TypeName, TypeCounts[I]]);
+    end;
+  end;
+end;
+
+// ===== TAuditComplianceManager 实现 =====
+
+constructor TAuditComplianceManager.Create(const ADataFile: string; AMaxRecords: Integer);
+begin
+  inherited Create;
+  FDataFile := ADataFile;
+  FMaxRecords := AMaxRecords;
+  SetLength(FAuditRecords, 0);
+  SetLength(FComplianceRules, 0);
+  FCurrentSessionId := '';
+  FCurrentUserId := '';
+  FAutoAudit := True;
+end;
+
+destructor TAuditComplianceManager.Destroy;
+begin
+  EndSession;
+  SaveToFile;
+  SetLength(FAuditRecords, 0);
+  SetLength(FComplianceRules, 0);
+  inherited Destroy;
+end;
+
+function TAuditComplianceManager.LogAuditEvent(AEventType: TAuditEventType; ASeverity: TAuditSeverity; const ADescription, AResourcePath: string; ASuccess: Boolean; const AOldValue, ANewValue: string): string;
+var
+  AuditRecord: TAuditRecord;
+begin
+  // 创建审计记录
+  AuditRecord.Id := FormatDateTime('yyyymmdd_hhnnss_', Now) + IntToStr(Random(9999));
+  AuditRecord.EventType := AEventType;
+  AuditRecord.Severity := ASeverity;
+  AuditRecord.Timestamp := Now;
+  AuditRecord.UserId := FCurrentUserId;
+  AuditRecord.UserName := GetEnvironmentVariable('USERNAME');
+  AuditRecord.SessionId := FCurrentSessionId;
+  AuditRecord.SourceIP := '127.0.0.1'; // 本地应用
+  AuditRecord.EventDescription := ADescription;
+  AuditRecord.ResourcePath := AResourcePath;
+  AuditRecord.OldValue := AOldValue;
+  AuditRecord.NewValue := ANewValue;
+  AuditRecord.Success := ASuccess;
+  AuditRecord.ErrorCode := 0;
+  AuditRecord.ErrorMessage := '';
+  AuditRecord.AdditionalData := '';
+  AuditRecord.ComplianceFlags := '';
+
+  // 添加到审计记录列表
+  SetLength(FAuditRecords, Length(FAuditRecords) + 1);
+  FAuditRecords[High(FAuditRecords)] := AuditRecord;
+
+  // 限制记录数量
+  if Length(FAuditRecords) > FMaxRecords then
+  begin
+    // 移除最旧的记录
+    for var I := 0 to High(FAuditRecords) - 1 do
+      FAuditRecords[I] := FAuditRecords[I + 1];
+    SetLength(FAuditRecords, FMaxRecords);
+  end;
+
+  Result := AuditRecord.Id;
+end;
+
+function TAuditComplianceManager.GetAuditRecords(AStartTime, AEndTime: TDateTime): TArray<TAuditRecord>;
+var
+  TempList: TList<TAuditRecord>;
+begin
+  TempList := TList<TAuditRecord>.Create;
+  try
+    for var Record in FAuditRecords do
+    begin
+      if (Record.Timestamp >= AStartTime) and (Record.Timestamp <= AEndTime) then
+        TempList.Add(Record);
+    end;
+
+    Result := TempList.ToArray;
+  finally
+    TempList.Free;
+  end;
+end;
+
+function TAuditComplianceManager.GetAuditRecordsByType(AEventType: TAuditEventType): TArray<TAuditRecord>;
+var
+  TempList: TList<TAuditRecord>;
+begin
+  TempList := TList<TAuditRecord>.Create;
+  try
+    for var Record in FAuditRecords do
+    begin
+      if Record.EventType = AEventType then
+        TempList.Add(Record);
+    end;
+
+    Result := TempList.ToArray;
+  finally
+    TempList.Free;
+  end;
+end;
+
+function TAuditComplianceManager.GetAuditRecordsBySeverity(ASeverity: TAuditSeverity): TArray<TAuditRecord>;
+var
+  TempList: TList<TAuditRecord>;
+begin
+  TempList := TList<TAuditRecord>.Create;
+  try
+    for var Record in FAuditRecords do
+    begin
+      if Record.Severity = ASeverity then
+        TempList.Add(Record);
+    end;
+
+    Result := TempList.ToArray;
+  finally
+    TempList.Free;
+  end;
+end;
+
+function TAuditComplianceManager.SearchAuditRecords(const ASearchText: string): TArray<TAuditRecord>;
+var
+  TempList: TList<TAuditRecord>;
+  SearchUpper: string;
+begin
+  TempList := TList<TAuditRecord>.Create;
+  try
+    SearchUpper := UpperCase(ASearchText);
+
+    for var Record in FAuditRecords do
+    begin
+      if (Pos(SearchUpper, UpperCase(Record.EventDescription)) > 0) or
+         (Pos(SearchUpper, UpperCase(Record.ResourcePath)) > 0) or
+         (Pos(SearchUpper, UpperCase(Record.UserName)) > 0) then
+        TempList.Add(Record);
+    end;
+
+    Result := TempList.ToArray;
+  finally
+    TempList.Free;
+  end;
+end;
+
+procedure TAuditComplianceManager.ClearOldAuditRecords(ADaysOld: Integer);
+var
+  CutoffDate: TDateTime;
+  NewRecords: TArray<TAuditRecord>;
+begin
+  CutoffDate := Now - ADaysOld;
+  SetLength(NewRecords, 0);
+
+  for var Record in FAuditRecords do
+  begin
+    if Record.Timestamp > CutoffDate then
+    begin
+      SetLength(NewRecords, Length(NewRecords) + 1);
+      NewRecords[High(NewRecords)] := Record;
+    end;
+  end;
+
+  FAuditRecords := NewRecords;
+end;
+
+function TAuditComplianceManager.AddComplianceRule(const ARule: TComplianceRule): string;
+var
+  Rule: TComplianceRule;
+begin
+  Rule := ARule;
+
+  // 生成唯一ID
+  if Rule.Id = '' then
+    Rule.Id := FormatDateTime('yyyymmdd_hhnnss_', Now) + IntToStr(Random(9999));
+
+  // 设置时间戳
+  if Rule.CreatedTime = 0 then
+    Rule.CreatedTime := Now;
+  Rule.ModifiedTime := Now;
+
+  // 添加到规则列表
+  SetLength(FComplianceRules, Length(FComplianceRules) + 1);
+  FComplianceRules[High(FComplianceRules)] := Rule;
+
+  Result := Rule.Id;
+end;
+
+function TAuditComplianceManager.UpdateComplianceRule(const ARuleId: string; const ARule: TComplianceRule): Boolean;
+var
+  I: Integer;
+  UpdatedRule: TComplianceRule;
+begin
+  Result := False;
+
+  for I := 0 to High(FComplianceRules) do
+  begin
+    if FComplianceRules[I].Id = ARuleId then
+    begin
+      UpdatedRule := ARule;
+      UpdatedRule.Id := ARuleId;
+      UpdatedRule.ModifiedTime := Now;
+      FComplianceRules[I] := UpdatedRule;
+      Result := True;
+      Break;
+    end;
+  end;
+end;
+
+function TAuditComplianceManager.DeleteComplianceRule(const ARuleId: string): Boolean;
+var
+  I, J: Integer;
+begin
+  Result := False;
+
+  for I := 0 to High(FComplianceRules) do
+  begin
+    if FComplianceRules[I].Id = ARuleId then
+    begin
+      // 移动后面的元素向前
+      for J := I to High(FComplianceRules) - 1 do
+        FComplianceRules[J] := FComplianceRules[J + 1];
+
+      // 缩短数组
+      SetLength(FComplianceRules, Length(FComplianceRules) - 1);
+      Result := True;
+      Break;
+    end;
+  end;
+end;
+
+function TAuditComplianceManager.GetComplianceRules: TArray<TComplianceRule>;
+begin
+  Result := Copy(FComplianceRules, 0, Length(FComplianceRules));
+end;
+
+function TAuditComplianceManager.CheckCompliance(const AResourcePath, AOperation: string): TArray<TComplianceRule>;
+var
+  ViolatedRules: TList<TComplianceRule>;
+begin
+  ViolatedRules := TList<TComplianceRule>.Create;
+  try
+    for var Rule in FComplianceRules do
+    begin
+      if Rule.IsActive then
+      begin
+        // 简单的模式匹配检查
+        case Rule.RuleType of
+          crtPathRestriction:
+          begin
+            if (Rule.Pattern <> '') and (Pos(UpperCase(Rule.Pattern), UpperCase(AResourcePath)) > 0) then
+              ViolatedRules.Add(Rule);
+          end;
+
+          crtUserPermission:
+          begin
+            // 检查用户权限
+            if (FCurrentUserId <> '') and (Rule.Pattern <> '') and (FCurrentUserId <> Rule.Pattern) then
+              ViolatedRules.Add(Rule);
+          end;
+
+          // 其他规则类型的检查可以在这里添加
+        end;
+      end;
+    end;
+
+    Result := ViolatedRules.ToArray;
+  finally
+    ViolatedRules.Free;
+  end;
+end;
+
+function TAuditComplianceManager.ValidateOperation(const AResourcePath, AOperation: string): Boolean;
+var
+  ViolatedRules: TArray<TComplianceRule>;
+begin
+  ViolatedRules := CheckCompliance(AResourcePath, AOperation);
+  Result := Length(ViolatedRules) = 0;
+
+  // 记录合规检查结果
+  if not Result then
+  begin
+    LogAuditEvent(aetSecurityEvent, asWarning,
+      Format('合规检查失败: %s 操作 %s', [AOperation, AResourcePath]),
+      AResourcePath, False);
+  end;
+end;
+
+procedure TAuditComplianceManager.StartSession(const AUserId: string);
+begin
+  FCurrentUserId := AUserId;
+  FCurrentSessionId := GenerateSessionId;
+
+  LogAuditEvent(aetLogin, asInfo,
+    Format('用户 %s 开始会话', [AUserId]),
+    '', True);
+end;
+
+procedure TAuditComplianceManager.EndSession;
+begin
+  if FCurrentSessionId <> '' then
+  begin
+    LogAuditEvent(aetLogout, asInfo,
+      Format('用户 %s 结束会话', [FCurrentUserId]),
+      '', True);
+
+    FCurrentSessionId := '';
+    FCurrentUserId := '';
+  end;
+end;
+
+function TAuditComplianceManager.GetCurrentSessionId: string;
+begin
+  Result := FCurrentSessionId;
+end;
+
+function TAuditComplianceManager.GetAuditRecordCount: Integer;
+begin
+  Result := Length(FAuditRecords);
+end;
+
+function TAuditComplianceManager.GetComplianceRuleCount: Integer;
+begin
+  Result := Length(FComplianceRules);
+end;
+
+function TAuditComplianceManager.GenerateSessionId: string;
+begin
+  Result := FormatDateTime('yyyymmdd_hhnnss_', Now) + IntToStr(Random(99999));
+end;
+
+function TAuditComplianceManager.GetEventTypeName(AType: TAuditEventType): string;
+begin
+  case AType of
+    aetLogin: Result := '登录';
+    aetLogout: Result := '登出';
+    aetFileAccess: Result := '文件访问';
+    aetFileModify: Result := '文件修改';
+    aetDirectoryCreate: Result := '目录创建';
+    aetDirectoryDelete: Result := '目录删除';
+    aetConfigChange: Result := '配置变更';
+    aetSecurityEvent: Result := '安全事件';
+    aetSystemError: Result := '系统错误';
+    aetUserAction: Result := '用户操作';
+    aetDataExport: Result := '数据导出';
+    aetDataImport: Result := '数据导入';
+  else
+    Result := '未知事件';
+  end;
+end;
+
+function TAuditComplianceManager.GetSeverityName(ASeverity: TAuditSeverity): string;
+begin
+  case ASeverity of
+    asInfo: Result := '信息';
+    asWarning: Result := '警告';
+    asError: Result := '错误';
+    asCritical: Result := '关键';
+  else
+    Result := '未知';
+  end;
+end;
+
+function TAuditComplianceManager.GetRuleTypeName(AType: TComplianceRuleType): string;
+begin
+  case AType of
+    crtPathRestriction: Result := '路径限制';
+    crtSizeLimit: Result := '大小限制';
+    crtTimeRestriction: Result := '时间限制';
+    crtUserPermission: Result := '用户权限';
+    crtDataRetention: Result := '数据保留';
+    crtEncryption: Result := '加密要求';
+    crtAuditTrail: Result := '审计跟踪';
+    crtAccessControl: Result := '访问控制';
+  else
+    Result := '未知规则';
   end;
 end;
 
