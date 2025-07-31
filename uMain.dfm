@@ -1,19 +1,19 @@
 object frmMain: TfrmMain
   Left = 0
   Top = 0
-  Caption = 'C'#30424#36229#32423#30246#36523
-  ClientHeight = 597
-  ClientWidth = 1152
-  Color = clBtnFace
+  Caption = 'C'#30424#28165#29702#24037#20855' v3.0 Enterprise - '#20225#19994#32423#29256
+  ClientHeight = 720
+  ClientWidth = 1280
+  Color = 15790320
   Font.Charset = DEFAULT_CHARSET
-  Font.Color = clWindowText
-  Font.Height = -12
-  Font.Name = 'Segoe UI'
+  Font.Color = 3355443
+  Font.Height = -13
+  Font.Name = 'Microsoft YaHei UI'
   Font.Style = []
   Menu = MainMenu1
   OnClose = FormClose
   OnCreate = FormCreate
-  TextHeight = 15
+  TextHeight = 17
   object Splitter2: TSplitter
     Left = 435
     Top = 41

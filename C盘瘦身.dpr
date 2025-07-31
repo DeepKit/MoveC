@@ -18,6 +18,9 @@ uses
   DonationManager in 'Core\DonationManager.pas',
   MigrationManager in 'Core\MigrationManager.pas',
   RollbackManager2 in 'Core\RollbackManager2.pas',
+  // UI components
+  uStyles in 'uStyles.pas',
+  uSplash in 'uSplash.pas' {frmSplash},
   // Main form last
   uMain in 'uMain.pas' {frmMain};
 
@@ -26,6 +29,13 @@ uses
 begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
+
+  // 显示启动画面
+  Application.CreateForm(TfrmSplash, frmSplash);
+  frmSplash.ShowModal;
+  frmSplash.Free;
+
+  // 创建主窗体
   Application.CreateForm(TfrmMain, frmMain);
   Application.Run;
 end.

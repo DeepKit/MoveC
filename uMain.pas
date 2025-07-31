@@ -17,7 +17,9 @@ uses
   // Protection and frame
   BasicProtection, SimpleFrameAboutMe,
   // UI and system components
-  uProgress, SystemChecker, LanguageTypes, LanguageManager, uLanguageDialog;
+  uProgress, SystemChecker, LanguageTypes, LanguageManager, uLanguageDialog,
+  // Modern UI styles
+  uStyles;
 
 // Windows API 声明
 function GetFinalPathNameByHandle(hFile: THandle; lpszFilePath: PChar;
@@ -894,6 +896,7 @@ type
     procedure MenuItemShowComplianceRulesClick(Sender: TObject);
     procedure MenuItemGenerateAuditReportClick(Sender: TObject);
     procedure MenuItemCreateComplianceRuleClick(Sender: TObject);
+    procedure MenuItemToggleThemeClick(Sender: TObject);
     procedure btnCloseClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -1129,6 +1132,12 @@ type
     procedure CreateQuickActionButtons;
     procedure ShowProgressSummary;
     procedure OptimizePerformance;
+
+    // 现代化界面样式
+    procedure ApplyModernStyles;
+    procedure ToggleTheme;
+    procedure UpdateControlStyles;
+    procedure UpdateStatusColors;
 
     // 依赖关系分析
     procedure InitializeDependencyAnalysis;
@@ -2425,6 +2434,9 @@ begin
     SetupKeyboardShortcuts;
     UpdateUILayout;
     CreateQuickActionButtons;
+
+    // 应用现代化样式
+    ApplyModernStyles;
   except
     on E: Exception do
     begin
@@ -3085,6 +3097,7 @@ procedure TfrmMain.AddColoredStatusMessage(const AMessage: string; AColor: TColo
 var
   TimeStamp: string;
   FullMessage: string;
+  ModernColor: TColor;
 begin
   try
     if not Assigned(RichEdit1) then
@@ -3093,11 +3106,31 @@ begin
     TimeStamp := FormatDateTime('hh:nn:ss', Now);
     FullMessage := Format('[%s] %s', [TimeStamp, AMessage]);
 
+    // 使用现代化颜色方案
+    ModernColor := AColor;
+    if Assigned(StyleManager) then
+    begin
+      // 根据当前主题调整颜色
+      case AColor of
+        clGreen: ModernColor := StyleManager.CurrentTheme.Success;
+        clRed: ModernColor := StyleManager.CurrentTheme.Error;
+        clBlue: ModernColor := StyleManager.CurrentTheme.Info;
+        clMaroon: ModernColor := StyleManager.CurrentTheme.Warning;
+        clNavy: ModernColor := StyleManager.CurrentTheme.Primary;
+        clOlive: ModernColor := StyleManager.CurrentTheme.Warning;
+        clGray: ModernColor := StyleManager.CurrentTheme.TextSecondary;
+        clSilver: ModernColor := StyleManager.CurrentTheme.TextDisabled;
+      else
+        ModernColor := AColor;
+      end;
+    end;
+
     // 直接添加到RichEdit控件中，支持彩色
     RichEdit1.SelStart := Length(RichEdit1.Text);
-    RichEdit1.SelAttributes.Color := AColor;
-    RichEdit1.SelAttributes.Name := '微软雅黑';
-    RichEdit1.SelAttributes.Charset := GB2312_CHARSET;
+    RichEdit1.SelAttributes.Color := ModernColor;
+    RichEdit1.SelAttributes.Name := 'Microsoft YaHei UI';
+    RichEdit1.SelAttributes.Size := 9;
+    RichEdit1.SelAttributes.Charset := DEFAULT_CHARSET;
     RichEdit1.Lines.Add(FullMessage);
 
     // 滚动到最后一行
@@ -6620,6 +6653,120 @@ begin
   except
     on E: Exception do
       AddColoredStatusMessage('❌ 性能优化失败: ' + E.Message, clRed);
+  end;
+end;
+
+// ===== 现代化界面样式 =====
+
+// 应用现代化样式
+procedure TfrmMain.ApplyModernStyles;
+begin
+  try
+    // 应用窗体样式
+    StyleManager.StyleForm(Self);
+
+    // 应用控件样式
+    UpdateControlStyles;
+
+    // 更新状态显示颜色
+    UpdateStatusColors;
+
+    AddColoredStatusMessage('🎨 现代化界面样式已应用', clBlue);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 应用现代化样式失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 切换主题
+procedure TfrmMain.ToggleTheme;
+begin
+  try
+    StyleManager.ToggleTheme;
+    ApplyModernStyles;
+
+    if StyleManager.IsDarkMode then
+      AddColoredStatusMessage('🌙 已切换到深色主题', clBlue)
+    else
+      AddColoredStatusMessage('☀️ 已切换到浅色主题', clBlue);
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 切换主题失败: ' + E.Message, clRed);
+  end;
+end;
+
+// 更新控件样式
+procedure TfrmMain.UpdateControlStyles;
+var
+  I: Integer;
+  Component: TComponent;
+begin
+  try
+    // 遍历所有控件并应用样式
+    for I := 0 to ComponentCount - 1 do
+    begin
+      Component := Components[I];
+
+      if Component is TPanel then
+        StyleManager.StylePanel(TPanel(Component))
+      else if Component is TButton then
+        StyleManager.StyleButton(TButton(Component))
+      else if Component is TEdit then
+        StyleManager.StyleEdit(TEdit(Component))
+      else if Component is TListView then
+        StyleManager.StyleListView(TListView(Component))
+      else if Component is TTreeView then
+        StyleManager.StyleTreeView(TTreeView(Component))
+      else if Component is TProgressBar then
+        StyleManager.StyleProgressBar(TProgressBar(Component))
+      else if Component is TRichEdit then
+        StyleManager.StyleRichEdit(TRichEdit(Component))
+      else if Component is TStatusBar then
+        StyleManager.StyleStatusBar(TStatusBar(Component));
+    end;
+
+    // 特殊控件样式处理
+    if Assigned(RichEditStatus) then
+    begin
+      RichEditStatus.Color := StyleManager.CurrentTheme.Surface;
+      RichEditStatus.Font.Name := 'Consolas';
+      RichEditStatus.Font.Size := 9;
+    end;
+
+    if Assigned(ProgressBar) then
+    begin
+      ProgressBar.Smooth := True;
+      ProgressBar.Style := pbstNormal;
+    end;
+
+    if Assigned(PBarAFile) then
+    begin
+      PBarAFile.Smooth := True;
+      PBarAFile.Style := pbstNormal;
+    end;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 更新控件样式失败: ' + E.Message, clMaroon);
+  end;
+end;
+
+// 更新状态显示颜色
+procedure TfrmMain.UpdateStatusColors;
+begin
+  try
+    // 这个方法用于更新状态显示的颜色
+    // 在实际应用中，会根据当前主题更新各种状态的显示颜色
+
+    // 刷新状态显示
+    if Assigned(RichEditStatus) then
+      RichEditStatus.Invalidate;
+
+  except
+    on E: Exception do
+      AddColoredStatusMessage('⚠️ 更新状态颜色失败: ' + E.Message, clMaroon);
   end;
 end;
 
@@ -10546,6 +10693,17 @@ begin
   except
     on E: Exception do
       AddColoredStatusMessage('❌ 创建合规规则异常: ' + E.Message, clRed);
+  end;
+end;
+
+// 切换主题菜单点击事件
+procedure TfrmMain.MenuItemToggleThemeClick(Sender: TObject);
+begin
+  try
+    ToggleTheme;
+  except
+    on E: Exception do
+      AddColoredStatusMessage('❌ 切换主题异常: ' + E.Message, clRed);
   end;
 end;
 
