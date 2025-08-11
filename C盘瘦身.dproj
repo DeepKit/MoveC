@@ -123,6 +123,11 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
+        <DCCReference Include="Core\DataTypes.pas"/>
+        <DCCReference Include="uStyles.pas"/>
+        <DCCReference Include="uSplash.pas">
+            <Form>frmSplash</Form>
+        </DCCReference>
         <DCCReference Include="uMain.pas">
             <Form>frmMain</Form>
             <FormType>dfm</FormType>
@@ -148,13 +153,8 @@
                     <Source Name="MainSource">C盘瘦身.dpr</Source>
                 </Source>
             </Delphi.Personality>
-            <Deployment Version="4">
-                <DeployFile LocalName="Win32\Debug\C盘瘦身.exe" Configuration="Debug" Class="ProjectOutput">
-                    <Platform Name="Win32">
-                        <RemoteName>C盘瘦身.exe</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
+            <Deployment Version="5">
+                <DeployFile LocalName="Win32\Debug\C盘瘦身.exe" Configuration="Debug" Class="ProjectOutput"/>
                 <DeployClass Name="AdditionalDebugSymbols">
                     <Platform Name="iOSSimulator">
                         <Operation>1</Operation>
@@ -165,16 +165,6 @@
                     </Platform>
                     <Platform Name="Win32">
                         <Operation>0</Operation>
-                    </Platform>
-                </DeployClass>
-                <DeployClass Name="AndroidClasses">
-                    <Platform Name="Android">
-                        <RemoteDir>classes</RemoteDir>
-                        <Operation>64</Operation>
-                    </Platform>
-                    <Platform Name="Android64">
-                        <RemoteDir>classes</RemoteDir>
-                        <Operation>64</Operation>
                     </Platform>
                 </DeployClass>
                 <DeployClass Name="AndroidFileProvider">

@@ -1,4 +1,4 @@
-﻿unit uMain;
+unit uMain;
 
 interface
 
@@ -7,8 +7,8 @@ uses
   System.Classes, Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs,
   Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls, Vcl.Menus, Vcl.FileCtrl,
   System.IOUtils, System.UITypes,
-  // Modern UI styles and strings
-  uStyles, uStrings;
+  // Modern UI styles
+  uStyles;
 
 type
   TfrmMain = class(TForm)
@@ -110,7 +110,7 @@ begin
   FIsProcessing := False;
   SetProcessingState(False);
   
-  UpdateStatus(STR_APP_STARTED);
+  UpdateStatus('C盘瘦身工具 v3.0 Enterprise 已启动 - 就绪');
 end;
 
 procedure TfrmMain.FormDestroy(Sender: TObject);
@@ -121,13 +121,13 @@ end;
 procedure TfrmMain.FormShow(Sender: TObject);
 begin
   // 窗体显示时的处理
-  UpdateStatus(STR_SELECT_DIRS);
+  UpdateStatus('请选择源目录和目标目录开始操作');
 end;
 
 procedure TfrmMain.InitializeUI;
 begin
   // 设置窗体属性
-  Caption := STR_MAIN_TITLE;
+  Caption := 'C盘瘦身工具 v3.0 Enterprise - 企业版';
   Width := 1280;
   Height := 720;
   Position := poScreenCenter;
@@ -143,23 +143,23 @@ begin
   edtTargetDir.Text := 'D:\';
 
   // 设置控件标题
-  lblSourceDir.Caption := STR_SOURCE_DIR;
-  lblTargetDir.Caption := STR_TARGET_DIR;
-  lblStatus.Caption := STR_READY;
+  lblSourceDir.Caption := '源目录:';
+  lblTargetDir.Caption := '目标目录:';
+  lblStatus.Caption := '就绪';
 
-  btnBrowseSource.Caption := STR_BROWSE;
-  btnBrowseTarget.Caption := STR_BROWSE;
-  btnScan.Caption := STR_SCAN;
-  btnAnalyze.Caption := STR_ANALYZE;
-  btnExecute.Caption := STR_EXECUTE;
-  btnStop.Caption := STR_STOP;
-  btnExit.Caption := STR_EXIT;
+  btnBrowseSource.Caption := '浏览...';
+  btnBrowseTarget.Caption := '浏览...';
+  btnScan.Caption := '扫描';
+  btnAnalyze.Caption := '分析';
+  btnExecute.Caption := '执行';
+  btnStop.Caption := '停止';
+  btnExit.Caption := '退出';
 
   // 设置状态栏
   StatusBar1.Panels.Clear;
-  StatusBar1.Panels.Add.Text := STR_STATUS_READY;
-  StatusBar1.Panels.Add.Text := STR_STATUS_SOURCE + STR_STATUS_NOT_SELECTED;
-  StatusBar1.Panels.Add.Text := STR_STATUS_TARGET + STR_STATUS_NOT_SELECTED;
+  StatusBar1.Panels.Add.Text := '就绪';
+  StatusBar1.Panels.Add.Text := '源目录: 未选择';
+  StatusBar1.Panels.Add.Text := '目标目录: 未选择';
   StatusBar1.Panels.Add.Text := FormatDateTime('yyyy-mm-dd hh:nn:ss', Now);
 end;
 

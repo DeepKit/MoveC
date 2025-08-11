@@ -1640,4 +1640,932 @@ begin
     Result := Format('%d秒', [Seconds]);
 end;
 
+end.func
+tion TMigrationPlanGenerator.AnalyzeSpaceUtilization(const ASourcePath, ATargetPath: string; 
+  const ARequiredSpace: Int64): TSpaceAnalysisResult;
+var
+  AvailableSpace: Int64;
+begin
+  // 初始化结果
+  FillChar(Result, SizeOf(Result), 0);
+  Result.SourcePath := ASourcePath;
+  Result.TargetPath := ATargetPath;
+  Result.RequiredSpace := ARequiredSpace;
+  
+  // 获取可用空间
+  AvailableSpace := GetAvailableSpace(ATargetPath);
+  Result.AvailableSpace := AvailableSpace;
+  
+  // 计算剩余空间
+  Result.FreeSpaceAfter := AvailableSpace - ARequiredSpace;
+  Result.IsSpaceSufficient := Result.FreeSpaceAfter > 0;
+  
+  // 计算空间利用率
+  if AvailableSpace > 0 then
+    Result.SpaceUtilization := (ARequiredSpace / AvailableSpace) * 100
+  else
+    Result.SpaceUtilization := 0;
+  
+  // 生成清理建议
+  if not Result.IsSpaceSufficient then
+  begin
+    var CleanupList := TList<string>.Create;
+    try
+      CleanupList.Add('清理临时文件');
+      CleanupList.Add('清理回收站');
+      CleanupList.Add('清理系统缓存');
+      CleanupList.Add('卸载不需要的程序');
+      CleanupList.Add('压缩大文件');
+      
+      SetLength(Result.RecommendedCleanup, CleanupList.Count);
+      for var I := 0 to CleanupList.Count - 1 do
+        Result.RecommendedCleanup[I] := CleanupList[I];
+    finally
+      CleanupList.Free;
+    end;
+  end;
+  
+  // 生成空间优化建议
+  var OptimizationList := TList<string>.Create;
+  try
+    if Result.SpaceUtilization > 80 then
+      OptimizationList.Add('考虑使用符号链接减少空间占用');
+    
+    if Result.SpaceUtilization > 90 then
+      OptimizationList.Add('建议选择更大的目标驱动器');
+    
+    OptimizationList.Add('使用硬链接处理大文件');
+    OptimizationList.Add('压缩不常用的文件');
+    
+    SetLength(Result.SpaceOptimizations, OptimizationList.Count);
+    for var I := 0 to OptimizationList.Count - 1 do
+      Result.SpaceOptimizations[I] := OptimizationList[I];
+  finally
+    OptimizationList.Free;
+  end;
+end;
+
+function TMigrationPlanGenerator.ResolveDependencies(var AItems: TArray<TMigrationItem>): Boolean;
+var
+  I, J: Integer;
+  DependencyFound: Boolean;
+begin
+  Result := True;
+  
+  // 验证依赖关系的完整性
+  for I := 0 to Length(AItems) - 1 do
+  begin
+    for var Dependency in AItems[I].Dependencies do
+    begin
+      DependencyFound := False;
+      
+      // 查找依赖项是否在迁移列表中
+      for J := 0 to Length(AItems) - 1 do
+      begin
+        if SameText(AItems[J].SourcePath, Dependency) then
+        begin
+          DependencyFound := True;
+          Break;
+        end;
+      end;
+      
+      // 如果依赖项不在列表中，可能需要调整策略
+      if not DependencyFound then
+      begin
+        // 对于外部依赖，调整为复制而不是移动
+        if AItems[I].Strategy = msMove then
+          AItems[I].Strategy := msCopy;
+      end;
+    end;
+  end;
+end;
+
+function TMigrationPlanGenerator.SortByDependencies(const AItems: TArray<TMigrationItem>): TArray<TMigrationItem>;
+var
+  SortedList: TList<TMigrationItem>;
+  ProcessedPaths: TStringList;
+  
+  procedure AddItemWithDependencies(const AItem: TMigrationItem);
+  var
+    I: Integer;
+  begin
+    // 如果已经处理过，跳过
+    if ProcessedPaths.IndexOf(AItem.SourcePath) >= 0 then
+      Exit;
+    
+    // 先处理依赖项
+    for var Dependency in AItem.Dependencies do
+    begin
+      for I := 0 to Length(AItems) - 1 do
+      begin
+        if SameText(AItems[I].SourcePath, Dependency) then
+        begin
+          AddItemWithDependencies(AItems[I]);
+          Break;
+        end;
+      end;
+    end;
+    
+    // 添加当前项
+    SortedList.Add(AItem);
+    ProcessedPaths.Add(AItem.SourcePath);
+  end;
+
+begin
+  SortedList := TList<TMigrationItem>.Create;
+  ProcessedPaths := TStringList.Create;
+  
+  try
+    // 递归添加项目及其依赖
+    for var Item in AItems do
+      AddItemWithDependencies(Item);
+    
+    // 转换为数组
+    SetLength(Result, SortedList.Count);
+    for var I := 0 to SortedList.Count - 1 do
+      Result[I] := SortedList[I];
+      
+  finally
+    SortedList.Free;
+    ProcessedPaths.Free;
+  end;
+end;
+
+function TMigrationPlanGenerator.ValidateDependencyChain(const AItems: TArray<TMigrationItem>): Boolean;
+var
+  PathIndex: TDictionary<string, Integer>;
+  I, J, DepIndex: Integer;
+begin
+  Result := True;
+  PathIndex := TDictionary<string, Integer>.Create;
+  
+  try
+    // 建立路径索引
+    for I := 0 to Length(AItems) - 1 do
+      PathIndex.Add(AItems[I].SourcePath, I);
+    
+    // 验证每个项目的依赖关系
+    for I := 0 to Length(AItems) - 1 do
+    begin
+      for var Dependency in AItems[I].Dependencies do
+      begin
+        if PathIndex.TryGetValue(Dependency, DepIndex) then
+        begin
+          // 依赖项应该在当前项之前处理
+          if DepIndex > I then
+          begin
+            Result := False;
+            Break;
+          end;
+        end;
+      end;
+      
+      if not Result then
+        Break;
+    end;
+    
+  finally
+    PathIndex.Free;
+  end;
+end;f
+unction TMigrationPlanGenerator.OptimizePlan(var APlan: TMigrationPlan): Boolean;
+var
+  PhaseGroups: TDictionary<TMigrationPhase, TArray<TMigrationItem>>;
+  OptimizedItems: TList<TMigrationItem>;
+begin
+  Result := True;
+  OptimizedItems := TList<TMigrationItem>.Create;
+  
+  try
+    // 按阶段分组
+    PhaseGroups := GroupByPhase(APlan.Items);
+    
+    try
+      // 按阶段顺序重新组织
+      var PhaseOrder: array[0..4] of TMigrationPhase = (
+        mpPreparation, mpAnalysis, mpExecution, mpVerification, mpCleanup
+      );
+      
+      for var Phase in PhaseOrder do
+      begin
+        var PhaseItems: TArray<TMigrationItem>;
+        if PhaseGroups.TryGetValue(Phase, PhaseItems) then
+        begin
+          // 在每个阶段内按优先级排序
+          TArray.Sort<TMigrationItem>(PhaseItems, 
+            TComparer<TMigrationItem>.Construct(
+              function(const Left, Right: TMigrationItem): Integer
+              begin
+                Result := Ord(Right.Priority) - Ord(Left.Priority); // 高优先级在前
+              end
+            )
+          );
+          
+          // 添加到优化列表
+          for var Item in PhaseItems do
+            OptimizedItems.Add(Item);
+        end;
+      end;
+      
+      // 负载均衡
+      var ItemsArray: TArray<TMigrationItem>;
+      SetLength(ItemsArray, OptimizedItems.Count);
+      for var I := 0 to OptimizedItems.Count - 1 do
+        ItemsArray[I] := OptimizedItems[I];
+      
+      BalanceLoad(ItemsArray);
+      
+      // 更新计划
+      APlan.Items := ItemsArray;
+      
+    finally
+      PhaseGroups.Free;
+    end;
+    
+  finally
+    OptimizedItems.Free;
+  end;
+end;
+
+function TMigrationPlanGenerator.GroupByPhase(const AItems: TArray<TMigrationItem>): TDictionary<TMigrationPhase, TArray<TMigrationItem>>;
+var
+  PhaseMap: TDictionary<TMigrationPhase, TList<TMigrationItem>>;
+  Phase: TMigrationPhase;
+  ItemList: TList<TMigrationItem>;
+begin
+  Result := TDictionary<TMigrationPhase, TArray<TMigrationItem>>.Create;
+  PhaseMap := TDictionary<TMigrationPhase, TList<TMigrationItem>>.Create;
+  
+  try
+    // 初始化阶段列表
+    for Phase := Low(TMigrationPhase) to High(TMigrationPhase) do
+      PhaseMap.Add(Phase, TList<TMigrationItem>.Create);
+    
+    // 按阶段分组
+    for var Item in AItems do
+    begin
+      if PhaseMap.TryGetValue(Item.Phase, ItemList) then
+        ItemList.Add(Item);
+    end;
+    
+    // 转换为数组
+    for Phase := Low(TMigrationPhase) to High(TMigrationPhase) do
+    begin
+      if PhaseMap.TryGetValue(Phase, ItemList) then
+      begin
+        var ItemArray: TArray<TMigrationItem>;
+        SetLength(ItemArray, ItemList.Count);
+        for var I := 0 to ItemList.Count - 1 do
+          ItemArray[I] := ItemList[I];
+        
+        Result.Add(Phase, ItemArray);
+      end;
+    end;
+    
+  finally
+    // 清理临时列表
+    for Phase := Low(TMigrationPhase) to High(TMigrationPhase) do
+    begin
+      if PhaseMap.TryGetValue(Phase, ItemList) then
+        ItemList.Free;
+    end;
+    PhaseMap.Free;
+  end;
+end;
+
+function TMigrationPlanGenerator.BalanceLoad(var AItems: TArray<TMigrationItem>): Boolean;
+var
+  I: Integer;
+  TotalTime, AverageTime: Integer;
+  CurrentBatchTime: Integer;
+  BatchSize: Integer;
+begin
+  Result := True;
+  
+  if Length(AItems) = 0 then
+    Exit;
+  
+  // 计算总时间和平均时间
+  TotalTime := 0;
+  for var Item in AItems do
+    TotalTime := TotalTime + Item.EstimatedTime;
+  
+  AverageTime := TotalTime div Length(AItems);
+  BatchSize := Max(1, Length(AItems) div 10); // 分成10个批次
+  
+  // 简单的负载均衡：重新排列大文件
+  TArray.Sort<TMigrationItem>(AItems,
+    TComparer<TMigrationItem>.Construct(
+      function(const Left, Right: TMigrationItem): Integer
+      begin
+        // 先按阶段排序
+        Result := Ord(Left.Phase) - Ord(Right.Phase);
+        if Result = 0 then
+        begin
+          // 同阶段内按文件大小排序（大文件优先）
+          if Left.FileSize > Right.FileSize then
+            Result := -1
+          else if Left.FileSize < Right.FileSize then
+            Result := 1
+          else
+            Result := 0;
+        end;
+      end
+    )
+  );
+end;
+
+function TMigrationPlanGenerator.AssessOverallRisk(const AItems: TArray<TMigrationItem>): string;
+var
+  TotalRisk, HighRiskCount, CriticalCount: Integer;
+  AverageRisk: Double;
+  RiskFactors: TStringList;
+begin
+  TotalRisk := 0;
+  HighRiskCount := 0;
+  CriticalCount := 0;
+  RiskFactors := TStringList.Create;
+  
+  try
+    for var Item in AItems do
+    begin
+      TotalRisk := TotalRisk + Item.RiskLevel;
+      
+      if Item.RiskLevel > 70 then
+        Inc(HighRiskCount);
+      
+      if Item.RequiresReboot then
+        Inc(CriticalCount);
+      
+      if Item.RiskLevel > 80 then
+        RiskFactors.Add(Format('高风险文件: %s', [ExtractFileName(Item.SourcePath)]));
+    end;
+    
+    if Length(AItems) > 0 then
+      AverageRisk := TotalRisk / Length(AItems)
+    else
+      AverageRisk := 0;
+    
+    // 生成风险评估报告
+    if AverageRisk < 30 then
+      Result := '低风险 - 迁移操作相对安全'
+    else if AverageRisk < 50 then
+      Result := '中等风险 - 建议创建备份后执行'
+    else if AverageRisk < 70 then
+      Result := '高风险 - 需要谨慎操作并准备回退方案'
+    else
+      Result := '极高风险 - 强烈建议专业人员操作';
+    
+    if HighRiskCount > 0 then
+      Result := Result + Format(' (包含%d个高风险文件)', [HighRiskCount]);
+    
+    if CriticalCount > 0 then
+      Result := Result + Format(' (需要重启%d个文件)', [CriticalCount]);
+    
+  finally
+    RiskFactors.Free;
+  end;
+end;
+
+function TMigrationPlanGenerator.GeneratePrerequisites(const AItems: TArray<TMigrationItem>): TArray<string>;
+var
+  Prerequisites: TStringList;
+  HasSystemFiles, HasLargeFiles, HasRebootFiles: Boolean;
+begin
+  Prerequisites := TStringList.Create;
+  try
+    HasSystemFiles := False;
+    HasLargeFiles := False;
+    HasRebootFiles := False;
+    
+    // 分析文件特征
+    for var Item in AItems do
+    begin
+      if Item.RiskLevel > 70 then
+        HasSystemFiles := True;
+      
+      if Item.FileSize > 1024 * 1024 * 1024 then // > 1GB
+        HasLargeFiles := True;
+      
+      if Item.RequiresReboot then
+        HasRebootFiles := True;
+    end;
+    
+    // 生成前置条件
+    Prerequisites.Add('确保目标驱动器有足够的可用空间');
+    Prerequisites.Add('关闭所有可能使用目标文件的应用程序');
+    Prerequisites.Add('创建系统还原点');
+    
+    if HasSystemFiles then
+    begin
+      Prerequisites.Add('以管理员权限运行程序');
+      Prerequisites.Add('备份重要的系统文件');
+    end;
+    
+    if HasLargeFiles then
+    begin
+      Prerequisites.Add('确保网络连接稳定（如果涉及网络存储）');
+      Prerequisites.Add('预留足够的操作时间');
+    end;
+    
+    if HasRebootFiles then
+    begin
+      Prerequisites.Add('准备重启系统');
+      Prerequisites.Add('保存所有未保存的工作');
+    end;
+    
+    // 转换为数组
+    SetLength(Result, Prerequisites.Count);
+    for var I := 0 to Prerequisites.Count - 1 do
+      Result[I] := Prerequisites[I];
+      
+  finally
+    Prerequisites.Free;
+  end;
+end;f
+unction TMigrationPlanGenerator.GeneratePostActions(const AItems: TArray<TMigrationItem>): TArray<string>;
+var
+  PostActions: TStringList;
+  HasSymbolicLinks, HasRebootFiles, HasDeletedFiles: Boolean;
+begin
+  PostActions := TStringList.Create;
+  try
+    HasSymbolicLinks := False;
+    HasRebootFiles := False;
+    HasDeletedFiles := False;
+    
+    // 分析操作类型
+    for var Item in AItems do
+    begin
+      if (Item.Strategy = msSymbolicLink) or (Item.Strategy = msHardLink) then
+        HasSymbolicLinks := True;
+      
+      if Item.RequiresReboot then
+        HasRebootFiles := True;
+      
+      if Item.Strategy = msDelete then
+        HasDeletedFiles := True;
+    end;
+    
+    // 生成后续操作
+    PostActions.Add('验证所有文件迁移完成');
+    PostActions.Add('测试应用程序功能正常');
+    PostActions.Add('更新相关的配置文件');
+    
+    if HasSymbolicLinks then
+    begin
+      PostActions.Add('验证符号链接和硬链接正常工作');
+      PostActions.Add('更新应用程序路径配置');
+    end;
+    
+    if HasRebootFiles then
+    begin
+      PostActions.Add('重启系统以完成文件操作');
+      PostActions.Add('重启后验证系统功能');
+    end;
+    
+    if HasDeletedFiles then
+    begin
+      PostActions.Add('清空回收站释放空间');
+      PostActions.Add('运行磁盘清理工具');
+    end;
+    
+    PostActions.Add('删除临时备份文件');
+    PostActions.Add('更新系统索引');
+    
+    // 转换为数组
+    SetLength(Result, PostActions.Count);
+    for var I := 0 to PostActions.Count - 1 do
+      Result[I] := PostActions[I];
+      
+  finally
+    PostActions.Free;
+  end;
+end;
+
+function TMigrationPlanGenerator.GenerateRollbackPlan(const AItems: TArray<TMigrationItem>): TArray<string>;
+var
+  RollbackSteps: TStringList;
+begin
+  RollbackSteps := TStringList.Create;
+  try
+    RollbackSteps.Add('停止所有正在进行的迁移操作');
+    RollbackSteps.Add('从备份恢复已修改的文件');
+    
+    // 按相反顺序回退操作
+    for var I := Length(AItems) - 1 downto 0 do
+    begin
+      var Item := AItems[I];
+      
+      case Item.Strategy of
+        msMove:
+          RollbackSteps.Add(Format('将文件从 %s 移回 %s', [Item.TargetPath, Item.SourcePath]));
+        msCopy:
+          RollbackSteps.Add(Format('删除复制的文件 %s', [Item.TargetPath]));
+        msSymbolicLink, msHardLink:
+          RollbackSteps.Add(Format('删除链接 %s 并恢复原文件', [Item.TargetPath]));
+        msDelete:
+          RollbackSteps.Add(Format('从备份恢复已删除的文件 %s', [Item.SourcePath]));
+      end;
+    end;
+    
+    RollbackSteps.Add('恢复注册表备份');
+    RollbackSteps.Add('重启系统（如果需要）');
+    RollbackSteps.Add('验证系统功能正常');
+    RollbackSteps.Add('清理回退过程中的临时文件');
+    
+    // 转换为数组
+    SetLength(Result, RollbackSteps.Count);
+    for var I := 0 to RollbackSteps.Count - 1 do
+      Result[I] := RollbackSteps[I];
+      
+  finally
+    RollbackSteps.Free;
+  end;
+end;
+
+// 可行性评估方法
+function TMigrationPlanGenerator.EvaluateFeasibility(const ASourcePath, ATargetPath: string): TFeasibilityResult;
+var
+  BlockingIssues, Warnings, Recommendations: TStringList;
+  SpaceAnalysis: TSpaceAnalysisResult;
+  SourceSize, TargetSpace: Int64;
+begin
+  // 初始化结果
+  FillChar(Result, SizeOf(Result), 0);
+  Result.IsFeasible := True;
+  Result.ConfidenceLevel := 100;
+  Result.EstimatedSuccessRate := 90;
+  
+  BlockingIssues := TStringList.Create;
+  Warnings := TStringList.Create;
+  Recommendations := TStringList.Create;
+  
+  try
+    // 检查源目录
+    if not DirectoryExists(ASourcePath) then
+    begin
+      BlockingIssues.Add('源目录不存在');
+      Result.IsFeasible := False;
+      Result.ConfidenceLevel := 0;
+    end;
+    
+    // 检查目标目录
+    if not DirectoryExists(ExtractFilePath(ATargetPath)) then
+    begin
+      if not ForceDirectories(ExtractFilePath(ATargetPath)) then
+      begin
+        BlockingIssues.Add('无法创建目标目录');
+        Result.IsFeasible := False;
+        Result.ConfidenceLevel := Result.ConfidenceLevel - 50;
+      end;
+    end;
+    
+    // 空间分析
+    if Result.IsFeasible then
+    begin
+      SpaceAnalysis := AnalyzeSpaceRequirements(ASourcePath, ATargetPath);
+      
+      if not SpaceAnalysis.IsSpaceSufficient then
+      begin
+        BlockingIssues.Add('目标驱动器空间不足');
+        Result.IsFeasible := False;
+        Result.ConfidenceLevel := Result.ConfidenceLevel - 30;
+      end
+      else if SpaceAnalysis.SpaceUtilization > 90 then
+      begin
+        Warnings.Add('目标驱动器空间使用率将超过90%');
+        Result.ConfidenceLevel := Result.ConfidenceLevel - 20;
+        Result.EstimatedSuccessRate := Result.EstimatedSuccessRate - 10;
+      end;
+    end;
+    
+    // 权限检查
+    try
+      var TestFile := ATargetPath + '\test_write_permission.tmp';
+      TFile.WriteAllText(TestFile, 'test');
+      DeleteFile(TestFile);
+    except
+      Warnings.Add('目标目录可能没有写入权限');
+      Result.ConfidenceLevel := Result.ConfidenceLevel - 15;
+    end;
+    
+    // 生成建议
+    if Result.IsFeasible then
+    begin
+      Recommendations.Add('建议在操作前创建完整备份');
+      Recommendations.Add('建议在非工作时间执行迁移');
+      
+      if SpaceAnalysis.SpaceUtilization > 70 then
+        Recommendations.Add('考虑清理目标驱动器以获得更多空间');
+    end
+    else
+    begin
+      Recommendations.Add('解决所有阻塞问题后重新评估');
+      Recommendations.Add('考虑选择其他目标位置');
+    end;
+    
+    // 转换为数组
+    SetLength(Result.BlockingIssues, BlockingIssues.Count);
+    for var I := 0 to BlockingIssues.Count - 1 do
+      Result.BlockingIssues[I] := BlockingIssues[I];
+    
+    SetLength(Result.Warnings, Warnings.Count);
+    for var I := 0 to Warnings.Count - 1 do
+      Result.Warnings[I] := Warnings[I];
+    
+    SetLength(Result.Recommendations, Recommendations.Count);
+    for var I := 0 to Recommendations.Count - 1 do
+      Result.Recommendations[I] := Recommendations[I];
+    
+  finally
+    BlockingIssues.Free;
+    Warnings.Free;
+    Recommendations.Free;
+  end;
+end;
+
+function TMigrationPlanGenerator.AnalyzeSpaceRequirements(const ASourcePath, ATargetPath: string): TSpaceAnalysisResult;
+var
+  Files: TArray<string>;
+  TotalSize: Int64;
+begin
+  // 初始化结果
+  FillChar(Result, SizeOf(Result), 0);
+  Result.SourcePath := ASourcePath;
+  Result.TargetPath := ATargetPath;
+  
+  try
+    // 计算源目录大小
+    Files := TDirectory.GetFiles(ASourcePath, '*', TSearchOption.soAllDirectories);
+    TotalSize := 0;
+    
+    for var FilePath in Files do
+    begin
+      try
+        TotalSize := TotalSize + TFile.GetSize(FilePath);
+      except
+        // 忽略无法访问的文件
+      end;
+    end;
+    
+    Result.RequiredSpace := TotalSize;
+    Result.AvailableSpace := GetAvailableSpace(ATargetPath);
+    Result.FreeSpaceAfter := Result.AvailableSpace - Result.RequiredSpace;
+    Result.IsSpaceSufficient := Result.FreeSpaceAfter > 0;
+    
+    if Result.AvailableSpace > 0 then
+      Result.SpaceUtilization := (Result.RequiredSpace / Result.AvailableSpace) * 100
+    else
+      Result.SpaceUtilization := 0;
+    
+  except
+    on E: Exception do
+    begin
+      Result.IsSpaceSufficient := False;
+      // 设置错误信息到优化建议中
+      SetLength(Result.SpaceOptimizations, 1);
+      Result.SpaceOptimizations[0] := '空间分析失败: ' + E.Message;
+    end;
+  end;
+end;// 工具方
+法实现
+class function TMigrationPlanGenerator.StrategyToString(AStrategy: TMigrationStrategy): string;
+begin
+  case AStrategy of
+    msMove: Result := '移动';
+    msCopy: Result := '复制';
+    msSymbolicLink: Result := '符号链接';
+    msHardLink: Result := '硬链接';
+    msSkip: Result := '跳过';
+    msDelete: Result := '删除';
+  else
+    Result := '未知';
+  end;
+end;
+
+class function TMigrationPlanGenerator.PriorityToString(APriority: TMigrationPriority): string;
+begin
+  case APriority of
+    mpLow: Result := '低';
+    mpNormal: Result := '普通';
+    mpHigh: Result := '高';
+    mpCritical: Result := '关键';
+  else
+    Result := '未知';
+  end;
+end;
+
+class function TMigrationPlanGenerator.PhaseToString(APhase: TMigrationPhase): string;
+begin
+  case APhase of
+    mpPreparation: Result := '准备阶段';
+    mpAnalysis: Result := '分析阶段';
+    mpExecution: Result := '执行阶段';
+    mpVerification: Result := '验证阶段';
+    mpCleanup: Result := '清理阶段';
+  else
+    Result := '未知阶段';
+  end;
+end;
+
+class function TMigrationPlanGenerator.FormatFileSize(ASize: Int64): string;
+const
+  KB = 1024;
+  MB = KB * 1024;
+  GB = MB * 1024;
+  TB = GB * Int64(1024);
+begin
+  if ASize >= TB then
+    Result := Format('%.2f TB', [ASize / TB])
+  else if ASize >= GB then
+    Result := Format('%.2f GB', [ASize / GB])
+  else if ASize >= MB then
+    Result := Format('%.2f MB', [ASize / MB])
+  else if ASize >= KB then
+    Result := Format('%.2f KB', [ASize / KB])
+  else
+    Result := Format('%d B', [ASize]);
+end;
+
+class function TMigrationPlanGenerator.FormatDuration(ASeconds: Integer): string;
+var
+  Hours, Minutes, Seconds: Integer;
+begin
+  Hours := ASeconds div 3600;
+  Minutes := (ASeconds mod 3600) div 60;
+  Seconds := ASeconds mod 60;
+  
+  if Hours > 0 then
+    Result := Format('%d小时%d分钟%d秒', [Hours, Minutes, Seconds])
+  else if Minutes > 0 then
+    Result := Format('%d分钟%d秒', [Minutes, Seconds])
+  else
+    Result := Format('%d秒', [Seconds]);
+end;
+
+// 计划管理方法
+function TMigrationPlanGenerator.SavePlan(const APlan: TMigrationPlan; const AFilePath: string): Boolean;
+var
+  JSONObj, ItemObj: TJSONObject;
+  ItemsArray: TJSONArray;
+  I: Integer;
+begin
+  Result := False;
+  
+  try
+    JSONObj := TJSONObject.Create;
+    try
+      // 基本信息
+      JSONObj.AddPair('PlanName', APlan.PlanName);
+      JSONObj.AddPair('CreatedTime', DateTimeToStr(APlan.CreatedTime));
+      JSONObj.AddPair('SourceDirectory', APlan.SourceDirectory);
+      JSONObj.AddPair('TargetDirectory', APlan.TargetDirectory);
+      JSONObj.AddPair('TotalItems', TJSONNumber.Create(APlan.TotalItems));
+      JSONObj.AddPair('TotalSize', TJSONNumber.Create(APlan.TotalSize));
+      JSONObj.AddPair('EstimatedDuration', TJSONNumber.Create(APlan.EstimatedDuration));
+      JSONObj.AddPair('RequiredSpace', TJSONNumber.Create(APlan.RequiredSpace));
+      JSONObj.AddPair('AvailableSpace', TJSONNumber.Create(APlan.AvailableSpace));
+      JSONObj.AddPair('SpaceUtilization', TJSONNumber.Create(APlan.SpaceUtilization));
+      JSONObj.AddPair('RiskAssessment', APlan.RiskAssessment);
+      
+      // 迁移项目
+      ItemsArray := TJSONArray.Create;
+      for I := 0 to Length(APlan.Items) - 1 do
+      begin
+        ItemObj := TJSONObject.Create;
+        ItemObj.AddPair('SourcePath', APlan.Items[I].SourcePath);
+        ItemObj.AddPair('TargetPath', APlan.Items[I].TargetPath);
+        ItemObj.AddPair('Strategy', TJSONNumber.Create(Ord(APlan.Items[I].Strategy)));
+        ItemObj.AddPair('Priority', TJSONNumber.Create(Ord(APlan.Items[I].Priority)));
+        ItemObj.AddPair('Phase', TJSONNumber.Create(Ord(APlan.Items[I].Phase)));
+        ItemObj.AddPair('FileSize', TJSONNumber.Create(APlan.Items[I].FileSize));
+        ItemObj.AddPair('EstimatedTime', TJSONNumber.Create(APlan.Items[I].EstimatedTime));
+        ItemObj.AddPair('RequiresReboot', TJSONBool.Create(APlan.Items[I].RequiresReboot));
+        ItemObj.AddPair('RiskLevel', TJSONNumber.Create(APlan.Items[I].RiskLevel));
+        ItemObj.AddPair('Description', APlan.Items[I].Description);
+        ItemObj.AddPair('BackupRequired', TJSONBool.Create(APlan.Items[I].BackupRequired));
+        ItemObj.AddPair('VerificationMethod', APlan.Items[I].VerificationMethod);
+        
+        ItemsArray.AddElement(ItemObj);
+      end;
+      JSONObj.AddPair('Items', ItemsArray);
+      
+      // 保存到文件
+      TFile.WriteAllText(AFilePath, JSONObj.ToString, TEncoding.UTF8);
+      Result := True;
+      
+    finally
+      JSONObj.Free;
+    end;
+    
+  except
+    Result := False;
+  end;
+end;
+
+function TMigrationPlanGenerator.LoadPlan(const AFilePath: string): TMigrationPlan;
+var
+  JSONText: string;
+  JSONObj, ItemObj: TJSONObject;
+  ItemsArray: TJSONArray;
+  I: Integer;
+begin
+  // 初始化结果
+  FillChar(Result, SizeOf(Result), 0);
+  
+  try
+    if not FileExists(AFilePath) then
+      Exit;
+    
+    JSONText := TFile.ReadAllText(AFilePath, TEncoding.UTF8);
+    JSONObj := TJSONObject.ParseJSONValue(JSONText) as TJSONObject;
+    
+    if JSONObj = nil then
+      Exit;
+    
+    try
+      // 读取基本信息
+      Result.PlanName := JSONObj.GetValue('PlanName').Value;
+      Result.CreatedTime := StrToDateTime(JSONObj.GetValue('CreatedTime').Value);
+      Result.SourceDirectory := JSONObj.GetValue('SourceDirectory').Value;
+      Result.TargetDirectory := JSONObj.GetValue('TargetDirectory').Value;
+      Result.TotalItems := (JSONObj.GetValue('TotalItems') as TJSONNumber).AsInt;
+      Result.TotalSize := (JSONObj.GetValue('TotalSize') as TJSONNumber).AsInt64;
+      Result.EstimatedDuration := (JSONObj.GetValue('EstimatedDuration') as TJSONNumber).AsInt;
+      Result.RequiredSpace := (JSONObj.GetValue('RequiredSpace') as TJSONNumber).AsInt64;
+      Result.AvailableSpace := (JSONObj.GetValue('AvailableSpace') as TJSONNumber).AsInt64;
+      Result.SpaceUtilization := (JSONObj.GetValue('SpaceUtilization') as TJSONNumber).AsDouble;
+      Result.RiskAssessment := JSONObj.GetValue('RiskAssessment').Value;
+      
+      // 读取迁移项目
+      ItemsArray := JSONObj.GetValue('Items') as TJSONArray;
+      SetLength(Result.Items, ItemsArray.Count);
+      
+      for I := 0 to ItemsArray.Count - 1 do
+      begin
+        ItemObj := ItemsArray.Items[I] as TJSONObject;
+        
+        Result.Items[I].SourcePath := ItemObj.GetValue('SourcePath').Value;
+        Result.Items[I].TargetPath := ItemObj.GetValue('TargetPath').Value;
+        Result.Items[I].Strategy := TMigrationStrategy((ItemObj.GetValue('Strategy') as TJSONNumber).AsInt);
+        Result.Items[I].Priority := TMigrationPriority((ItemObj.GetValue('Priority') as TJSONNumber).AsInt);
+        Result.Items[I].Phase := TMigrationPhase((ItemObj.GetValue('Phase') as TJSONNumber).AsInt);
+        Result.Items[I].FileSize := (ItemObj.GetValue('FileSize') as TJSONNumber).AsInt64;
+        Result.Items[I].EstimatedTime := (ItemObj.GetValue('EstimatedTime') as TJSONNumber).AsInt;
+        Result.Items[I].RequiresReboot := (ItemObj.GetValue('RequiresReboot') as TJSONBool).AsBoolean;
+        Result.Items[I].RiskLevel := (ItemObj.GetValue('RiskLevel') as TJSONNumber).AsInt;
+        Result.Items[I].Description := ItemObj.GetValue('Description').Value;
+        Result.Items[I].BackupRequired := (ItemObj.GetValue('BackupRequired') as TJSONBool).AsBoolean;
+        Result.Items[I].VerificationMethod := ItemObj.GetValue('VerificationMethod').Value;
+      end;
+      
+    finally
+      JSONObj.Free;
+    end;
+    
+  except
+    // 加载失败，返回空计划
+    FillChar(Result, SizeOf(Result), 0);
+  end;
+end;
+
+function TMigrationPlanGenerator.ComparePlans(const APlan1, APlan2: TMigrationPlan): string;
+var
+  Comparison: TStringList;
+begin
+  Comparison := TStringList.Create;
+  try
+    Comparison.Add('=== 迁移计划对比 ===');
+    Comparison.Add('');
+    
+    // 基本信息对比
+    Comparison.Add(Format('计划名称: %s vs %s', [APlan1.PlanName, APlan2.PlanName]));
+    Comparison.Add(Format('文件总数: %d vs %d', [APlan1.TotalItems, APlan2.TotalItems]));
+    Comparison.Add(Format('总大小: %s vs %s', [FormatFileSize(APlan1.TotalSize), FormatFileSize(APlan2.TotalSize)]));
+    Comparison.Add(Format('预计时间: %s vs %s', [FormatDuration(APlan1.EstimatedDuration), FormatDuration(APlan2.EstimatedDuration)]));
+    Comparison.Add(Format('空间利用率: %.1f%% vs %.1f%%', [APlan1.SpaceUtilization, APlan2.SpaceUtilization]));
+    Comparison.Add('');
+    
+    // 风险评估对比
+    Comparison.Add('风险评估:');
+    Comparison.Add('  计划1: ' + APlan1.RiskAssessment);
+    Comparison.Add('  计划2: ' + APlan2.RiskAssessment);
+    Comparison.Add('');
+    
+    // 推荐
+    if APlan1.TotalItems < APlan2.TotalItems then
+      Comparison.Add('推荐: 计划1文件数量较少，操作相对简单')
+    else if APlan1.TotalItems > APlan2.TotalItems then
+      Comparison.Add('推荐: 计划2文件数量较少，操作相对简单')
+    else
+      Comparison.Add('推荐: 两个计划文件数量相同，建议选择风险较低的计划');
+    
+    Result := Comparison.Text;
+    
+  finally
+    Comparison.Free;
+  end;
+end;
+
 end.

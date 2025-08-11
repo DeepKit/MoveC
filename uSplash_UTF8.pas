@@ -1,9 +1,9 @@
-﻿unit uSplash;
+﻿﻿unit uSplash;
 
 interface
 
 uses
-  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, 
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.StdCtrls, Vcl.ComCtrls;
 
 type
@@ -87,7 +87,7 @@ begin
   lblTitle.Font.Style := [fsBold];
   lblTitle.Font.Color := $333333;
   lblTitle.Caption := 'C盘瘦身工具 v3.0 Enterprise';
-
+  
   // 版本标签样式
   lblVersion.Font.Name := 'Microsoft YaHei UI';
   lblVersion.Font.Size := 10;
@@ -99,7 +99,7 @@ begin
   lblStatus.Font.Size := 9;
   lblStatus.Font.Color := $0078D4;  // 微软蓝
   lblStatus.Caption := '正在启动...';
-
+  
   // 版权标签样式
   lblCopyright.Font.Name := 'Microsoft YaHei UI';
   lblCopyright.Font.Size := 8;

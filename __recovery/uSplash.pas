@@ -1,4 +1,4 @@
-﻿unit uSplash;
+unit uSplash;
 
 interface
 
