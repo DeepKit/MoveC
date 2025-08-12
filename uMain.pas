@@ -1050,10 +1050,9 @@ var
   SR: TSearchRec;
   Code: Integer;
   SrcPath, DstPath: string;
-  Buffer: TFileStream;
   InF, OutF: TFileStream;
 begin
-  ForceDirectories(Dst);
+  System.SysUtils.ForceDirectories(Dst);
 
   Code := FindFirst(IncludeTrailingPathDelimiter(Src) + '*', faAnyFile, SR);
   try
