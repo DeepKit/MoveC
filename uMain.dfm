@@ -260,6 +260,17 @@ object frmMain: TfrmMain
         Caption = #28165#31354#22238#25910#31449'(&R)'
         OnClick = MenuCleanupRecycleBinClick
       end
+      object MenuCleanupTemp: TMenuItem
+        Caption = #28165#29702#20020#26102#25991#20214'(&T)'
+        OnClick = MenuCleanupTempClick
+      end
+      object MenuCleanupSeparator: TMenuItem
+        Caption = '-'
+      end
+      object MenuCleanupSoftwareDistribution: TMenuItem
+        Caption = #28165#29702'Windows'#26356#26032#32531#23384'(&W)'
+        OnClick = MenuCleanupSoftwareDistributionClick
+      end
     end
     object MenuTools: TMenuItem
       Caption = #24037#20855'(&T)'

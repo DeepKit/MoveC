@@ -23,6 +23,9 @@ type
     MenuTheme: TMenuItem;
     MenuCleanup: TMenuItem;
     MenuCleanupRecycleBin: TMenuItem;
+    MenuCleanupTemp: TMenuItem;
+    MenuCleanupSeparator: TMenuItem;
+    MenuCleanupSoftwareDistribution: TMenuItem;
 
     // 主面板布局
     pnlMain: TPanel;
@@ -83,6 +86,8 @@ type
     procedure MenuFileExitClick(Sender: TObject);
     procedure MenuHelpAboutClick(Sender: TObject);
     procedure MenuCleanupRecycleBinClick(Sender: TObject);
+    procedure MenuCleanupTempClick(Sender: TObject);
+    procedure MenuCleanupSoftwareDistributionClick(Sender: TObject);
 
   private
     FSourcePath: string;
@@ -98,6 +103,11 @@ type
     procedure LogTopN(const Items: TArray<TPair<string, Int64>>; N: Integer);
     procedure LogTypeAggregation(const Agg: TArray<TExtStat>);
     function IsReparseDir(const Path: string): Boolean;
+
+    // 清理功能
+    function CleanupTempFiles: Int64;
+    function CleanupSoftwareDistribution: Int64;
+    procedure SafeDeleteDirectory(const DirPath: string; var DeletedSize: Int64);
 
     // 界面相关
     procedure InitializeUI;
@@ -608,6 +618,176 @@ begin
   except
     on E: Exception do
       UpdateStatus('❌ 清空回收站失败: ' + E.Message);
+  end;
+end;
+procedure TfrmMain.MenuCleanupTempClick(Sender: TObject);
+var
+  DeletedSize: Int64;
+  SizeStr: string;
+begin
+  if MessageDlg('确定要清理临时文件吗？这将删除系统和用户临时目录中的文件。',
+                mtConfirmation, [mbYes, mbNo], 0) = mrYes then
+  begin
+    try
+      UpdateStatus('🧹 开始清理临时文件...');
+      DeletedSize := CleanupTempFiles;
+
+      if DeletedSize > 0 then
+      begin
+        if DeletedSize > 1024*1024*1024 then
+          SizeStr := Format('%.2f GB', [DeletedSize / (1024*1024*1024)])
+        else if DeletedSize > 1024*1024 then
+          SizeStr := Format('%.2f MB', [DeletedSize / (1024*1024)])
+        else
+          SizeStr := Format('%.2f KB', [DeletedSize / 1024]);
+        UpdateStatus('✅ 临时文件清理完成，释放空间: ' + SizeStr);
+      end
+      else
+        UpdateStatus('ℹ️ 没有找到可清理的临时文件');
+    except
+      on E: Exception do
+        UpdateStatus('❌ 清理临时文件失败: ' + E.Message);
+    end;
+  end;
+end;
+
+procedure TfrmMain.MenuCleanupSoftwareDistributionClick(Sender: TObject);
+var
+  DeletedSize: Int64;
+  SizeStr: string;
+begin
+  if MessageDlg('确定要清理Windows更新缓存吗？这将删除SoftwareDistribution目录中的下载文件。' + #13#10 +
+                '注意：这可能需要管理员权限。',
+                mtConfirmation, [mbYes, mbNo], 0) = mrYes then
+  begin
+    try
+      UpdateStatus('🧹 开始清理Windows更新缓存...');
+      DeletedSize := CleanupSoftwareDistribution;
+
+      if DeletedSize > 0 then
+      begin
+        if DeletedSize > 1024*1024*1024 then
+          SizeStr := Format('%.2f GB', [DeletedSize / (1024*1024*1024)])
+        else if DeletedSize > 1024*1024 then
+          SizeStr := Format('%.2f MB', [DeletedSize / (1024*1024)])
+        else
+          SizeStr := Format('%.2f KB', [DeletedSize / 1024]);
+        UpdateStatus('✅ Windows更新缓存清理完成，释放空间: ' + SizeStr);
+      end
+      else
+        UpdateStatus('ℹ️ 没有找到可清理的更新缓存文件');
+    except
+      on E: Exception do
+        UpdateStatus('❌ 清理Windows更新缓存失败: ' + E.Message);
+    end;
+  end;
+end;
+function TfrmMain.CleanupTempFiles: Int64;
+var
+  TempPaths: TArray<string>;
+  i: Integer;
+  DeletedSize: Int64;
+begin
+  Result := 0;
+  DeletedSize := 0;
+
+  // 定义要清理的临时目录
+  SetLength(TempPaths, 4);
+  TempPaths[0] := GetEnvironmentVariable('TEMP');
+  TempPaths[1] := GetEnvironmentVariable('TMP');
+  TempPaths[2] := 'C:\Windows\Temp';
+  TempPaths[3] := 'C:\Windows\Prefetch';
+
+  for i := 0 to High(TempPaths) do
+  begin
+    if (TempPaths[i] <> '') and DirectoryExists(TempPaths[i]) then
+    begin
+      try
+        UpdateStatus('🧹 清理目录: ' + TempPaths[i]);
+        SafeDeleteDirectory(TempPaths[i], DeletedSize);
+        Inc(Result, DeletedSize);
+      except
+        on E: Exception do
+          UpdateStatus('⚠️ 清理 ' + TempPaths[i] + ' 时出错: ' + E.Message);
+      end;
+    end;
+  end;
+end;
+
+function TfrmMain.CleanupSoftwareDistribution: Int64;
+var
+  SoftDistPath: string;
+  DeletedSize: Int64;
+begin
+  Result := 0;
+  DeletedSize := 0;
+  SoftDistPath := 'C:\Windows\SoftwareDistribution\Download';
+
+  if DirectoryExists(SoftDistPath) then
+  begin
+    try
+      UpdateStatus('🧹 清理目录: ' + SoftDistPath);
+      SafeDeleteDirectory(SoftDistPath, DeletedSize);
+      Result := DeletedSize;
+    except
+      on E: Exception do
+        UpdateStatus('⚠️ 清理 SoftwareDistribution 时出错: ' + E.Message);
+    end;
+  end
+  else
+    UpdateStatus('ℹ️ SoftwareDistribution\Download 目录不存在');
+end;
+
+procedure TfrmMain.SafeDeleteDirectory(const DirPath: string; var DeletedSize: Int64);
+var
+  SR: TSearchRec;
+  FilePath: string;
+  FileSize: Int64;
+  Code: Integer;
+begin
+  DeletedSize := 0;
+
+  if not DirectoryExists(DirPath) then
+    Exit;
+
+  Code := FindFirst(IncludeTrailingPathDelimiter(DirPath) + '*', faAnyFile, SR);
+  try
+    while Code = 0 do
+    begin
+      if (SR.Name <> '.') and (SR.Name <> '..') then
+      begin
+        FilePath := IncludeTrailingPathDelimiter(DirPath) + SR.Name;
+
+        if (SR.Attr and faDirectory) <> 0 then
+        begin
+          // 递归删除子目录
+          var SubDirSize: Int64 := 0;
+          SafeDeleteDirectory(FilePath, SubDirSize);
+          Inc(DeletedSize, SubDirSize);
+
+          // 尝试删除空目录
+          try
+            RemoveDir(FilePath);
+          except
+            // 忽略删除目录失败的错误
+          end;
+        end
+        else
+        begin
+          // 删除文件
+          try
+            FileSize := SR.Size;
+            if DeleteFile(FilePath) then
+              Inc(DeletedSize, FileSize);
+          except
+            // 忽略删除文件失败的错误（可能被占用）
+          end;
+        end;
+      end;
+      Code := FindNext(SR);
+    end;
+  finally
+    FindClose(SR);
   end;
 end;
 
