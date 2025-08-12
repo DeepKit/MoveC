@@ -24,6 +24,8 @@ type
     FCurrentStep: Integer;
     procedure UpdateProgress;
     procedure SetModernStyle;
+  protected
+    procedure WMClose(var Message: TWMClose); message WM_CLOSE;
   public
     procedure ShowProgress(const AMessage: string; APercent: Integer);
   end;
@@ -59,8 +61,8 @@ begin
   Position := poScreenCenter;
   FormStyle := fsStayOnTop;
   
-  // 启动定时器
-  Timer1.Interval := 300;
+  // 启动定时器（加快速度）
+  Timer1.Interval := 100;
   Timer1.Enabled := True;
 end;
 
@@ -121,26 +123,26 @@ end;
 
 procedure TfrmSplash.UpdateProgress;
 begin
-  Inc(FProgress, 12);
-  
+  Inc(FProgress, 20);  // 加快进度
+
   if FProgress > 100 then
     FProgress := 100;
-  
+
   ProgressBar.Position := FProgress;
-  
+
   // 更新状态文本
   if FCurrentStep < Length(FSteps) then
   begin
     lblStatus.Caption := FSteps[FCurrentStep];
     Inc(FCurrentStep);
   end;
-  
-  // 完成后关闭
+
+  // 完成后延迟隐藏
   if FProgress >= 100 then
   begin
     Timer1.Enabled := False;
-    Sleep(500);  // 稍微停留一下
-    ModalResult := mrOK;
+    // 使用PostMessage延迟隐藏窗体，避免在事件中直接设置Visible
+    PostMessage(Handle, WM_CLOSE, 0, 0);
   end;
 end;
 
@@ -149,6 +151,13 @@ begin
   lblStatus.Caption := AMessage;
   ProgressBar.Position := APercent;
   Application.ProcessMessages;
+end;
+
+procedure TfrmSplash.WMClose(var Message: TWMClose);
+begin
+  // 隐藏窗体而不是关闭
+  Hide;
+  Message.Result := 0;
 end;
 
 end.

@@ -66,18 +66,6 @@ object frmMain: TfrmMain
         TabOrder = 2
         OnClick = btnSelectSourceRootClick
       end
-      object stvSource: TShellTreeView
-        Left = 10
-        Top = 70
-        Width = 380
-        Height = 540
-        ObjectTypes = [otFolders, otNonFolders]
-        Root = 'rfDesktop'
-        UseShellImages = True
-        AutoRefresh = True
-        TabOrder = 3
-        OnChange = stvSourceChange
-      end
     end
     object pnlRight: TPanel
       Left = 400
@@ -120,18 +108,6 @@ object frmMain: TfrmMain
         Caption = #36873#25321#26681#30446#24405
         TabOrder = 2
         OnClick = btnSelectTargetRootClick
-      end
-      object stvTarget: TShellTreeView
-        Left = 10
-        Top = 70
-        Width = 380
-        Height = 540
-        ObjectTypes = [otFolders, otNonFolders]
-        Root = 'rfDesktop'
-        UseShellImages = True
-        AutoRefresh = True
-        TabOrder = 3
-        OnChange = stvTargetChange
       end
     end
     object pnlStatus: TPanel
