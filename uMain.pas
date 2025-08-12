@@ -904,9 +904,11 @@ begin
 
     UpdateStatus('🔗 已在原位置创建链接 → ' + Dst);
 
-    // 4) 保留备份，提示用户验证后再手动删除备份
-    UpdateStatus('✅ 迁移完成。为安全起见，已保留备份目录: ' + Backup);
-    UpdateStatus('ℹ️ 验证相关程序运行正常后，可手动删除备份目录以释放空间。');
+    // 4) 保留备份，并提醒验证后清理备份以释放C盘
+    UpdateStatus('✅ 迁移完成。已保留备份目录: ' + Backup);
+    UpdateStatus('⚠️ 重要: 请立即测试依赖此目录的程序是否正常运行。');
+    UpdateStatus('💡 测试无误后，请删除 C 盘备份目录以真正释放空间。');
+    UpdateStatus('🗑️ 你可以在“清理”菜单中使用“清理临时文件”或手动删除备份目录（推荐移入回收站）。');
   finally
     SetProcessingState(False);
   end;
@@ -1110,6 +1112,7 @@ begin
         TargetUsersPath := 'D:\';
       end;
     end;
+
   end;
 
   // 更新最终的目标路径
