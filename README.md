@@ -149,7 +149,7 @@ procedure AddColoredStatusMessage(const AMessage: string; AColor: TColor);
 - 目录迁移（C→D）：复制→备份→原址创建链接（默认目录联接 /J，失败回退符号链接）→成功提醒测试与清理备份→失败回滚
 - 清理功能：清空回收站、清理临时文件、清理 Windows 更新缓存
 - 分析（同步版）：目录总大小、TopN 大文件、类型聚合（跳过 reparse point）
-- 非阻塞启动：FormShow → TTimer 一次性延时初始化
+- 非阻塞启动：FormShow → TTimer 一次性延时初始化；迁移阶段提供进度条与“停止”取消
 
 ## ✅ 已采纳的默认行为
 - 复制后校验不一致时：提示+可继续（需用户确认）

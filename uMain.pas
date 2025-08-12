@@ -97,6 +97,9 @@ type
     FIsProcessing: Boolean;
     FInitTimer: TTimer;
     FLastBackupPath: string;
+    FTotalBytesToCopy: Int64;
+    FCopiedBytesSoFar: Int64;
+    FCancelRequested: Boolean;
 
     // 空间分析：聚合结构
     type TExtStat = record Ext: string; Size: Int64; Count: Integer; end;
@@ -582,8 +585,8 @@ end;
 
 procedure TfrmMain.btnStopClick(Sender: TObject);
 begin
-  SetProcessingState(False);
-  UpdateStatus('⏹️ 操作已停止');
+  FCancelRequested := True;
+  UpdateStatus('⏹️ 用户请求停止，正在安全中止...');
 end;
 
 procedure TfrmMain.btnExitClick(Sender: TObject);
@@ -712,7 +715,7 @@ begin
 
   for i := 0 to High(TempPaths) do
   begin
-    if (TempPaths[i] <> '') and DirectoryExists(TempPaths[i]) then
+    if (TempPaths[i] <> '') and System.SysUtils.DirectoryExists(TempPaths[i]) then
     begin
       try
         UpdateStatus('🧹 清理目录: ' + TempPaths[i]);
@@ -735,7 +738,7 @@ begin
   DeletedSize := 0;
   SoftDistPath := 'C:\Windows\SoftwareDistribution\Download';
 
-  if DirectoryExists(SoftDistPath) then
+  if System.SysUtils.DirectoryExists(SoftDistPath) then
   begin
     try
       UpdateStatus('🧹 清理目录: ' + SoftDistPath);
@@ -759,7 +762,7 @@ var
 begin
   DeletedSize := 0;
 
-  if not DirectoryExists(DirPath) then
+  if not System.SysUtils.DirectoryExists(DirPath) then
     Exit;
 
   Code := FindFirst(IncludeTrailingPathDelimiter(DirPath) + '*', faAnyFile, SR);
@@ -874,6 +877,12 @@ begin
     // 1) 拷贝到目标
     Copied := 0;
     try
+      // 预估总量（用于进度计算）
+      var tmpFiles: Integer; FTotalBytesToCopy := 0; FCopiedBytesSoFar := 0;
+      ComputeDirStats(Src, tmpFiles, FTotalBytesToCopy);
+      ProgressBar1.Style := pbstNormal;
+      ProgressBar1.Position := 0;
+
       CopyDirRecursive(Src, Dst, Copied);
       UpdateStatus(Format('📦 拷贝完成（约 %.2f GB）', [Copied/1024/1024/1024]));
       // 简单一致性校验（文件数与总字节）
@@ -924,13 +933,16 @@ begin
 
     UpdateStatus('🔗 已在原位置创建链接 → ' + Dst);
 
-    // 4) 保留备份，并提醒验证后清理备份以释放C盘
+    // 4) 记录最近备份，并提醒验证后清理备份以释放C盘
+    FLastBackupPath := Backup;
     UpdateStatus('✅ 迁移完成。已保留备份目录: ' + Backup);
     UpdateStatus('⚠️ 重要: 请立即测试依赖此目录的程序是否正常运行。');
-    UpdateStatus('💡 测试无误后，请删除 C 盘备份目录以真正释放空间。');
-    UpdateStatus('🗑️ 你可以在“清理”菜单中使用“清理临时文件”或手动删除备份目录（推荐移入回收站）。');
+    UpdateStatus('💡 测试无误后，请使用“清理最近备份”或手动删除备份目录，以真正释放C盘空间。');
   finally
+    ProgressBar1.Style := pbstNormal;
+    ProgressBar1.Position := 0;
     SetProcessingState(False);
+    FCancelRequested := False;
   end;
 end;
 
@@ -1123,18 +1135,22 @@ begin
     Exit(True);
 end;
 
+
 procedure TfrmMain.CopyDirRecursive(const Src, Dst: string; var CopiedBytes: Int64);
 var
   SR: TSearchRec;
   Code: Integer;
   SrcPath, DstPath: string;
   InF, OutF: TFileStream;
+  Buf: array[0..64*1024-1] of Byte;
+  N: Integer;
 begin
+  if FCancelRequested then Exit;
   System.SysUtils.ForceDirectories(Dst);
 
   Code := FindFirst(IncludeTrailingPathDelimiter(Src) + '*', faAnyFile, SR);
   try
-    while Code = 0 do
+    while (Code = 0) and (not FCancelRequested) do
     begin
       if (SR.Name <> '.') and (SR.Name <> '..') then
       begin
@@ -1144,12 +1160,23 @@ begin
           CopyDirRecursive(SrcPath, DstPath, CopiedBytes)
         else
         begin
-          InF := TFileStream.Create(SrcPath, fmOpenRead or fmShareDenyWrite);
+          InF := TFileStream.Create(SrcPath, fmOpenRead or fmShareDenyNone);
           try
             OutF := TFileStream.Create(DstPath, fmCreate);
             try
-              CopiedBytes := CopiedBytes + InF.Size;
-              OutF.CopyFrom(InF, 0);
+              repeat
+                N := InF.Read(Buf, SizeOf(Buf));
+                if N > 0 then
+                begin
+                  OutF.WriteBuffer(Buf, N);
+                  Inc(CopiedBytes, N);
+                  FCopiedBytesSoFar := CopiedBytes;
+                  if FTotalBytesToCopy > 0 then
+                    ProgressBar1.Position := Trunc(FCopiedBytesSoFar * 100 / FTotalBytesToCopy);
+                  Application.ProcessMessages;
+                  if FCancelRequested then Break;
+                end;
+              until N = 0;
             finally
               OutF.Free;
             end;
@@ -1164,6 +1191,7 @@ begin
     FindClose(SR);
   end;
 end;
+
 
 procedure TfrmMain.InitializeShellTreeViews;
 var
