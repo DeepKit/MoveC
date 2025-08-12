@@ -436,6 +436,7 @@ begin
   finally
     SetProcessingState(False);
   end;
+end;
 
 procedure TfrmMain.StartSpaceAnalysis(const RootPath: string);
 var
@@ -511,8 +512,30 @@ begin
   end;
 end;
 
-  end;
+function TfrmMain.IsReparseDir(const Path: string): Boolean;
+begin
+  Result := (GetFileAttributes(PChar(Path)) and FILE_ATTRIBUTE_REPARSE_POINT) <> 0;
 end;
+
+procedure TfrmMain.LogTopN(const Items: TArray<TPair<string, Int64>>; N: Integer);
+var
+  I, MaxN: Integer;
+begin
+  MaxN := Min(N, Length(Items));
+  UpdateStatus('📈 Top 大文件（前' + MaxN.ToString + '）:');
+  for I := 0 to MaxN - 1 do
+    UpdateStatus(Format('  %s  (%.2f MB)', [Items[I].Key, Items[I].Value/1024/1024]));
+end;
+
+procedure TfrmMain.LogTypeAggregation(const Agg: TArray<TExtStat>);
+var
+  i: Integer;
+begin
+  UpdateStatus('🧾 类型聚合:');
+  for i := 0 to High(Agg) do
+    UpdateStatus(Format('  %-6s  数量:%d  大小:%.2f MB',[Agg[i].Ext, Agg[i].Count, Agg[i].Size/1024/1024]));
+end;
+
 
 procedure TfrmMain.btnExecuteClick(Sender: TObject);
 begin
@@ -566,33 +589,15 @@ begin
         // 忽略状态更新错误
       end;
 
+      // 强制退出应用程序
+      Application.Terminate;
+    end;
+  end;
+end;
 
 procedure TfrmMain.MenuCleanupRecycleBinClick(Sender: TObject);
 var
   Flags: UINT;
-
-function TfrmMain.IsReparseDir(const Path: string): Boolean;
-begin
-  Result := (GetFileAttributes(PChar(Path)) and FILE_ATTRIBUTE_REPARSE_POINT) <> 0;
-end;
-
-procedure TfrmMain.LogTopN(const Items: TArray<TPair<string, Int64>>; N: Integer);
-var I, MaxN: Integer;
-begin
-  MaxN := Min(N, Length(Items));
-  UpdateStatus('📈 Top 大文件（前' + MaxN.ToString + '）:');
-  for I := 0 to MaxN - 1 do
-    UpdateStatus(Format('  %s  (%.2f MB)', [Items[I].Key, Items[I].Value/1024/1024]));
-end;
-
-procedure TfrmMain.LogTypeAggregation(const Agg: TArray<TExtStat>);
-var i: Integer;
-begin
-  UpdateStatus('🧾 类型聚合:');
-  for i := 0 to High(Agg) do
-    UpdateStatus(Format('  %-6s  数量:%d  大小:%.2f MB',[Agg[i].Ext, Agg[i].Count, Agg[i].Size/1024/1024]));
-end;
-
 begin
   try
     Flags := SHERB_NOCONFIRMATION or SHERB_NOSOUND or SHERB_NOPROGRESSUI;
@@ -603,12 +608,6 @@ begin
   except
     on E: Exception do
       UpdateStatus('❌ 清空回收站失败: ' + E.Message);
-  end;
-end;
-
-      // 强制退出应用程序
-      Application.Terminate;
-    end;
   end;
 end;
 

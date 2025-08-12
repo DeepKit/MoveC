@@ -174,8 +174,7 @@ begin
     FInitTimer.Enabled := True;
   end;
   Exit; // 其余初始化在 InitAfterShow 中进行
-
-
+end;
 
 procedure TfrmMain.InitAfterShow(Sender: TObject);
 begin
@@ -229,29 +228,6 @@ begin
   except
     on E: Exception do
       UpdateStatus('延迟初始化失败: ' + E.Message);
-  end;
-end;
-
-            UpdateStatus('创建D:\Users失败: ' + E.Message);
-            // 回退到D盘根目录
-            stvTarget.Path := 'D:\';
-            FTargetPath := 'D:\';
-            edtTargetDir.Text := 'D:\';
-            UpdateStatus('目标目录回退到: D:\');
-            Exit;
-          end;
-        end;
-      end;
-
-      // 设置到D:\Users
-      stvTarget.Path := 'D:\Users';
-      FTargetPath := 'D:\Users';
-      edtTargetDir.Text := 'D:\Users';
-      UpdateStatus('目标目录树已设置为: D:\Users');
-    end;
-  except
-    on E: Exception do
-      UpdateStatus('设置目录树路径失败: ' + E.Message);
   end;
 end;
 
@@ -459,6 +435,7 @@ begin
     UpdateStatus('✅ 分析任务已启动');
   finally
     SetProcessingState(False);
+  end;
 
 procedure TfrmMain.StartSpaceAnalysis(const RootPath: string);
 var
@@ -486,13 +463,12 @@ var
           begin
             Inc(TotalSize, SR.Size);
             TopFiles.Add(TPair<string, Int64>.Create(FP, SR.Size));
-  end;
-
             // by ext
             var Ext := LowerCase(ExtractFileExt(SR.Name));
-            var Pair := ExtAgg.GetValueOrDefault(Ext, TPair<Int64,Integer>.Create(0,0));
-            Pair.Key := Pair.Key + SR.Size;
-            Pair.Value := Pair.Value + 1;
+            var Pair: TPair<Int64,Integer>;
+            if not ExtAgg.TryGetValue(Ext, Pair) then
+              Pair := TPair<Int64,Integer>.Create(0,0);
+            Pair := TPair<Int64,Integer>.Create(Pair.Key + SR.Size, Pair.Value + 1);
             ExtAgg.AddOrSetValue(Ext, Pair);
           end;
         end;
@@ -505,51 +481,60 @@ var
 
 begin
   UpdateStatus('📊 开始空间分析: ' + RootPath);
-  TTask.Run(procedure
-  var
-    I: Integer;
-  begin
-    TotalSize := 0;
-    TopFiles := TList<TPair<string, Int64>>.Create;
-    ExtAgg := TDictionary<string, TPair<Int64, Integer>>.Create;
-    try
-      ScanDir(RootPath);
-      // 排序 TopN
-      TopFiles.Sort(TComparer<TPair<string, Int64>>.Construct(
-        function(const L, R: TPair<string, Int64>): Integer
-        begin
-          Result := -CompareValue(L.Value, R.Value);
-        end));
-      // 输出到 UI
-      TThread.Queue(nil, procedure
-      var Arr: TArray<TPair<string, Int64>>;
-          AggArr: TArray<TExtStat>;
-          K: string; V: TPair<Int64,Integer>;
-          idx: Integer;
+  // 同步执行版本（避免老编译器的 TTask/Queue 差异）
+  TotalSize := 0;
+  TopFiles := TList<TPair<string, Int64>>.Create;
+  ExtAgg := TDictionary<string, TPair<Int64, Integer>>.Create;
+  try
+    ScanDir(RootPath);
+    TopFiles.Sort(TComparer<TPair<string, Int64>>.Construct(
+      function(const L, R: TPair<string, Int64>): Integer
       begin
-        UpdateStatus(Format('📦 总大小: %.2f GB', [TotalSize/1024/1024/1024]));
-        // Top 10 大文件
-        Arr := TopFiles.ToArray;
-        LogTopN(Arr, 10);
-        // 类型聚合
-        SetLength(AggArr, ExtAgg.Count);
-        idx := 0;
-        for K in ExtAgg.Keys do
-        begin
-          V := ExtAgg.Items[K];
-          AggArr[idx].Ext := K; AggArr[idx].Size := V.Key; AggArr[idx].Count := V.Value; Inc(idx);
-        end;
-        LogTypeAggregation(AggArr);
-      end);
-    finally
-      ExtAgg.Free;
-      TopFiles.Free;
+        Result := -CompareValue(L.Value, R.Value);
+      end));
+    UpdateStatus(Format('📦 总大小: %.2f GB', [TotalSize/1024/1024/1024]));
+    var Arr: TArray<TPair<string, Int64>> := TopFiles.ToArray;
+    LogTopN(Arr, 10);
+    var AggArr: TArray<TExtStat>;
+    SetLength(AggArr, ExtAgg.Count);
+    var idx: Integer := 0;
+    var K: string; var V: TPair<Int64,Integer>;
+    for K in ExtAgg.Keys do
+    begin
+      V := ExtAgg.Items[K];
+      AggArr[idx].Ext := K; AggArr[idx].Size := V.Key; AggArr[idx].Count := V.Value; Inc(idx);
     end;
-  end);
-end;
-
+    LogTypeAggregation(AggArr);
+  finally
+    ExtAgg.Free;
+    TopFiles.Free;
   end;
 end;
+
+function TfrmMain.IsReparseDir(const Path: string): Boolean;
+begin
+  Result := (GetFileAttributes(PChar(Path)) and FILE_ATTRIBUTE_REPARSE_POINT) <> 0;
+end;
+
+procedure TfrmMain.LogTopN(const Items: TArray<TPair<string, Int64>>; N: Integer);
+var
+  I, MaxN: Integer;
+begin
+  MaxN := Min(N, Length(Items));
+  UpdateStatus('📈 Top 大文件（前' + MaxN.ToString + '）:');
+  for I := 0 to MaxN - 1 do
+    UpdateStatus(Format('  %s  (%.2f MB)', [Items[I].Key, Items[I].Value/1024/1024]));
+end;
+
+procedure TfrmMain.LogTypeAggregation(const Agg: TArray<TExtStat>);
+var
+  i: Integer;
+begin
+  UpdateStatus('🧾 类型聚合:');
+  for i := 0 to High(Agg) do
+    UpdateStatus(Format('  %-6s  数量:%d  大小:%.2f MB',[Agg[i].Ext, Agg[i].Count, Agg[i].Size/1024/1024]));
+end;
+
 
 procedure TfrmMain.btnExecuteClick(Sender: TObject);
 begin
