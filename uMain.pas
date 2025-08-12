@@ -25,6 +25,7 @@ type
     MenuCleanupRecycleBin: TMenuItem;
     MenuCleanupTemp: TMenuItem;
     MenuCleanupSeparator: TMenuItem;
+    MenuCleanupLastBackup: TMenuItem;
     MenuCleanupSoftwareDistribution: TMenuItem;
 
     // 主面板布局
@@ -87,6 +88,7 @@ type
     procedure MenuHelpAboutClick(Sender: TObject);
     procedure MenuCleanupRecycleBinClick(Sender: TObject);
     procedure MenuCleanupTempClick(Sender: TObject);
+    procedure MenuCleanupLastBackupClick(Sender: TObject);
     procedure MenuCleanupSoftwareDistributionClick(Sender: TObject);
 
   private
@@ -94,6 +96,7 @@ type
     FTargetPath: string;
     FIsProcessing: Boolean;
     FInitTimer: TTimer;
+    FLastBackupPath: string;
 
     // 空间分析：聚合结构
     type TExtStat = record Ext: string; Size: Int64; Count: Integer; end;
@@ -115,6 +118,8 @@ type
     function CreateDirectoryJunctionViaCmd(const LinkPath, TargetPath: string): Boolean;
     function RunCommandWait(const CmdLine: string; out ExitCode: Cardinal): Boolean;
     procedure CopyDirRecursive(const Src, Dst: string; var CopiedBytes: Int64);
+    procedure ComputeDirStats(const Root: string; out FileCount: Integer; out TotalBytes: Int64);
+    function DeletePathToRecycleBin(const Path: string): Boolean;
 
     // 界面相关
     procedure InitializeUI;
@@ -871,6 +876,21 @@ begin
     try
       CopyDirRecursive(Src, Dst, Copied);
       UpdateStatus(Format('📦 拷贝完成（约 %.2f GB）', [Copied/1024/1024/1024]));
+      // 简单一致性校验（文件数与总字节）
+      var cDst, cSrc: Integer; var bDst, bSrc: Int64;
+      ComputeDirStats(Dst, cDst, bDst);
+      ComputeDirStats(Src, cSrc, bSrc);
+      UpdateStatus(Format('🔍 校验：目标文件数 %d / 源文件数 %d；目标大小 %.2f GB / 源大小 %.2f GB',
+        [cDst, cSrc, bDst/1024/1024/1024, bSrc/1024/1024/1024]));
+      if (cDst <> cSrc) or (bDst <> bSrc) then
+      begin
+        if MessageDlg('检测到复制后校验不一致：' + sLineBreak +
+                      Format('目标文件数:%d 源文件数:%d；目标大小:%.2f GB 源大小:%.2f GB',
+                        [cDst, cSrc, bDst/1024/1024/1024, bSrc/1024/1024/1024]) + sLineBreak +
+                      '是否继续迁移？选择“是”将继续（风险自担），选择“否”将终止迁移。',
+                      mtWarning, [mbYes, mbNo], 0) <> mrYes then
+          Exit;
+      end;
     except
       on E: Exception do
       begin
@@ -889,7 +909,7 @@ begin
     else
       UpdateStatus('🛟 已备份原目录到: ' + Backup);
 
-    // 3) 在原位置创建链接指向新位置
+    // 3) 在原位置创建链接指向新位置（优先目录联接）
     ok := CreateDirectoryLink(Src, Dst);
     if not ok then
     begin
@@ -1010,21 +1030,78 @@ function CreateSymbolicLinkW(lpSymlinkFileName, lpTargetFileName: PWideChar; dwF
 {$ENDIF}
 
 function TfrmMain.CreateDirectorySymlink(const LinkPath, TargetPath: string): Boolean;
-var
-  Flags: DWORD;
 begin
-  // 只为目录创建符号链接
-  Flags := SYMBOLIC_LINK_FLAG_DIRECTORY;
-  {$IF CompilerVersion >= 35.0}
-  // 新版 Windows 允许开发者模式下不需要提权
-  {$IFDEF UNICODE}
-  Result := CreateSymbolicLinkW(PWideChar(LinkPath), PWideChar(TargetPath), Flags);
-  {$ELSE}
-  Result := CreateSymbolicLink(PChar(LinkPath), PChar(TargetPath), Flags);
-  {$ENDIF}
-  {$ELSE}
-  Result := CreateSymbolicLink(PChar(LinkPath), PChar(TargetPath), Flags);
-  {$IFEND}
+  // 简化为直接调用 Unicode 版本，目录符号链接
+  Result := CreateSymbolicLinkW(PWideChar(LinkPath), PWideChar(TargetPath), SYMBOLIC_LINK_FLAG_DIRECTORY);
+end;
+
+procedure TfrmMain.ComputeDirStats(const Root: string; out FileCount: Integer; out TotalBytes: Int64);
+var
+  Files: Integer;
+  Bytes: Int64;
+  SR: TSearchRec;
+  Code: Integer;
+  P: string;
+begin
+  Files := 0; Bytes := 0;
+  Code := FindFirst(IncludeTrailingPathDelimiter(Root) + '*', faAnyFile, SR);
+  try
+    while Code = 0 do
+    begin
+      if (SR.Name <> '.') and (SR.Name <> '..') then
+      begin
+        P := IncludeTrailingPathDelimiter(Root) + SR.Name;
+        if (SR.Attr and faDirectory) <> 0 then
+          ComputeDirStats(P, Files, Bytes)
+        else
+        begin
+          Inc(Files);
+          Inc(Bytes, SR.Size);
+        end;
+      end;
+      Code := FindNext(SR);
+    end;
+  finally
+    FindClose(SR);
+  end;
+  FileCount := Files; TotalBytes := Bytes;
+end;
+
+function TfrmMain.DeletePathToRecycleBin(const Path: string): Boolean;
+var
+  Op: TSHFileOpStruct;
+  FromBuf: array[0..MAX_PATH] of Char;
+begin
+  Result := False;
+  FillChar(Op, SizeOf(Op), 0);
+  StrPCopy(FromBuf, Path + #0#0);
+  Op.Wnd := Handle;
+  Op.wFunc := FO_DELETE;
+  Op.pFrom := @FromBuf[0];
+  Op.fFlags := FOF_ALLOWUNDO or FOF_NOCONFIRMATION or FOF_SILENT;
+  Result := SHFileOperation(Op) = 0;
+end;
+
+procedure TfrmMain.MenuCleanupLastBackupClick(Sender: TObject);
+begin
+  if FLastBackupPath = '' then
+  begin
+    UpdateStatus('ℹ️ 当前会话没有记录到备份目录');
+    Exit;
+  end;
+  if not System.SysUtils.DirectoryExists(FLastBackupPath) then
+  begin
+    UpdateStatus('ℹ️ 备份目录不存在: ' + FLastBackupPath);
+    Exit;
+  end;
+  if MessageDlg('确定要删除最近的备份目录吗？将移动到回收站：' + sLineBreak + FLastBackupPath,
+                 mtConfirmation, [mbYes, mbNo], 0) = mrYes then
+  begin
+    if DeletePathToRecycleBin(FLastBackupPath) then
+      UpdateStatus('🗑️ 已移动备份到回收站: ' + FLastBackupPath)
+    else
+      UpdateStatus('❌ 无法删除备份（可能权限不足或文件占用）');
+  end;
 end;
 
 function TfrmMain.CreateDirectoryJunctionViaCmd(const LinkPath, TargetPath: string): Boolean;
@@ -1038,10 +1115,11 @@ end;
 function TfrmMain.CreateDirectoryLink(const LinkPath, TargetPath: string): Boolean;
 begin
   Result := False;
-  // 优先符号链接，失败则联接
-  if CreateDirectorySymlink(LinkPath, TargetPath) then
-    Exit(True);
+  // 默认优先目录联接（/J），降低权限失败率
   if CreateDirectoryJunctionViaCmd(LinkPath, TargetPath) then
+    Exit(True);
+  // 回退尝试符号链接（需要更高权限）
+  if CreateDirectorySymlink(LinkPath, TargetPath) then
     Exit(True);
 end;
 

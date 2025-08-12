@@ -23,6 +23,9 @@ type
     MenuTheme: TMenuItem;
     MenuCleanup: TMenuItem;
     MenuCleanupRecycleBin: TMenuItem;
+    MenuCleanupTemp: TMenuItem;
+    MenuCleanupSeparator: TMenuItem;
+    MenuCleanupSoftwareDistribution: TMenuItem;
 
     // 主面板布局
     pnlMain: TPanel;
@@ -83,12 +86,15 @@ type
     procedure MenuFileExitClick(Sender: TObject);
     procedure MenuHelpAboutClick(Sender: TObject);
     procedure MenuCleanupRecycleBinClick(Sender: TObject);
+    procedure MenuCleanupTempClick(Sender: TObject);
+    procedure MenuCleanupSoftwareDistributionClick(Sender: TObject);
 
   private
     FSourcePath: string;
     FTargetPath: string;
     FIsProcessing: Boolean;
     FInitTimer: TTimer;
+    FLastBackupPath: string;
 
     // 空间分析：聚合结构
     type TExtStat = record Ext: string; Size: Int64; Count: Integer; end;
@@ -98,6 +104,21 @@ type
     procedure LogTopN(const Items: TArray<TPair<string, Int64>>; N: Integer);
     procedure LogTypeAggregation(const Agg: TArray<TExtStat>);
     function IsReparseDir(const Path: string): Boolean;
+
+    // 清理功能
+    function CleanupTempFiles: Int64;
+    function CleanupSoftwareDistribution: Int64;
+    procedure SafeDeleteDirectory(const DirPath: string; var DeletedSize: Int64);
+
+    // 迁移与链接
+    function CreateDirectoryLink(const LinkPath, TargetPath: string): Boolean;
+    function CreateDirectorySymlink(const LinkPath, TargetPath: string): Boolean;
+    function CreateDirectoryJunctionViaCmd(const LinkPath, TargetPath: string): Boolean;
+    function RunCommandWait(const CmdLine: string; out ExitCode: Cardinal): Boolean;
+    procedure CopyDirRecursive(const Src, Dst: string; var CopiedBytes: Int64);
+    procedure ComputeDirStats(const Root: string; out FileCount: Integer; out TotalBytes: Int64);
+    function DeletePathToRecycleBin(const Path: string): Boolean;
+    procedure MenuCleanupLastBackupClick(Sender: TObject);
 
     // 界面相关
     procedure InitializeUI;
@@ -436,6 +457,7 @@ begin
   finally
     SetProcessingState(False);
   end;
+end;
 
 procedure TfrmMain.StartSpaceAnalysis(const RootPath: string);
 var
@@ -588,33 +610,15 @@ begin
         // 忽略状态更新错误
       end;
 
+      // 强制退出应用程序
+      Application.Terminate;
+    end;
+  end;
+end;
 
 procedure TfrmMain.MenuCleanupRecycleBinClick(Sender: TObject);
 var
   Flags: UINT;
-
-function TfrmMain.IsReparseDir(const Path: string): Boolean;
-begin
-  Result := (GetFileAttributes(PChar(Path)) and FILE_ATTRIBUTE_REPARSE_POINT) <> 0;
-end;
-
-procedure TfrmMain.LogTopN(const Items: TArray<TPair<string, Int64>>; N: Integer);
-var I, MaxN: Integer;
-begin
-  MaxN := Min(N, Length(Items));
-  UpdateStatus('📈 Top 大文件（前' + MaxN.ToString + '）:');
-  for I := 0 to MaxN - 1 do
-    UpdateStatus(Format('  %s  (%.2f MB)', [Items[I].Key, Items[I].Value/1024/1024]));
-end;
-
-procedure TfrmMain.LogTypeAggregation(const Agg: TArray<TExtStat>);
-var i: Integer;
-begin
-  UpdateStatus('🧾 类型聚合:');
-  for i := 0 to High(Agg) do
-    UpdateStatus(Format('  %-6s  数量:%d  大小:%.2f MB',[Agg[i].Ext, Agg[i].Count, Agg[i].Size/1024/1024]));
-end;
-
 begin
   try
     Flags := SHERB_NOCONFIRMATION or SHERB_NOSOUND or SHERB_NOPROGRESSUI;
@@ -627,10 +631,174 @@ begin
       UpdateStatus('❌ 清空回收站失败: ' + E.Message);
   end;
 end;
+procedure TfrmMain.MenuCleanupTempClick(Sender: TObject);
+var
+  DeletedSize: Int64;
+  SizeStr: string;
+begin
+  if MessageDlg('确定要清理临时文件吗？这将删除系统和用户临时目录中的文件。',
+                mtConfirmation, [mbYes, mbNo], 0) = mrYes then
+  begin
+    try
+      UpdateStatus('🧹 开始清理临时文件...');
+      DeletedSize := CleanupTempFiles;
 
-      // 强制退出应用程序
-      Application.Terminate;
+      if DeletedSize > 0 then
+      begin
+        if DeletedSize > 1024*1024*1024 then
+          SizeStr := Format('%.2f GB', [DeletedSize / (1024*1024*1024)])
+        else if DeletedSize > 1024*1024 then
+          SizeStr := Format('%.2f MB', [DeletedSize / (1024*1024)])
+        else
+          SizeStr := Format('%.2f KB', [DeletedSize / 1024]);
+        UpdateStatus('✅ 临时文件清理完成，释放空间: ' + SizeStr);
+      end
+      else
+        UpdateStatus('ℹ️ 没有找到可清理的临时文件');
+    except
+      on E: Exception do
+        UpdateStatus('❌ 清理临时文件失败: ' + E.Message);
     end;
+  end;
+end;
+
+procedure TfrmMain.MenuCleanupSoftwareDistributionClick(Sender: TObject);
+var
+  DeletedSize: Int64;
+  SizeStr: string;
+begin
+  if MessageDlg('确定要清理Windows更新缓存吗？这将删除SoftwareDistribution目录中的下载文件。' + #13#10 +
+                '注意：这可能需要管理员权限。',
+                mtConfirmation, [mbYes, mbNo], 0) = mrYes then
+  begin
+    try
+      UpdateStatus('🧹 开始清理Windows更新缓存...');
+      DeletedSize := CleanupSoftwareDistribution;
+
+      if DeletedSize > 0 then
+      begin
+        if DeletedSize > 1024*1024*1024 then
+          SizeStr := Format('%.2f GB', [DeletedSize / (1024*1024*1024)])
+        else if DeletedSize > 1024*1024 then
+          SizeStr := Format('%.2f MB', [DeletedSize / (1024*1024)])
+        else
+          SizeStr := Format('%.2f KB', [DeletedSize / 1024]);
+        UpdateStatus('✅ Windows更新缓存清理完成，释放空间: ' + SizeStr);
+      end
+      else
+        UpdateStatus('ℹ️ 没有找到可清理的更新缓存文件');
+    except
+      on E: Exception do
+        UpdateStatus('❌ 清理Windows更新缓存失败: ' + E.Message);
+    end;
+  end;
+end;
+function TfrmMain.CleanupTempFiles: Int64;
+var
+  TempPaths: TArray<string>;
+  i: Integer;
+  DeletedSize: Int64;
+begin
+  Result := 0;
+  DeletedSize := 0;
+
+  // 定义要清理的临时目录
+  SetLength(TempPaths, 4);
+  TempPaths[0] := GetEnvironmentVariable('TEMP');
+  TempPaths[1] := GetEnvironmentVariable('TMP');
+  TempPaths[2] := 'C:\Windows\Temp';
+  TempPaths[3] := 'C:\Windows\Prefetch';
+
+  for i := 0 to High(TempPaths) do
+  begin
+    if (TempPaths[i] <> '') and DirectoryExists(TempPaths[i]) then
+    begin
+      try
+        UpdateStatus('🧹 清理目录: ' + TempPaths[i]);
+        SafeDeleteDirectory(TempPaths[i], DeletedSize);
+        Inc(Result, DeletedSize);
+      except
+        on E: Exception do
+          UpdateStatus('⚠️ 清理 ' + TempPaths[i] + ' 时出错: ' + E.Message);
+      end;
+    end;
+  end;
+end;
+
+function TfrmMain.CleanupSoftwareDistribution: Int64;
+var
+  SoftDistPath: string;
+  DeletedSize: Int64;
+begin
+  Result := 0;
+  DeletedSize := 0;
+  SoftDistPath := 'C:\Windows\SoftwareDistribution\Download';
+
+  if DirectoryExists(SoftDistPath) then
+  begin
+    try
+      UpdateStatus('🧹 清理目录: ' + SoftDistPath);
+      SafeDeleteDirectory(SoftDistPath, DeletedSize);
+      Result := DeletedSize;
+    except
+      on E: Exception do
+        UpdateStatus('⚠️ 清理 SoftwareDistribution 时出错: ' + E.Message);
+    end;
+  end
+  else
+    UpdateStatus('ℹ️ SoftwareDistribution\Download 目录不存在');
+end;
+
+procedure TfrmMain.SafeDeleteDirectory(const DirPath: string; var DeletedSize: Int64);
+var
+  SR: TSearchRec;
+  FilePath: string;
+  FileSize: Int64;
+  Code: Integer;
+begin
+  DeletedSize := 0;
+
+  if not DirectoryExists(DirPath) then
+    Exit;
+
+  Code := FindFirst(IncludeTrailingPathDelimiter(DirPath) + '*', faAnyFile, SR);
+  try
+    while Code = 0 do
+    begin
+      if (SR.Name <> '.') and (SR.Name <> '..') then
+      begin
+        FilePath := IncludeTrailingPathDelimiter(DirPath) + SR.Name;
+
+        if (SR.Attr and faDirectory) <> 0 then
+        begin
+          // 递归删除子目录
+          var SubDirSize: Int64 := 0;
+          SafeDeleteDirectory(FilePath, SubDirSize);
+          Inc(DeletedSize, SubDirSize);
+
+          // 尝试删除空目录
+          try
+            RemoveDir(FilePath);
+          except
+            // 忽略删除目录失败的错误
+          end;
+        end
+        else
+        begin
+          // 删除文件
+          try
+            FileSize := SR.Size;
+            if DeleteFile(FilePath) then
+              Inc(DeletedSize, FileSize);
+          except
+            // 忽略删除文件失败的错误（可能被占用）
+          end;
+        end;
+      end;
+      Code := FindNext(SR);
+    end;
+  finally
+    FindClose(SR);
   end;
 end;
 
@@ -664,16 +832,101 @@ begin
 end;
 
 procedure TfrmMain.ExecuteOperation;
+var
+  Src, DstRoot, Dst, Backup: string;
+  Copied: Int64;
+  ok: Boolean;
 begin
-  // 简单的操作实现
-  UpdateStatus('📋 正在准备操作...');
-  Sleep(1000);
+  Src := Trim(FSourcePath);
+  DstRoot := Trim(FTargetPath);
 
-  UpdateStatus('📁 正在创建目标目录...');
-  Sleep(1000);
+  if (Src = '') or not System.SysUtils.DirectoryExists(Src) then
+  begin
+    UpdateStatus('❌ 源目录不存在: ' + Src);
+    Exit;
+  end;
+  if (DstRoot = '') or not System.SysUtils.DirectoryExists(DstRoot) then
+  begin
+    UpdateStatus('❌ 目标根目录不存在: ' + DstRoot);
+    Exit;
+  end;
 
-  UpdateStatus('🔗 正在创建符号链接...');
-  Sleep(1000);
+  // 仅提示，不强制要求 C: → D:
+  if (UpperCase(Copy(Src,1,3)) <> 'C:\') or (UpperCase(Copy(DstRoot,1,3)) <> 'D:\') then
+  begin
+    if MessageDlg('当前并非 C: 到 D: 的迁移，是否继续？', mtWarning, [mbYes, mbNo], 0) <> mrYes then
+      Exit;
+  end;
+
+  // 目标目录 = 目标根目录 + 源目录名
+  Dst := System.SysUtils.IncludeTrailingPathDelimiter(DstRoot) + ExtractFileName(System.SysUtils.ExcludeTrailingPathDelimiter(Src));
+  if System.SysUtils.DirectoryExists(Dst) then
+  begin
+    if MessageDlg('目标目录已存在：' + Dst + sLineBreak + '是否覆盖（将合并内容）？', mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
+      Exit;
+  end;
+
+  SetProcessingState(True);
+  try
+    UpdateStatus('📋 准备迁移: ' + Src + '  →  ' + Dst);
+
+    // 1) 拷贝到目标
+    Copied := 0;
+    try
+      CopyDirRecursive(Src, Dst, Copied);
+      UpdateStatus(Format('📦 拷贝完成（约 %.2f GB）', [Copied/1024/1024/1024]));
+      // 简单一致性校验（文件数与总字节）
+      var cDst, cSrc: Integer; var bDst, bSrc: Int64;
+      ComputeDirStats(Dst, cDst, bDst);
+      ComputeDirStats(Src, cSrc, bSrc);
+      UpdateStatus(Format('🔍 校验：目标文件数 %d / 源文件数 %d；目标大小 %.2f GB / 源大小 %.2f GB',
+        [cDst, cSrc, bDst/1024/1024/1024, bSrc/1024/1024/1024]));
+      if (cDst <> cSrc) or (bDst <> bSrc) then
+      begin
+        UpdateStatus('❌ 校验失败：目标与源不一致，已停止迁移');
+        Exit;
+      end;
+    except
+      on E: Exception do
+      begin
+        UpdateStatus('❌ 拷贝失败: ' + E.Message);
+        Exit;
+      end;
+    end;
+
+    // 2) 将原目录重命名为备份
+    Backup := Src + '.backup_' + FormatDateTime('yyyymmdd_hhnnss', Now);
+    if not RenameFile(Src, Backup) then
+    begin
+      UpdateStatus('❌ 无法备份原目录，放弃迁移。');
+      Exit;
+    end
+    else
+      UpdateStatus('🛟 已备份原目录到: ' + Backup);
+
+    // 3) 在原位置创建链接指向新位置
+    ok := CreateDirectoryLink(Src, Dst);
+    if not ok then
+    begin
+      UpdateStatus('❌ 创建链接失败，开始回滚...');
+      // 回滚：恢复原目录
+      if not RenameFile(Backup, Src) then
+        UpdateStatus('⚠️ 回滚失败，请手动将备份目录还原: ' + Backup)
+      else
+        UpdateStatus('↩️ 已回滚到迁移前状态');
+      Exit;
+    end;
+
+    UpdateStatus('🔗 已在原位置创建链接 → ' + Dst);
+
+    // 4) 保留备份，并提醒验证后清理备份以释放C盘
+    UpdateStatus('✅ 迁移完成。已保留备份目录: ' + Backup);
+    UpdateStatus('⚠️ 重要: 请立即测试依赖此目录的程序是否正常运行。');
+    UpdateStatus('💡 测试无误后，请删除 C 盘备份目录以真正释放空间。');
+    UpdateStatus('🗑️ 你可以在“清理”菜单中使用“清理临时文件”或手动删除备份目录（推荐移入回收站）。');
+  finally
+    SetProcessingState(False);
+  end;
 end;
 
 procedure TfrmMain.MenuThemeClick(Sender: TObject);
@@ -740,6 +993,184 @@ begin
   end;
 end;
 
+function TfrmMain.RunCommandWait(const CmdLine: string; out ExitCode: Cardinal): Boolean;
+var
+  SI: TStartupInfo;
+  PI: TProcessInformation;
+  Cmd: string;
+begin
+  Result := False;
+  FillChar(SI, SizeOf(SI), 0);
+  FillChar(PI, SizeOf(PI), 0);
+  SI.cb := SizeOf(SI);
+  ExitCode := 0;
+
+  Cmd := 'cmd /C ' + CmdLine;
+  if CreateProcess(nil, PChar(Cmd), nil, nil, False, CREATE_NO_WINDOW, nil, nil, SI, PI) then
+  try
+    WaitForSingleObject(PI.hProcess, INFINITE);
+    GetExitCodeProcess(PI.hProcess, ExitCode);
+    Result := ExitCode = 0;
+  finally
+    if PI.hThread <> 0 then CloseHandle(PI.hThread);
+    if PI.hProcess <> 0 then CloseHandle(PI.hProcess);
+  end;
+end;
+
+{$IFDEF MSWINDOWS}
+const
+  SYMBOLIC_LINK_FLAG_DIRECTORY = $1;
+
+function CreateSymbolicLinkW(lpSymlinkFileName, lpTargetFileName: PWideChar; dwFlags: DWORD): BOOL; stdcall; external 'kernel32.dll' name 'CreateSymbolicLinkW';
+{$ENDIF}
+
+function TfrmMain.CreateDirectorySymlink(const LinkPath, TargetPath: string): Boolean;
+var
+  Flags: DWORD;
+begin
+  // 只为目录创建符号链接
+  Flags := SYMBOLIC_LINK_FLAG_DIRECTORY;
+  {$IF CompilerVersion >= 35.0}
+  // 新版 Windows 允许开发者模式下不需要提权
+  {$IFDEF UNICODE}
+  Result := CreateSymbolicLinkW(PWideChar(LinkPath), PWideChar(TargetPath), Flags);
+  {$ELSE}
+  Result := CreateSymbolicLink(PChar(LinkPath), PChar(TargetPath), Flags);
+  {$ENDIF}
+  {$ELSE}
+  Result := CreateSymbolicLink(PChar(LinkPath), PChar(TargetPath), Flags);
+procedure TfrmMain.ComputeDirStats(const Root: string; out FileCount: Integer; out TotalBytes: Int64);
+var
+  Files: Integer;
+  Bytes: Int64;
+  SR: TSearchRec;
+  Code: Integer;
+  P: string;
+begin
+  Files := 0; Bytes := 0;
+  Code := FindFirst(IncludeTrailingPathDelimiter(Root) + '*', faAnyFile, SR);
+  try
+    while Code = 0 do
+    begin
+      if (SR.Name <> '.') and (SR.Name <> '..') then
+      begin
+        P := IncludeTrailingPathDelimiter(Root) + SR.Name;
+        if (SR.Attr and faDirectory) <> 0 then
+          ComputeDirStats(P, Files, Bytes)
+        else
+        begin
+          Inc(Files);
+          Inc(Bytes, SR.Size);
+        end;
+      end;
+      Code := FindNext(SR);
+    end;
+  finally
+    FindClose(SR);
+  end;
+  FileCount := Files; TotalBytes := Bytes;
+end;
+
+function TfrmMain.DeletePathToRecycleBin(const Path: string): Boolean;
+var
+  Op: TSHFileOpStruct;
+  FromBuf: array[0..MAX_PATH] of Char;
+begin
+  Result := False;
+  FillChar(Op, SizeOf(Op), 0);
+  StrPCopy(FromBuf, Path + #0#0);
+  Op.Wnd := Handle;
+  Op.wFunc := FO_DELETE;
+  Op.pFrom := @FromBuf[0];
+  Op.fFlags := FOF_ALLOWUNDO or FOF_NOCONFIRMATION or FOF_SILENT;
+  Result := SHFileOperation(Op) = 0;
+end;
+
+procedure TfrmMain.MenuCleanupLastBackupClick(Sender: TObject);
+begin
+  if FLastBackupPath = '' then
+  begin
+    UpdateStatus('ℹ️ 当前会话没有记录到备份目录');
+    Exit;
+  end;
+  if not System.SysUtils.DirectoryExists(FLastBackupPath) then
+  begin
+    UpdateStatus('ℹ️ 备份目录不存在: ' + FLastBackupPath);
+    Exit;
+  end;
+  if MessageDlg('确定要删除最近的备份目录吗？将移动到回收站：' + sLineBreak + FLastBackupPath,
+                 mtConfirmation, [mbYes, mbNo], 0) = mrYes then
+  begin
+    if DeletePathToRecycleBin(FLastBackupPath) then
+      UpdateStatus('🗑️ 已移动备份到回收站: ' + FLastBackupPath)
+    else
+      UpdateStatus('❌ 无法删除备份（可能权限不足或文件占用）');
+  end;
+end;
+
+  {$IFEND}
+end;
+
+function TfrmMain.CreateDirectoryJunctionViaCmd(const LinkPath, TargetPath: string): Boolean;
+var
+  Code: Cardinal;
+begin
+  // 使用 mklink /J 创建目录联接，适合无符号链接权限时
+  Result := RunCommandWait(Format('mklink /J "%s" "%s"', [LinkPath, TargetPath]), Code) and (Code = 0);
+end;
+
+function TfrmMain.CreateDirectoryLink(const LinkPath, TargetPath: string): Boolean;
+begin
+  Result := False;
+  // 优先符号链接，失败则联接
+  if CreateDirectorySymlink(LinkPath, TargetPath) then
+    Exit(True);
+  if CreateDirectoryJunctionViaCmd(LinkPath, TargetPath) then
+    Exit(True);
+end;
+
+procedure TfrmMain.CopyDirRecursive(const Src, Dst: string; var CopiedBytes: Int64);
+var
+  SR: TSearchRec;
+  Code: Integer;
+  SrcPath, DstPath: string;
+  InF, OutF: TFileStream;
+begin
+  System.SysUtils.ForceDirectories(Dst);
+
+  Code := FindFirst(IncludeTrailingPathDelimiter(Src) + '*', faAnyFile, SR);
+  try
+    while Code = 0 do
+    begin
+      if (SR.Name <> '.') and (SR.Name <> '..') then
+      begin
+        SrcPath := IncludeTrailingPathDelimiter(Src) + SR.Name;
+        DstPath := IncludeTrailingPathDelimiter(Dst) + SR.Name;
+        if (SR.Attr and faDirectory) <> 0 then
+          CopyDirRecursive(SrcPath, DstPath, CopiedBytes)
+        else
+        begin
+          InF := TFileStream.Create(SrcPath, fmOpenRead or fmShareDenyWrite);
+          try
+            OutF := TFileStream.Create(DstPath, fmCreate);
+            try
+              CopiedBytes := CopiedBytes + InF.Size;
+              OutF.CopyFrom(InF, 0);
+            finally
+              OutF.Free;
+            end;
+          finally
+            InF.Free;
+          end;
+        end;
+      end;
+      Code := FindNext(SR);
+    end;
+  finally
+    FindClose(SR);
+  end;
+end;
+
 procedure TfrmMain.InitializeShellTreeViews;
 var
   TargetUsersPath: string;
@@ -764,6 +1195,7 @@ begin
         TargetUsersPath := 'D:\';
       end;
     end;
+
   end;
 
   // 更新最终的目标路径

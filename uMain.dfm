@@ -267,6 +267,10 @@ object frmMain: TfrmMain
       object MenuCleanupSeparator: TMenuItem
         Caption = '-'
       end
+      object MenuCleanupLastBackup: TMenuItem
+        Caption = #28165#29702#26368#36817#22791#20221'(&B)'
+        OnClick = MenuCleanupLastBackupClick
+      end
       object MenuCleanupSoftwareDistribution: TMenuItem
         Caption = #28165#29702'Windows'#26356#26032#32531#23384'(&W)'
         OnClick = MenuCleanupSoftwareDistributionClick
