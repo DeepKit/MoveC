@@ -109,6 +109,13 @@ type
     function CleanupSoftwareDistribution: Int64;
     procedure SafeDeleteDirectory(const DirPath: string; var DeletedSize: Int64);
 
+    // 迁移与链接
+    function CreateDirectoryLink(const LinkPath, TargetPath: string): Boolean;
+    function CreateDirectorySymlink(const LinkPath, TargetPath: string): Boolean;
+    function CreateDirectoryJunctionViaCmd(const LinkPath, TargetPath: string): Boolean;
+    function RunCommandWait(const CmdLine: string; out ExitCode: Cardinal): Boolean;
+    procedure CopyDirRecursive(const Src, Dst: string; var CopiedBytes: Int64);
+
     // 界面相关
     procedure InitializeUI;
     procedure ApplyModernStyles;
@@ -821,16 +828,88 @@ begin
 end;
 
 procedure TfrmMain.ExecuteOperation;
+var
+  Src, DstRoot, Dst, Backup: string;
+  Copied: Int64;
+  ok: Boolean;
 begin
-  // 简单的操作实现
-  UpdateStatus('📋 正在准备操作...');
-  Sleep(1000);
+  Src := Trim(FSourcePath);
+  DstRoot := Trim(FTargetPath);
 
-  UpdateStatus('📁 正在创建目标目录...');
-  Sleep(1000);
+  if (Src = '') or not System.SysUtils.DirectoryExists(Src) then
+  begin
+    UpdateStatus('❌ 源目录不存在: ' + Src);
+    Exit;
+  end;
+  if (DstRoot = '') or not System.SysUtils.DirectoryExists(DstRoot) then
+  begin
+    UpdateStatus('❌ 目标根目录不存在: ' + DstRoot);
+    Exit;
+  end;
 
-  UpdateStatus('🔗 正在创建符号链接...');
-  Sleep(1000);
+  // 仅提示，不强制要求 C: → D:
+  if (UpperCase(Copy(Src,1,3)) <> 'C:\') or (UpperCase(Copy(DstRoot,1,3)) <> 'D:\') then
+  begin
+    if MessageDlg('当前并非 C: 到 D: 的迁移，是否继续？', mtWarning, [mbYes, mbNo], 0) <> mrYes then
+      Exit;
+  end;
+
+  // 目标目录 = 目标根目录 + 源目录名
+  Dst := System.SysUtils.IncludeTrailingPathDelimiter(DstRoot) + ExtractFileName(System.SysUtils.ExcludeTrailingPathDelimiter(Src));
+  if System.SysUtils.DirectoryExists(Dst) then
+  begin
+    if MessageDlg('目标目录已存在：' + Dst + sLineBreak + '是否覆盖（将合并内容）？', mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
+      Exit;
+  end;
+
+  SetProcessingState(True);
+  try
+    UpdateStatus('📋 准备迁移: ' + Src + '  →  ' + Dst);
+
+    // 1) 拷贝到目标
+    Copied := 0;
+    try
+      CopyDirRecursive(Src, Dst, Copied);
+      UpdateStatus(Format('📦 拷贝完成（约 %.2f GB）', [Copied/1024/1024/1024]));
+    except
+      on E: Exception do
+      begin
+        UpdateStatus('❌ 拷贝失败: ' + E.Message);
+        Exit;
+      end;
+    end;
+
+    // 2) 将原目录重命名为备份
+    Backup := Src + '.backup_' + FormatDateTime('yyyymmdd_hhnnss', Now);
+    if not RenameFile(Src, Backup) then
+    begin
+      UpdateStatus('❌ 无法备份原目录，放弃迁移。');
+      Exit;
+    end
+    else
+      UpdateStatus('🛟 已备份原目录到: ' + Backup);
+
+    // 3) 在原位置创建链接指向新位置
+    ok := CreateDirectoryLink(Src, Dst);
+    if not ok then
+    begin
+      UpdateStatus('❌ 创建链接失败，开始回滚...');
+      // 回滚：恢复原目录
+      if not RenameFile(Backup, Src) then
+        UpdateStatus('⚠️ 回滚失败，请手动将备份目录还原: ' + Backup)
+      else
+        UpdateStatus('↩️ 已回滚到迁移前状态');
+      Exit;
+    end;
+
+    UpdateStatus('🔗 已在原位置创建链接 → ' + Dst);
+
+    // 4) 保留备份，提示用户验证后再手动删除备份
+    UpdateStatus('✅ 迁移完成。为安全起见，已保留备份目录: ' + Backup);
+    UpdateStatus('ℹ️ 验证相关程序运行正常后，可手动删除备份目录以释放空间。');
+  finally
+    SetProcessingState(False);
+  end;
 end;
 
 procedure TfrmMain.MenuThemeClick(Sender: TObject);
@@ -894,6 +973,116 @@ begin
 
     if StatusBar1.Panels.Count > 2 then
       StatusBar1.Panels[2].Text := '目标目录: ' + ExtractFileName(Dir);
+  end;
+end;
+
+function TfrmMain.RunCommandWait(const CmdLine: string; out ExitCode: Cardinal): Boolean;
+var
+  SI: TStartupInfo;
+  PI: TProcessInformation;
+  Cmd: string;
+begin
+  Result := False;
+  FillChar(SI, SizeOf(SI), 0);
+  FillChar(PI, SizeOf(PI), 0);
+  SI.cb := SizeOf(SI);
+  ExitCode := 0;
+
+  Cmd := 'cmd /C ' + CmdLine;
+  if CreateProcess(nil, PChar(Cmd), nil, nil, False, CREATE_NO_WINDOW, nil, nil, SI, PI) then
+  try
+    WaitForSingleObject(PI.hProcess, INFINITE);
+    GetExitCodeProcess(PI.hProcess, ExitCode);
+    Result := ExitCode = 0;
+  finally
+    if PI.hThread <> 0 then CloseHandle(PI.hThread);
+    if PI.hProcess <> 0 then CloseHandle(PI.hProcess);
+  end;
+end;
+
+{$IFDEF MSWINDOWS}
+const
+  SYMBOLIC_LINK_FLAG_DIRECTORY = $1;
+
+function CreateSymbolicLinkW(lpSymlinkFileName, lpTargetFileName: PWideChar; dwFlags: DWORD): BOOL; stdcall; external 'kernel32.dll' name 'CreateSymbolicLinkW';
+{$ENDIF}
+
+function TfrmMain.CreateDirectorySymlink(const LinkPath, TargetPath: string): Boolean;
+var
+  Flags: DWORD;
+begin
+  // 只为目录创建符号链接
+  Flags := SYMBOLIC_LINK_FLAG_DIRECTORY;
+  {$IF CompilerVersion >= 35.0}
+  // 新版 Windows 允许开发者模式下不需要提权
+  {$IFDEF UNICODE}
+  Result := CreateSymbolicLinkW(PWideChar(LinkPath), PWideChar(TargetPath), Flags);
+  {$ELSE}
+  Result := CreateSymbolicLink(PChar(LinkPath), PChar(TargetPath), Flags);
+  {$ENDIF}
+  {$ELSE}
+  Result := CreateSymbolicLink(PChar(LinkPath), PChar(TargetPath), Flags);
+  {$IFEND}
+end;
+
+function TfrmMain.CreateDirectoryJunctionViaCmd(const LinkPath, TargetPath: string): Boolean;
+var
+  Code: Cardinal;
+begin
+  // 使用 mklink /J 创建目录联接，适合无符号链接权限时
+  Result := RunCommandWait(Format('mklink /J "%s" "%s"', [LinkPath, TargetPath]), Code) and (Code = 0);
+end;
+
+function TfrmMain.CreateDirectoryLink(const LinkPath, TargetPath: string): Boolean;
+begin
+  Result := False;
+  // 优先符号链接，失败则联接
+  if CreateDirectorySymlink(LinkPath, TargetPath) then
+    Exit(True);
+  if CreateDirectoryJunctionViaCmd(LinkPath, TargetPath) then
+    Exit(True);
+end;
+
+procedure TfrmMain.CopyDirRecursive(const Src, Dst: string; var CopiedBytes: Int64);
+var
+  SR: TSearchRec;
+  Code: Integer;
+  SrcPath, DstPath: string;
+  Buffer: TFileStream;
+  InF, OutF: TFileStream;
+begin
+  ForceDirectories(Dst);
+
+  Code := FindFirst(IncludeTrailingPathDelimiter(Src) + '*', faAnyFile, SR);
+  try
+    while Code = 0 do
+    begin
+      if (SR.Name <> '.') and (SR.Name <> '..') then
+      begin
+        SrcPath := IncludeTrailingPathDelimiter(Src) + SR.Name;
+        DstPath := IncludeTrailingPathDelimiter(Dst) + SR.Name;
+        if (SR.Attr and faDirectory) <> 0 then
+          CopyDirRecursive(SrcPath, DstPath, CopiedBytes)
+        else
+        begin
+          InF := TFileStream.Create(SrcPath, fmOpenRead or fmShareDenyWrite);
+          try
+            OutF := TFileStream.Create(DstPath, fmCreate);
+            try
+              CopiedBytes := CopiedBytes + InF.Size;
+              OutF.CopyFrom(InF, 0);
+            finally
+              OutF.Free;
+            end;
+          finally
+            InF.Free;
+          end;
+        end;
+      end;
+      Code := FindNext(SR);
+    end;
+  finally
+    FindClose(SR);
   end;
 end;
 
