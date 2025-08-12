@@ -245,6 +245,13 @@ object frmMain: TfrmMain
     Left = 40
     Top = 80
     object MenuFile: TMenuItem
+      object MenuCleanup: TMenuItem
+        Caption = #28165#29702'(&C)'
+        object MenuCleanupRecycleBin: TMenuItem
+          Caption = #28165#31354#22238#25910#31449'(&R)'
+          OnClick = MenuCleanupRecycleBinClick
+        end
+      end
       Caption = #25991#20214'(&F)'
       object MenuFileExit: TMenuItem
         Caption = #36864#20986'(&X)'

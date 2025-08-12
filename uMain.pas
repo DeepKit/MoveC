@@ -3,8 +3,10 @@
 interface
 
 uses
-  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants,
-  System.Classes, Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs,
+  Winapi.Windows, Winapi.Messages, Winapi.ShellAPI,
+  System.SysUtils, System.Variants, System.Classes,
+  System.Generics.Collections, System.Generics.Defaults, System.Threading, System.Math,
+  Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs,
   Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls, Vcl.Menus, Vcl.FileCtrl,
   System.IOUtils, System.UITypes, Vcl.Shell.ShellCtrls,
   // Modern UI styles and strings
@@ -19,13 +21,15 @@ type
     MenuTools: TMenuItem;
     MenuHelp: TMenuItem;
     MenuTheme: TMenuItem;
-    
+    MenuCleanup: TMenuItem;
+    MenuCleanupRecycleBin: TMenuItem;
+
     // 主面板布局
     pnlMain: TPanel;
     pnlLeft: TPanel;
     pnlRight: TPanel;
     pnlStatus: TPanel;
-    
+
     // 左侧面板 - 源目录
     lblSourceDir: TLabel;
     edtSourceDir: TEdit;
@@ -39,12 +43,12 @@ type
     btnBrowseTarget: TButton;
     btnSelectTargetRoot: TButton;
     stvTarget: TShellTreeView;
-    
+
     // 状态面板
     lblStatus: TLabel;
     ProgressBar1: TProgressBar;
     memoStatus: TMemo;
-    
+
     // 工具栏
     pnlToolbar: TPanel;
     btnScan: TButton;
@@ -52,15 +56,15 @@ type
     btnExecute: TButton;
     btnStop: TButton;
     btnExit: TButton;
-    
+
     // 状态栏
     StatusBar1: TStatusBar;
-    
+
     // 事件处理
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormShow(Sender: TObject);
-    
+
     procedure btnBrowseSourceClick(Sender: TObject);
     procedure btnBrowseTargetClick(Sender: TObject);
     procedure btnSelectSourceRootClick(Sender: TObject);
@@ -74,22 +78,33 @@ type
     // 目录树事件
     procedure stvSourceChange(Sender: TObject; Node: TTreeNode);
     procedure stvTargetChange(Sender: TObject; Node: TTreeNode);
-    
+
     procedure MenuThemeClick(Sender: TObject);
     procedure MenuFileExitClick(Sender: TObject);
     procedure MenuHelpAboutClick(Sender: TObject);
-    
+    procedure MenuCleanupRecycleBinClick(Sender: TObject);
+
   private
     FSourcePath: string;
     FTargetPath: string;
     FIsProcessing: Boolean;
-    
+    FInitTimer: TTimer;
+
+    // 空间分析：聚合结构
+    type TExtStat = record Ext: string; Size: Int64; Count: Integer; end;
+
+    procedure InitAfterShow(Sender: TObject);
+    procedure StartSpaceAnalysis(const RootPath: string);
+    procedure LogTopN(const Items: TArray<TPair<string, Int64>>; N: Integer);
+    procedure LogTypeAggregation(const Agg: TArray<TExtStat>);
+    function IsReparseDir(const Path: string): Boolean;
+
     // 界面相关
     procedure InitializeUI;
     procedure ApplyModernStyles;
     procedure UpdateStatus(const AMessage: string);
     procedure SetProcessingState(AProcessing: Boolean);
-    
+
     // 基本功能
     procedure ScanDirectory(const APath: string);
     procedure AnalyzeDirectory(const APath: string);
@@ -98,7 +113,7 @@ type
     // 目录树相关
     procedure InitializeShellTreeViews;
     procedure UpdateShellTreePath(ATreeView: TShellTreeView; const APath: string);
-    
+
   public
     { Public declarations }
   end;
@@ -114,14 +129,14 @@ procedure TfrmMain.FormCreate(Sender: TObject);
 begin
   // 初始化界面
   InitializeUI;
-  
+
   // 应用现代化样式
   ApplyModernStyles;
-  
+
   // 初始化状态
   FIsProcessing := False;
   SetProcessingState(False);
-  
+
   UpdateStatus(_(STR_APP_STARTED));
 end;
 
@@ -150,14 +165,29 @@ begin
   if FTargetPath = '' then
     FTargetPath := 'D:\Users';
 
-  // 延迟设置目录树路径（确保控件完全初始化）
-  Application.ProcessMessages;
-  Sleep(100); // 给控件更多时间初始化
+  // 使用一次性计时器，避免阻塞 UI
+  if not Assigned(FInitTimer) then
+  begin
+    FInitTimer := TTimer.Create(Self);
+    FInitTimer.Interval := 50;
+    FInitTimer.OnTimer := InitAfterShow;
+    FInitTimer.Enabled := True;
+  end;
+  Exit; // 其余初始化在 InitAfterShow 中进行
+end;
 
+procedure TfrmMain.InitAfterShow(Sender: TObject);
+begin
   try
+    if Assigned(FInitTimer) then
+    begin
+      FInitTimer.Enabled := False;
+      FreeAndNil(FInitTimer);
+    end;
+
+    // 初始化目录树路径
     if Assigned(stvSource) then
     begin
-      // 强制设置到C:\Users
       if System.SysUtils.DirectoryExists('C:\Users') then
       begin
         stvSource.Path := 'C:\Users';
@@ -166,14 +196,11 @@ begin
         UpdateStatus('源目录树已设置为: C:\Users');
       end
       else
-      begin
         UpdateStatus('C:\Users目录不存在');
-      end;
     end;
 
     if Assigned(stvTarget) then
     begin
-      // 确保D:\Users存在，不存在则创建
       if not System.SysUtils.DirectoryExists('D:\Users') then
       begin
         try
@@ -183,7 +210,6 @@ begin
           on E: Exception do
           begin
             UpdateStatus('创建D:\Users失败: ' + E.Message);
-            // 回退到D盘根目录
             stvTarget.Path := 'D:\';
             FTargetPath := 'D:\';
             edtTargetDir.Text := 'D:\';
@@ -193,15 +219,15 @@ begin
         end;
       end;
 
-      // 设置到D:\Users
       stvTarget.Path := 'D:\Users';
       FTargetPath := 'D:\Users';
       edtTargetDir.Text := 'D:\Users';
       UpdateStatus('目标目录树已设置为: D:\Users');
     end;
+
   except
     on E: Exception do
-      UpdateStatus('设置目录树路径失败: ' + E.Message);
+      UpdateStatus('延迟初始化失败: ' + E.Message);
   end;
 end;
 
@@ -259,14 +285,14 @@ begin
   try
     // 应用窗体样式
     StyleManager.StyleForm(Self);
-    
+
     // 应用面板样式
     StyleManager.StylePanel(pnlMain);
     StyleManager.StylePanel(pnlLeft);
     StyleManager.StylePanel(pnlRight);
     StyleManager.StylePanel(pnlStatus);
     StyleManager.StylePanel(pnlToolbar);
-    
+
     // 应用按钮样式
     StyleManager.StyleButton(btnBrowseSource);
     StyleManager.StyleButton(btnBrowseTarget);
@@ -284,15 +310,15 @@ begin
     // 应用目录树样式
     StyleManager.StyleShellTreeView(stvSource);
     StyleManager.StyleShellTreeView(stvTarget);
-    
+
     // 应用进度条样式
     StyleManager.StyleProgressBar(ProgressBar1);
-    
+
     // 应用状态栏样式
     StyleManager.StyleStatusBar(StatusBar1);
-    
+
     UpdateStatus('🎨 现代化界面样式已应用');
-    
+
   except
     on E: Exception do
       UpdateStatus('⚠️ 应用样式失败: ' + E.Message);
@@ -304,15 +330,15 @@ begin
   try
     lblStatus.Caption := AMessage;
     memoStatus.Lines.Add(FormatDateTime('[hh:nn:ss] ', Now) + AMessage);
-    
+
     // 自动滚动到底部
     memoStatus.SelStart := Length(memoStatus.Text);
     memoStatus.Perform(EM_SCROLLCARET, 0, 0);
-    
+
     // 更新状态栏
     if StatusBar1.Panels.Count > 0 then
       StatusBar1.Panels[0].Text := AMessage;
-      
+
     Application.ProcessMessages;
   except
     // 忽略状态更新错误
@@ -322,13 +348,13 @@ end;
 procedure TfrmMain.SetProcessingState(AProcessing: Boolean);
 begin
   FIsProcessing := AProcessing;
-  
+
   // 更新按钮状态
   btnScan.Enabled := not AProcessing;
   btnAnalyze.Enabled := not AProcessing;
   btnExecute.Enabled := not AProcessing;
   btnStop.Enabled := AProcessing;
-  
+
   // 更新进度条
   if AProcessing then
   begin
@@ -405,10 +431,86 @@ begin
   SetProcessingState(True);
   try
     UpdateStatus('📊 开始分析目录: ' + FSourcePath);
-    AnalyzeDirectory(FSourcePath);
-    UpdateStatus('✅ 目录分析完成');
+    StartSpaceAnalysis(FSourcePath);
+    UpdateStatus('✅ 分析任务已启动');
   finally
     SetProcessingState(False);
+  end;
+
+procedure TfrmMain.StartSpaceAnalysis(const RootPath: string);
+var
+  TotalSize: Int64;
+  TopFiles: TList<TPair<string, Int64>>;
+  ExtAgg: TDictionary<string, TPair<Int64, Integer>>;
+
+  procedure ScanDir(const P: string);
+  var
+    SR: TSearchRec;
+    Code: Integer;
+    FP: string;
+  begin
+    if IsReparseDir(P) then Exit; // 跳过联接/挂载点
+    Code := FindFirst(IncludeTrailingPathDelimiter(P) + '*', faAnyFile, SR);
+    try
+      while Code = 0 do
+      begin
+        if (SR.Name <> '.') and (SR.Name <> '..') then
+        begin
+          FP := IncludeTrailingPathDelimiter(P) + SR.Name;
+          if (SR.Attr and faDirectory) <> 0 then
+            ScanDir(FP)
+          else
+          begin
+            Inc(TotalSize, SR.Size);
+            TopFiles.Add(TPair<string, Int64>.Create(FP, SR.Size));
+            // by ext
+            var Ext := LowerCase(ExtractFileExt(SR.Name));
+            var Pair: TPair<Int64,Integer>;
+            if not ExtAgg.TryGetValue(Ext, Pair) then
+              Pair := TPair<Int64,Integer>.Create(0,0);
+            Pair := TPair<Int64,Integer>.Create(Pair.Key + SR.Size, Pair.Value + 1);
+            ExtAgg.AddOrSetValue(Ext, Pair);
+          end;
+        end;
+        Code := FindNext(SR);
+      end;
+    finally
+      FindClose(SR);
+    end;
+  end;
+
+begin
+  UpdateStatus('📊 开始空间分析: ' + RootPath);
+  // 同步执行版本（避免老编译器的 TTask/Queue 差异）
+  TotalSize := 0;
+  TopFiles := TList<TPair<string, Int64>>.Create;
+  ExtAgg := TDictionary<string, TPair<Int64, Integer>>.Create;
+  try
+    ScanDir(RootPath);
+    TopFiles.Sort(TComparer<TPair<string, Int64>>.Construct(
+      function(const L, R: TPair<string, Int64>): Integer
+      begin
+        Result := -CompareValue(L.Value, R.Value);
+      end));
+    UpdateStatus(Format('📦 总大小: %.2f GB', [TotalSize/1024/1024/1024]));
+    var Arr: TArray<TPair<string, Int64>> := TopFiles.ToArray;
+    LogTopN(Arr, 10);
+    var AggArr: TArray<TExtStat>;
+    SetLength(AggArr, ExtAgg.Count);
+    var idx: Integer := 0;
+    var K: string; var V: TPair<Int64,Integer>;
+    for K in ExtAgg.Keys do
+    begin
+      V := ExtAgg.Items[K];
+      AggArr[idx].Ext := K; AggArr[idx].Size := V.Key; AggArr[idx].Count := V.Value; Inc(idx);
+    end;
+    LogTypeAggregation(AggArr);
+  finally
+    ExtAgg.Free;
+    TopFiles.Free;
+  end;
+end;
+
   end;
 end;
 
@@ -464,6 +566,46 @@ begin
         // 忽略状态更新错误
       end;
 
+
+procedure TfrmMain.MenuCleanupRecycleBinClick(Sender: TObject);
+var
+  Flags: UINT;
+
+function TfrmMain.IsReparseDir(const Path: string): Boolean;
+begin
+  Result := (GetFileAttributes(PChar(Path)) and FILE_ATTRIBUTE_REPARSE_POINT) <> 0;
+end;
+
+procedure TfrmMain.LogTopN(const Items: TArray<TPair<string, Int64>>; N: Integer);
+var I, MaxN: Integer;
+begin
+  MaxN := Min(N, Length(Items));
+  UpdateStatus('📈 Top 大文件（前' + MaxN.ToString + '）:');
+  for I := 0 to MaxN - 1 do
+    UpdateStatus(Format('  %s  (%.2f MB)', [Items[I].Key, Items[I].Value/1024/1024]));
+end;
+
+procedure TfrmMain.LogTypeAggregation(const Agg: TArray<TExtStat>);
+var i: Integer;
+begin
+  UpdateStatus('🧾 类型聚合:');
+  for i := 0 to High(Agg) do
+    UpdateStatus(Format('  %-6s  数量:%d  大小:%.2f MB',[Agg[i].Ext, Agg[i].Count, Agg[i].Size/1024/1024]));
+end;
+
+begin
+  try
+    Flags := SHERB_NOCONFIRMATION or SHERB_NOSOUND or SHERB_NOPROGRESSUI;
+    if SHEmptyRecycleBin(Handle, nil, Flags) = S_OK then
+      UpdateStatus('🗑️ 回收站已清空')
+    else
+      UpdateStatus('⚠️ 回收站清理可能未完全成功');
+  except
+    on E: Exception do
+      UpdateStatus('❌ 清空回收站失败: ' + E.Message);
+  end;
+end;
+
       // 强制退出应用程序
       Application.Terminate;
     end;
@@ -517,12 +659,12 @@ begin
   try
     StyleManager.ToggleTheme;
     ApplyModernStyles;
-    
+
     if StyleManager.IsDarkMode then
       UpdateStatus('🌙 已切换到深色主题')
     else
       UpdateStatus('☀️ 已切换到浅色主题');
-      
+
   except
     on E: Exception do
       UpdateStatus('❌ 切换主题失败: ' + E.Message);
