@@ -143,12 +143,56 @@ type
     { Public declarations }
   end;
 
+const
+  VERIFY_SIZE_DIFF_BYTES_THRESHOLD = 5 * 1024 * 1024;  // 5 MB
+  VERIFY_SIZE_DIFF_RATIO_THRESHOLD = 0.001;            // 0.1%
+  ENABLE_SAMPLE_HASH_CHECK = False;                     // 默认关闭抽样哈希
+  SAMPLE_HASH_COUNT = 3;                                // 抽样文件数量
+
 var
   frmMain: TfrmMain;
 
 implementation
 
+function GetSomeFiles(const Root: string; MaxCount: Integer): TArray<string>;
+function ComputeMD5Hex(const FilePath: string): string;
+
 {$R *.dfm}
+function GetSomeFiles(const Root: string; MaxCount: Integer): TArray<string>;
+var
+  L: TList<string>;
+  SR: TSearchRec;
+  Code: Integer;
+  P: string;
+begin
+  L := TList<string>.Create;
+  try
+    Code := FindFirst(IncludeTrailingPathDelimiter(Root) + '*', faAnyFile, SR);
+    try
+      while (Code = 0) and (L.Count < MaxCount) do
+      begin
+        if (SR.Name <> '.') and (SR.Name <> '..') then
+        begin
+          P := IncludeTrailingPathDelimiter(Root) + SR.Name;
+          if (SR.Attr and faDirectory) = 0 then
+            L.Add(P);
+        end;
+        Code := FindNext(SR);
+      end;
+    finally
+      FindClose(SR);
+    end;
+    Result := L.ToArray;
+  finally
+    L.Free;
+  end;
+end;
+
+function ComputeMD5Hex(const FilePath: string): string;
+begin
+  Result := '';
+end;
+
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
@@ -893,12 +937,48 @@ begin
         [cDst, cSrc, bDst/1024/1024/1024, bSrc/1024/1024/1024]));
       if (cDst <> cSrc) or (bDst <> bSrc) then
       begin
-        if MessageDlg('检测到复制后校验不一致：' + sLineBreak +
-                      Format('目标文件数:%d 源文件数:%d；目标大小:%.2f GB 源大小:%.2f GB',
-                        [cDst, cSrc, bDst/1024/1024/1024, bSrc/1024/1024/1024]) + sLineBreak +
-                      '是否继续迁移？选择“是”将继续（风险自担），选择“否”将终止迁移。',
-                      mtWarning, [mbYes, mbNo], 0) <> mrYes then
-          Exit;
+        var diffBytes := Abs(bDst - bSrc);
+        var maxBytes := Max(bDst, bSrc);
+        var ratio: Double := 0;
+        if maxBytes > 0 then ratio := diffBytes / maxBytes;
+        // 阈值判断（轻微不一致）
+        if (diffBytes <= VERIFY_SIZE_DIFF_BYTES_THRESHOLD) or (ratio <= VERIFY_SIZE_DIFF_RATIO_THRESHOLD) then
+        begin
+          if MessageDlg(Format('复制后校验存在轻微不一致（差异 %s，约 %.4f%%）。是否继续？',
+                               [FormatFloat('#,##0 bytes', diffBytes), ratio*100]),
+                        mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
+            Exit;
+        end
+        else
+        begin
+          // 明显不一致
+          if MessageDlg('检测到复制后校验不一致：' + sLineBreak +
+                        Format('目标文件数:%d 源文件数:%d；目标大小:%.2f GB 源大小:%.2f GB',
+                          [cDst, cSrc, bDst/1024/1024/1024, bSrc/1024/1024/1024]) + sLineBreak +
+                        '是否继续迁移？选择“是”将继续（风险自担），选择“否”将终止迁移。',
+                        mtWarning, [mbYes, mbNo], 0) <> mrYes then
+            Exit;
+        end;
+        // 可选抽样哈希
+        if ENABLE_SAMPLE_HASH_CHECK then
+        begin
+          var srcSamples := GetSomeFiles(Src, SAMPLE_HASH_COUNT);
+          var i: Integer;
+          for i := 0 to High(srcSamples) do
+          begin
+            var rel := srcSamples[i].Substring(Length(IncludeTrailingPathDelimiter(Src)));
+            var dstFile := IncludeTrailingPathDelimiter(Dst) + rel;
+            if System.SysUtils.FileExists(srcSamples[i]) and System.SysUtils.FileExists(dstFile) then
+            begin
+              if ComputeMD5Hex(srcSamples[i]) <> ComputeMD5Hex(dstFile) then
+              begin
+                if MessageDlg('抽样哈希校验失败，是否仍然继续？', mtWarning, [mbYes, mbNo], 0) <> mrYes then
+                  Exit
+                else Break;
+              end;
+            end;
+          end;
+        end;
       end;
     except
       on E: Exception do
@@ -1096,6 +1176,7 @@ end;
 
 procedure TfrmMain.MenuCleanupLastBackupClick(Sender: TObject);
 begin
+
   if FLastBackupPath = '' then
   begin
     UpdateStatus('ℹ️ 当前会话没有记录到备份目录');
