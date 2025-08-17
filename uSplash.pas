@@ -28,6 +28,7 @@ type
     procedure WMClose(var Message: TWMClose); message WM_CLOSE;
   public
     procedure ShowProgress(const AMessage: string; APercent: Integer);
+    procedure CloseSplash; // 主窗体退出时安全关闭 Splash
   end;
 
 var
@@ -158,6 +159,15 @@ begin
   // 隐藏窗体而不是关闭
   Hide;
   Message.Result := 0;
+end;
+
+procedure TfrmSplash.CloseSplash;
+begin
+  try
+    Timer1.Enabled := False;
+    Hide;
+  except
+  end;
 end;
 
 end.

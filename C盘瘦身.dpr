@@ -1,43 +1,33 @@
-﻿program CDiskCleaner;
+﻿program C盘瘦身;
 
 uses
   Vcl.Forms,
-  Winapi.Windows,  // 添加Windows单元以使用Sleep函数
-  // Core data types first
-  DataTypes in 'Core\DataTypes.pas',
-  // UI components
-  uStyles in 'uStyles.pas',
+  Winapi.Windows,
   uSplash in 'uSplash.pas' {frmSplash},
-  // Main form last
-  uMain in 'uMain.pas' {frmMain};
+  uMain in 'uMain.pas' {frmMain},
+  uConfigManager in 'uConfigManager.pas' {frmConfigManager},
+  uSmartDuplicateCleanup in 'uSmartDuplicateCleanup.pas' {frmSmartDuplicateCleanup},
+  uDuplicateFiles in 'uDuplicateFiles.pas' {frmDuplicateFiles};
 
 {$R *.res}
 
 begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
+  Application.ShowMainForm := True;
 
-  // 并行处理：显示启动画面的同时创建主窗体
-  Application.CreateForm(TfrmSplash, frmSplash);
-  Application.CreateForm(TfrmMain, frmMain);
-
-  // 显示启动画面（非模态）
+  // 先创建并显示启动画面（不使用 Application.CreateForm，避免成为 MainForm）
+  frmSplash := TfrmSplash.Create(nil);
   frmSplash.Show;
-
-  // 处理消息，让启动画面显示
   Application.ProcessMessages;
 
-  // 等待启动画面完成（通过检查其可见性）
-  while frmSplash.Visible do
-  begin
-    Application.ProcessMessages;
-    Sleep(10);
-  end;
+  // 稍作等待，确保 Splash 已绘制首帧
+  Sleep(50);
 
-  // 释放启动画面
-  frmSplash.Free;
+  // 再创建主窗体（较重的DFM加载放在Splash之后）
+  Application.CreateForm(TfrmMain, frmMain);
+  frmMain.Show; // 显式显示主窗体
 
-  // 显示主窗体
-  frmMain.Show;
+  // 进入消息循环；主窗体在 InitAfterShow 完成后关闭并释放 Splash
   Application.Run;
 end.

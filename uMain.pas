@@ -7,19 +7,40 @@ uses
   System.SysUtils, System.Variants, System.Classes,
   System.Generics.Collections, System.Generics.Defaults, System.Threading, System.Math,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs,
-  Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls, Vcl.Menus, Vcl.FileCtrl,
+  Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls, Vcl.Menus, Vcl.FileCtrl, Vcl.Clipbrd,
   System.IOUtils, System.UITypes, Vcl.Shell.ShellCtrls,
   // Modern UI styles and strings
-  uStyles, uStrings;
+  uStyles, uStrings,
+  // Core modules - 企业级功能模块
+  Core.DataTypes, Core.ConfigManager, Core.FileSafetyEvaluator, Core.DependencyAnalyzer,
+  Core.RebootDetector, Core.FileTypeIdentifier, Core.MigrationPlanner, Core.FileOperationEngine,
+  Core.SymlinkManager, Core.BackupManager, Core.RollbackExecutor, Core.EmergencyRecovery,
+  Core.EncryptionService, Core.IntegrityVerification, Core.MachineCodeGenerator,
+  Core.DatabaseManager, Core.DonationManager,
+  // 重复文件检测模块
+  Core.DuplicateFileDetector, Core.SmartFileEvaluator, uSmartDuplicateCleanup,
+  // 配置管理模块
+  uConfigManager;
 
 type
+  TExtStat = record
+    Ext: string;
+    Size: Int64;
+    Count: Integer;
+  end;
+
   TfrmMain = class(TForm)
     // 主菜单
     MainMenu1: TMainMenu;
     MenuFile: TMenuItem;
+    MenuFileExit: TMenuItem;
     MenuEdit: TMenuItem;
     MenuTools: TMenuItem;
+    miConfigManager: TMenuItem;
+    miSeparatorTools1: TMenuItem;
+    miLogManager: TMenuItem;
     MenuHelp: TMenuItem;
+    MenuHelpAbout: TMenuItem;
     MenuTheme: TMenuItem;
     MenuCleanup: TMenuItem;
     MenuCleanupRecycleBin: TMenuItem;
@@ -27,6 +48,8 @@ type
     MenuCleanupSeparator: TMenuItem;
     MenuCleanupLastBackup: TMenuItem;
     MenuCleanupSoftwareDistribution: TMenuItem;
+    MenuCleanupSeparator2: TMenuItem;
+    MenuCleanupDuplicateFiles: TMenuItem;
 
     // 主面板布局
     pnlMain: TPanel;
@@ -37,6 +60,7 @@ type
     // 左侧面板 - 源目录
     lblSourceDir: TLabel;
     edtSourceDir: TEdit;
+    btnSourceUp: TButton;
     btnBrowseSource: TButton;
     btnSelectSourceRoot: TButton;
     stvSource: TShellTreeView;
@@ -44,6 +68,7 @@ type
     // 右侧面板 - 目标目录
     lblTargetDir: TLabel;
     edtTargetDir: TEdit;
+    btnTargetUp: TButton;
     btnBrowseTarget: TButton;
     btnSelectTargetRoot: TButton;
     stvTarget: TShellTreeView;
@@ -52,6 +77,27 @@ type
     lblStatus: TLabel;
     ProgressBar1: TProgressBar;
     memoStatus: TMemo;
+
+    // 源/目标目录树的右键菜单
+    pmSource: TPopupMenu;
+    miSrcOpen: TMenuItem;
+    miSrcOpenInExplorer: TMenuItem;
+    miSrcCopyPath: TMenuItem;
+    miSrcSetRoot: TMenuItem;
+    miSrcScanHere: TMenuItem;
+    miSrcAnalyzeHere: TMenuItem;
+    miSrcRefresh: TMenuItem;
+
+    pmTarget: TPopupMenu;
+    miTgtOpen: TMenuItem;
+    miTgtOpenInExplorer: TMenuItem;
+    miTgtCopyPath: TMenuItem;
+    miTgtSetRoot: TMenuItem;
+    miTgtSetAsTargetPath: TMenuItem;
+    miTgtRefresh: TMenuItem;
+
+    // 计时器
+    InitTimer: TTimer;
 
     // 工具栏
     pnlToolbar: TPanel;
@@ -82,6 +128,32 @@ type
     // 目录树事件
     procedure stvSourceChange(Sender: TObject; Node: TTreeNode);
     procedure stvTargetChange(Sender: TObject; Node: TTreeNode);
+    procedure stvSourceContextPopup(Sender: TObject; MousePos: TPoint; var Handled: Boolean);
+    procedure stvTargetContextPopup(Sender: TObject; MousePos: TPoint; var Handled: Boolean);
+    procedure miSrcOpenClick(Sender: TObject);
+    procedure miSrcOpenInExplorerClick(Sender: TObject);
+    procedure miSrcCopyPathClick(Sender: TObject);
+    procedure miSrcSetRootClick(Sender: TObject);
+    procedure miSrcScanHereClick(Sender: TObject);
+    procedure miSrcAnalyzeHereClick(Sender: TObject);
+    procedure miSrcRefreshClick(Sender: TObject);
+
+    procedure miTgtOpenClick(Sender: TObject);
+    procedure miTgtOpenInExplorerClick(Sender: TObject);
+    procedure miTgtCopyPathClick(Sender: TObject);
+    procedure miTgtSetRootClick(Sender: TObject);
+    procedure miTgtSetAsTargetPathClick(Sender: TObject);
+    procedure miTgtRefreshClick(Sender: TObject);
+
+    // DFM 事件声明占位（保持DFM一致，避免编译错误）
+    procedure btnSourceUpClick(Sender: TObject);
+    procedure btnTargetUpClick(Sender: TObject);
+    procedure stvSourceDblClick(Sender: TObject);
+    procedure stvSourceKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure stvTargetDblClick(Sender: TObject);
+    procedure stvTargetKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure miLogManagerClick(Sender: TObject);
+
 
     procedure MenuThemeClick(Sender: TObject);
     procedure MenuFileExitClick(Sender: TObject);
@@ -90,25 +162,50 @@ type
     procedure MenuCleanupTempClick(Sender: TObject);
     procedure MenuCleanupLastBackupClick(Sender: TObject);
     procedure MenuCleanupSoftwareDistributionClick(Sender: TObject);
+    procedure MenuCleanupDuplicateFilesClick(Sender: TObject);
+    procedure miConfigManagerClick(Sender: TObject);
 
   private
     FSourcePath: string;
     FTargetPath: string;
     FIsProcessing: Boolean;
-    FInitTimer: TTimer;
+
     FLastBackupPath: string;
     FTotalBytesToCopy: Int64;
     FCopiedBytesSoFar: Int64;
     FCancelRequested: Boolean;
-
-    // 空间分析：聚合结构
-    type TExtStat = record Ext: string; Size: Int64; Count: Integer; end;
+    
+    // 企业级功能模块
+    FConfigManager: TConfigManager;
+    FSafetyEvaluator: TFileSafetyEvaluator;
+    FDependencyAnalyzer: TDependencyAnalyzer;
+    FRebootDetector: TRebootDetector;
+    FFileTypeIdentifier: TFileTypeIdentifier;
+    FMigrationPlanner: TMigrationPlanner;
+    FFileOperationEngine: TFileOperationEngine;
+    FSymlinkManager: TSymlinkManager;
+    FBackupManager: TBackupManager;
+    FRollbackExecutor: TRollbackExecutor;
+    FEmergencyRecovery: TEmergencyRecovery;
+    FDatabaseManager: TDatabaseManager;
+    FDonationManager: TDonationManager;
 
     procedure InitAfterShow(Sender: TObject);
     procedure StartSpaceAnalysis(const RootPath: string);
     procedure LogTopN(const Items: TArray<TPair<string, Int64>>; N: Integer);
     procedure LogTypeAggregation(const Agg: TArray<TExtStat>);
     function IsReparseDir(const Path: string): Boolean;
+
+    // Core模块管理
+    procedure InitializeCoreModules;
+    procedure CleanupCoreModules;
+
+    // 依赖关系分析
+    function PerformDependencyAnalysis(const SourcePath: string): Boolean;
+    function GetRiskLevelText(RiskLevel: Integer): string;
+
+    // 高性能文件操作
+    function PerformHighPerformanceCopy(const SourcePath, DestPath: string): Int64;
 
     // 清理功能
     function CleanupTempFiles: Int64;
@@ -154,11 +251,14 @@ var
 
 implementation
 
-function GetSomeFiles(const Root: string; MaxCount: Integer): TArray<string>;
-function ComputeMD5Hex(const FilePath: string): string;
+procedure OpenInExplorerSelect(const APath: string);
+begin
+  if (APath = '') then Exit;
+  ShellExecute(0, 'open', 'explorer.exe', PChar('/select,' + APath), nil, SW_SHOWNORMAL);
+end;
 
-{$R *.dfm}
 function GetSomeFiles(const Root: string; MaxCount: Integer): TArray<string>;
+{$R *.dfm}
 var
   L: TList<string>;
   SR: TSearchRec;
@@ -196,17 +296,32 @@ end;
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
-  // 初始化界面
-  InitializeUI;
+  try
+    // 初始化状态
+    FIsProcessing := False;
+    FCancelRequested := False;
+    FTotalBytesToCopy := 0;
+    FCopiedBytesSoFar := 0;
 
-  // 应用现代化样式
-  ApplyModernStyles;
+    // 初始化Core模块
+    InitializeCoreModules;
 
-  // 初始化状态
-  FIsProcessing := False;
-  SetProcessingState(False);
+    // 初始化界面
+    InitializeUI;
 
-  UpdateStatus(_(STR_APP_STARTED));
+    // 应用现代化样式
+    ApplyModernStyles;
+
+    SetProcessingState(False);
+
+    UpdateStatus(_(STR_APP_STARTED));
+  except
+    on E: Exception do
+    begin
+      MessageDlg('FormCreate错误: ' + E.Message, mtError, [mbOK], 0);
+      Application.Terminate;
+    end;
+  end;
 end;
 
 procedure TfrmMain.FormDestroy(Sender: TObject);
@@ -214,6 +329,10 @@ begin
   try
     // 停止任何正在进行的操作
     FIsProcessing := False;
+    FCancelRequested := True;
+
+    // 清理Core模块
+    CleanupCoreModules;
 
     // 清理资源
     // 注意：不要手动释放由窗体管理的控件
@@ -225,33 +344,36 @@ end;
 
 procedure TfrmMain.FormShow(Sender: TObject);
 begin
-  // 窗体显示时的处理
-  UpdateStatus(_(STR_SELECT_DIRS));
+  try
+    // 窗体显示时的处理
+    UpdateStatus(_(STR_SELECT_DIRS));
 
-  // 确保路径变量已初始化
-  if FSourcePath = '' then
-    FSourcePath := 'C:\Users';
-  if FTargetPath = '' then
-    FTargetPath := 'D:\Users';
+    // 确保路径变量已初始化
+    if FSourcePath = '' then
+      FSourcePath := 'C:\Users';
+    if FTargetPath = '' then
+      FTargetPath := 'D:\Users';
 
-  // 使用一次性计时器，避免阻塞 UI
-  if not Assigned(FInitTimer) then
-  begin
-    FInitTimer := TTimer.Create(Self);
-    FInitTimer.Interval := 50;
-    FInitTimer.OnTimer := InitAfterShow;
-    FInitTimer.Enabled := True;
+    // 使用一次性计时器，避免阻塞 UI
+    if Assigned(InitTimer) then
+    begin
+      InitTimer.Enabled := True;
+    end;
+    Exit; // 其余初始化在 InitAfterShow 中进行
+  except
+    on E: Exception do
+    begin
+      MessageDlg('FormShow错误: ' + E.Message, mtError, [mbOK], 0);
+    end;
   end;
-  Exit; // 其余初始化在 InitAfterShow 中进行
 end;
 
 procedure TfrmMain.InitAfterShow(Sender: TObject);
 begin
   try
-    if Assigned(FInitTimer) then
+    if Assigned(InitTimer) then
     begin
-      FInitTimer.Enabled := False;
-      FreeAndNil(FInitTimer);
+      InitTimer.Enabled := False;
     end;
 
     // 初始化目录树路径
@@ -918,6 +1040,18 @@ begin
   try
     UpdateStatus('📋 准备迁移: ' + Src + '  →  ' + Dst);
 
+    // 0) 依赖关系分析（如果启用）
+    if Assigned(FDependencyAnalyzer) and
+       FConfigManager.GetBoolean('Migration.AnalyzeDependencies', True) then
+    begin
+      UpdateStatus('🔍 正在分析依赖关系...');
+      if not PerformDependencyAnalysis(Src) then
+      begin
+        UpdateStatus('⚠️ 依赖关系分析发现风险，迁移已取消');
+        Exit;
+      end;
+    end;
+
     // 1) 拷贝到目标
     Copied := 0;
     try
@@ -927,7 +1061,19 @@ begin
       ProgressBar1.Style := pbstNormal;
       ProgressBar1.Position := 0;
 
-      CopyDirRecursive(Src, Dst, Copied);
+      // 使用高性能文件操作引擎（如果可用）
+      if Assigned(FFileOperationEngine) and
+         FConfigManager.GetBoolean('Advanced.UseHighPerformanceEngine', True) then
+      begin
+        UpdateStatus('🚀 使用高性能文件操作引擎...');
+        Copied := PerformHighPerformanceCopy(Src, Dst);
+      end
+      else
+      begin
+        UpdateStatus('📁 使用标准文件复制...');
+        CopyDirRecursive(Src, Dst, Copied);
+      end;
+
       UpdateStatus(Format('📦 拷贝完成（约 %.2f GB）', [Copied/1024/1024/1024]));
       // 简单一致性校验（文件数与总字节）
       var cDst, cSrc: Integer; var bDst, bSrc: Int64;
@@ -1146,6 +1292,7 @@ begin
         if (SR.Attr and faDirectory) <> 0 then
           ComputeDirStats(P, Files, Bytes)
         else
+
         begin
           Inc(Files);
           Inc(Bytes, SR.Size);
@@ -1176,17 +1323,19 @@ end;
 
 procedure TfrmMain.MenuCleanupLastBackupClick(Sender: TObject);
 begin
-
+  // 删除最近的备份目录（移动到回收站）
   if FLastBackupPath = '' then
   begin
     UpdateStatus('ℹ️ 当前会话没有记录到备份目录');
     Exit;
   end;
+
   if not System.SysUtils.DirectoryExists(FLastBackupPath) then
   begin
     UpdateStatus('ℹ️ 备份目录不存在: ' + FLastBackupPath);
     Exit;
   end;
+
   if MessageDlg('确定要删除最近的备份目录吗？将移动到回收站：' + sLineBreak + FLastBackupPath,
                  mtConfirmation, [mbYes, mbNo], 0) = mrYes then
   begin
@@ -1196,6 +1345,173 @@ begin
       UpdateStatus('❌ 无法删除备份（可能权限不足或文件占用）');
   end;
 end;
+
+
+
+procedure TfrmMain.stvSourceContextPopup(Sender: TObject; MousePos: TPoint; var Handled: Boolean);
+var
+  Node: TTreeNode;
+  ScreenPt: TPoint;
+begin
+  Handled := True;
+  if stvSource = nil then Exit;
+  Node := stvSource.GetNodeAt(MousePos.X, MousePos.Y);
+  if Assigned(Node) then stvSource.Selected := Node;
+  ScreenPt := stvSource.ClientToScreen(MousePos);
+  if Assigned(pmSource) then pmSource.Popup(ScreenPt.X, ScreenPt.Y);
+end;
+
+procedure TfrmMain.stvTargetContextPopup(Sender: TObject; MousePos: TPoint; var Handled: Boolean);
+var
+  Node: TTreeNode;
+  ScreenPt: TPoint;
+begin
+  Handled := True;
+  if stvTarget = nil then Exit;
+  Node := stvTarget.GetNodeAt(MousePos.X, MousePos.Y);
+  if Assigned(Node) then stvTarget.Selected := Node;
+  ScreenPt := stvTarget.ClientToScreen(MousePos);
+  if Assigned(pmTarget) then pmTarget.Popup(ScreenPt.X, ScreenPt.Y);
+end;
+
+
+procedure TfrmMain.miSrcOpenClick(Sender: TObject);
+begin
+  if FSourcePath <> '' then UpdateShellTreePath(stvSource, FSourcePath);
+end;
+
+procedure TfrmMain.miSrcOpenInExplorerClick(Sender: TObject);
+begin
+  OpenInExplorerSelect(FSourcePath);
+end;
+
+procedure TfrmMain.miSrcCopyPathClick(Sender: TObject);
+begin
+  if FSourcePath <> '' then Clipboard.AsText := FSourcePath;
+end;
+
+procedure TfrmMain.miSrcSetRootClick(Sender: TObject);
+begin
+  if FSourcePath = '' then Exit;
+  try stvSource.Root := FSourcePath; except stvSource.Root := 'rfDesktop'; end;
+  stvSource.ShowRoot := False;
+  stvSource.ObjectTypes := [otFolders];
+  UpdateShellTreePath(stvSource, FSourcePath);
+end;
+
+procedure TfrmMain.miSrcScanHereClick(Sender: TObject);
+begin
+  if FSourcePath <> '' then begin
+    SetProcessingState(True);
+    try
+      UpdateStatus('🔍 开始扫描目录: ' + FSourcePath);
+      ScanDirectory(FSourcePath);
+      UpdateStatus('✅ 目录扫描完成');
+    finally
+      SetProcessingState(False);
+    end;
+  end;
+end;
+
+procedure TfrmMain.miSrcAnalyzeHereClick(Sender: TObject);
+begin
+  if FSourcePath <> '' then begin
+    SetProcessingState(True);
+    try
+      UpdateStatus('📊 开始分析目录: ' + FSourcePath);
+      StartSpaceAnalysis(FSourcePath);
+      UpdateStatus('✅ 分析任务已启动');
+    finally
+      SetProcessingState(False);
+    end;
+  end;
+end;
+
+procedure TfrmMain.miSrcRefreshClick(Sender: TObject);
+begin
+  if FSourcePath <> '' then UpdateShellTreePath(stvSource, FSourcePath);
+end;
+
+procedure TfrmMain.miTgtOpenClick(Sender: TObject);
+begin
+  if FTargetPath <> '' then UpdateShellTreePath(stvTarget, FTargetPath);
+end;
+
+procedure TfrmMain.miTgtOpenInExplorerClick(Sender: TObject);
+begin
+  OpenInExplorerSelect(FTargetPath);
+end;
+
+procedure TfrmMain.miTgtCopyPathClick(Sender: TObject);
+begin
+  if FTargetPath <> '' then Clipboard.AsText := FTargetPath;
+end;
+
+procedure TfrmMain.miTgtSetRootClick(Sender: TObject);
+begin
+  if FTargetPath = '' then Exit;
+  try stvTarget.Root := FTargetPath; except stvTarget.Root := 'rfDesktop'; end;
+  stvTarget.ShowRoot := False;
+  stvTarget.ObjectTypes := [otFolders];
+  UpdateShellTreePath(stvTarget, FTargetPath);
+end;
+
+procedure TfrmMain.miTgtSetAsTargetPathClick(Sender: TObject);
+begin
+  if FTargetPath <> '' then edtTargetDir.Text := FTargetPath;
+end;
+
+// ----- DFM 事件占位的空实现，确保编译通过，后续保留原有行为 -----
+procedure TfrmMain.btnSourceUpClick(Sender: TObject);
+begin
+  try
+    if Assigned(stvSource) and (Pos('\', stvSource.Path) > 0) then
+      stvSource.Path := ExtractFileDir(ExcludeTrailingPathDelimiter(stvSource.Path));
+  except
+  end;
+end;
+
+procedure TfrmMain.btnTargetUpClick(Sender: TObject);
+begin
+  try
+    if Assigned(stvTarget) and (Pos('\', stvTarget.Path) > 0) then
+      stvTarget.Path := ExtractFileDir(ExcludeTrailingPathDelimiter(stvTarget.Path));
+  except
+  end;
+end;
+
+procedure TfrmMain.stvSourceDblClick(Sender: TObject);
+begin
+  // 依赖 TShellTreeView 默认行为（双击进入子目录），无需额外逻辑
+end;
+
+procedure TfrmMain.stvSourceKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+begin
+  if Key = VK_BACK then btnSourceUpClick(Sender);
+end;
+
+procedure TfrmMain.stvTargetDblClick(Sender: TObject);
+begin
+  // 依赖默认行为
+end;
+
+procedure TfrmMain.stvTargetKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+begin
+  if Key = VK_BACK then btnTargetUpClick(Sender);
+end;
+
+procedure TfrmMain.miLogManagerClick(Sender: TObject);
+begin
+  // 预留：日志管理器入口（MVP阶段占位）
+  UpdateStatus('日志管理器（占位）');
+end;
+
+procedure TfrmMain.miTgtRefreshClick(Sender: TObject);
+begin
+  if FTargetPath <> '' then UpdateShellTreePath(stvTarget, FTargetPath);
+end;
+
+
 
 function TfrmMain.CreateDirectoryJunctionViaCmd(const LinkPath, TargetPath: string): Boolean;
 var
@@ -1403,6 +1719,399 @@ begin
       except
         // 忽略状态更新错误
       end;
+    end;
+  end;
+end;
+
+procedure TfrmMain.MenuCleanupDuplicateFilesClick(Sender: TObject);
+begin
+  try
+    // 创建并显示智能重复文件清理窗体
+    if not Assigned(frmSmartDuplicateCleanup) then
+      frmSmartDuplicateCleanup := TfrmSmartDuplicateCleanup.Create(Self);
+
+    frmSmartDuplicateCleanup.ShowModal;
+
+    UpdateStatus('🔍 智能重复文件清理已完成');
+  except
+    on E: Exception do
+      UpdateStatus('❌ 打开重复文件清理失败: ' + E.Message);
+  end;
+end;
+
+procedure TfrmMain.InitializeCoreModules;
+begin
+  try
+    UpdateStatus('🔧 正在初始化企业级功能模块...');
+
+    // 初始化配置管理器
+    FConfigManager := TConfigManager.Create;
+    FConfigManager.LoadConfiguration;
+
+    // 初始化文件安全评估器
+    FSafetyEvaluator := TFileSafetyEvaluator.Create;
+
+    // 初始化依赖关系分析器
+    FDependencyAnalyzer := TDependencyAnalyzer.Create;
+
+    // 初始化重启检测器
+    FRebootDetector := TRebootDetector.Create;
+
+    // 初始化文件类型识别器
+    FFileTypeIdentifier := TFileTypeIdentifier.Create;
+
+    // 初始化迁移计划器
+    FMigrationPlanner := TMigrationPlanner.Create;
+
+    // 初始化高性能文件操作引擎
+    FFileOperationEngine := TFileOperationEngine.Create;
+
+    // 初始化符号链接管理器
+    FSymlinkManager := TSymlinkManager.Create;
+
+    // 初始化备份管理器
+    FBackupManager := TBackupManager.Create;
+
+    // 初始化回滚执行器
+    FRollbackExecutor := TRollbackExecutor.Create;
+
+    // 初始化紧急恢复模块
+    FEmergencyRecovery := TEmergencyRecovery.Create;
+
+    // 初始化数据库管理器
+    FDatabaseManager := TDatabaseManager.Create;
+    FDatabaseManager.Initialize;
+
+    // 初始化捐赠管理器
+    FDonationManager := TDonationManager.Create;
+
+    UpdateStatus('✅ 企业级功能模块初始化完成');
+  except
+    on E: Exception do
+    begin
+      UpdateStatus('❌ Core模块初始化失败: ' + E.Message);
+      // 继续运行，但企业级功能将不可用
+    end;
+  end;
+end;
+
+procedure TfrmMain.CleanupCoreModules;
+begin
+  try
+    // 按相反顺序清理模块，避免依赖问题
+
+    if Assigned(FDonationManager) then
+    begin
+      FDonationManager.Free;
+      FDonationManager := nil;
+    end;
+
+    if Assigned(FDatabaseManager) then
+    begin
+      FDatabaseManager.Finalize;
+      FDatabaseManager.Free;
+      FDatabaseManager := nil;
+    end;
+
+    if Assigned(FEmergencyRecovery) then
+    begin
+      FEmergencyRecovery.Free;
+      FEmergencyRecovery := nil;
+    end;
+
+    if Assigned(FRollbackExecutor) then
+    begin
+      FRollbackExecutor.Free;
+      FRollbackExecutor := nil;
+    end;
+
+    if Assigned(FBackupManager) then
+    begin
+      FBackupManager.Free;
+      FBackupManager := nil;
+    end;
+
+    if Assigned(FSymlinkManager) then
+    begin
+      FSymlinkManager.Free;
+      FSymlinkManager := nil;
+    end;
+
+    if Assigned(FFileOperationEngine) then
+    begin
+      FFileOperationEngine.Free;
+      FFileOperationEngine := nil;
+    end;
+
+    if Assigned(FMigrationPlanner) then
+    begin
+      FMigrationPlanner.Free;
+      FMigrationPlanner := nil;
+    end;
+
+    if Assigned(FFileTypeIdentifier) then
+    begin
+      FFileTypeIdentifier.Free;
+      FFileTypeIdentifier := nil;
+    end;
+
+    if Assigned(FRebootDetector) then
+    begin
+      FRebootDetector.Free;
+      FRebootDetector := nil;
+    end;
+
+    if Assigned(FDependencyAnalyzer) then
+    begin
+      FDependencyAnalyzer.Free;
+      FDependencyAnalyzer := nil;
+    end;
+
+    if Assigned(FSafetyEvaluator) then
+    begin
+      FSafetyEvaluator.Free;
+      FSafetyEvaluator := nil;
+    end;
+
+    if Assigned(FConfigManager) then
+    begin
+      FConfigManager.SaveConfiguration;
+      FConfigManager.Free;
+      FConfigManager := nil;
+    end;
+
+  except
+    // 忽略清理过程中的异常
+  end;
+end;
+
+procedure TfrmMain.miConfigManagerClick(Sender: TObject);
+var
+  ConfigForm: TfrmConfigManager;
+begin
+  try
+    ConfigForm := TfrmConfigManager.Create(Self, FConfigManager);
+    try
+      if ConfigForm.ShowModal = mrOK then
+      begin
+        UpdateStatus('✅ 配置已更新');
+
+        // 应用新配置
+        if Assigned(FConfigManager) then
+        begin
+          // 重新加载配置
+          FConfigManager.LoadConfiguration;
+
+          // 应用主题设置
+          var ThemeSetting := FConfigManager.GetString('UI.Theme', 'Light');
+          if SameText(ThemeSetting, 'Dark') then
+          begin
+            if not StyleManager.IsDarkMode then
+              StyleManager.ToggleTheme;
+          end
+          else if SameText(ThemeSetting, 'Light') then
+          begin
+            if StyleManager.IsDarkMode then
+              StyleManager.ToggleTheme;
+          end;
+
+          // 重新应用样式
+          ApplyModernStyles;
+        end;
+      end;
+    finally
+      ConfigForm.Free;
+    end;
+  except
+    on E: Exception do
+      UpdateStatus('❌ 打开配置管理器失败: ' + E.Message);
+  end;
+end;
+
+function TfrmMain.PerformDependencyAnalysis(const SourcePath: string): Boolean;
+var
+  AnalysisResults: TArray<TDependencyAnalysisResult>;
+  MainResult: TDependencyAnalysisResult;
+  RiskLevel: Integer;
+  AnalysisResult: string;
+  i: Integer;
+begin
+  Result := True; // 默认允许继续
+
+  try
+    if not Assigned(FDependencyAnalyzer) then
+      Exit;
+
+    UpdateStatus('🔍 扫描目录依赖关系...');
+    Application.ProcessMessages;
+
+    // 分析目录的依赖关系
+    AnalysisResults := FDependencyAnalyzer.AnalyzeDirectory(SourcePath, False);
+
+    if Length(AnalysisResults) = 0 then
+    begin
+      UpdateStatus('✅ 未发现依赖关系，可以安全迁移');
+      Exit;
+    end;
+
+    // 取第一个结果作为主要分析结果
+    MainResult := AnalysisResults[0];
+
+    UpdateStatus('🔍 评估风险等级...');
+    Application.ProcessMessages;
+
+    // 根据依赖数量和类型评估风险等级
+    RiskLevel := MainResult.CriticalDependencies * 3 +
+                 MainResult.HighDependencies * 2 +
+                 MainResult.MediumDependencies;
+
+    // 生成分析报告
+    AnalysisResult := Format('依赖关系分析完成：' + sLineBreak +
+                            '扫描路径：%s' + sLineBreak +
+                            '发现依赖：%d 项' + sLineBreak +
+                            '关键依赖：%d 项' + sLineBreak +
+                            '高级依赖：%d 项' + sLineBreak +
+                            '风险等级：%s',
+                            [SourcePath, MainResult.TotalDependencies,
+                             MainResult.CriticalDependencies, MainResult.HighDependencies,
+                             GetRiskLevelText(RiskLevel)]);
+
+    // 如果有依赖项，显示详细信息
+    if MainResult.TotalDependencies > 0 then
+    begin
+      AnalysisResult := AnalysisResult + sLineBreak + sLineBreak + '主要依赖项：';
+      for i := 0 to Min(4, Length(MainResult.Dependencies) - 1) do // 最多显示5个
+        AnalysisResult := AnalysisResult + sLineBreak + '• ' + MainResult.Dependencies[i].Description;
+
+      if Length(MainResult.Dependencies) > 5 then
+        AnalysisResult := AnalysisResult + sLineBreak + Format('... 还有 %d 项依赖', [Length(MainResult.Dependencies) - 5]);
+    end;
+
+    // 根据风险等级决定是否继续
+    case RiskLevel of
+      0..2: // 低风险
+      begin
+        UpdateStatus('✅ 依赖分析：低风险，可以安全迁移');
+        Result := True;
+      end;
+
+      3..6: // 中等风险
+      begin
+        AnalysisResult := AnalysisResult + sLineBreak + sLineBreak +
+                         '⚠️ 检测到中等风险依赖关系。' + sLineBreak +
+                         '建议在迁移后测试相关程序是否正常工作。' + sLineBreak +
+                         '是否继续迁移？';
+        Result := MessageDlg(AnalysisResult, mtWarning, [mbYes, mbNo], 0) = mrYes;
+      end;
+
+      7..10: // 高风险
+      begin
+        AnalysisResult := AnalysisResult + sLineBreak + sLineBreak +
+                         '🚨 检测到高风险依赖关系！' + sLineBreak +
+                         '迁移可能导致相关程序无法正常运行。' + sLineBreak +
+                         '强烈建议先备份系统或创建系统还原点。' + sLineBreak +
+                         '确定要继续迁移吗？';
+        Result := MessageDlg(AnalysisResult, mtError, [mbYes, mbNo], 0) = mrYes;
+      end;
+
+    else // 极高风险
+      begin
+        AnalysisResult := AnalysisResult + sLineBreak + sLineBreak +
+                         '🛑 检测到极高风险依赖关系！' + sLineBreak +
+                         '迁移很可能导致系统不稳定或程序崩溃。' + sLineBreak +
+                         '建议不要进行此迁移操作。';
+        MessageDlg(AnalysisResult, mtError, [mbOK], 0);
+        Result := False;
+      end;
+    end;
+
+    if Result then
+      UpdateStatus('✅ 依赖关系分析通过，继续迁移')
+    else
+      UpdateStatus('❌ 依赖关系分析未通过，迁移已取消');
+
+  except
+    on E: Exception do
+    begin
+      UpdateStatus('⚠️ 依赖关系分析出错: ' + E.Message);
+      // 分析出错时询问用户是否继续
+      Result := MessageDlg('依赖关系分析出现错误：' + E.Message + sLineBreak +
+                          '是否跳过分析继续迁移？', mtWarning, [mbYes, mbNo], 0) = mrYes;
+    end;
+  end;
+end;
+
+function TfrmMain.GetRiskLevelText(RiskLevel: Integer): string;
+begin
+  case RiskLevel of
+    0..2: Result := '低风险 ✅';
+    3..6: Result := '中等风险 ⚠️';
+    7..10: Result := '高风险 🚨';
+  else
+    Result := '极高风险 🛑';
+  end;
+end;
+
+function TfrmMain.PerformHighPerformanceCopy(const SourcePath, DestPath: string): Int64;
+var
+  OperationResult: Boolean;
+  Options: TOperationOptions;
+begin
+  Result := 0;
+
+  try
+    if not Assigned(FFileOperationEngine) then
+    begin
+      // 回退到标准复制
+      CopyDirRecursive(SourcePath, DestPath, Result);
+      Exit;
+    end;
+
+    // 配置高性能选项
+    Options.PreserveAttributes := True;
+    Options.PreserveTimestamps := True;
+    Options.VerifyAfterCopy := FConfigManager.GetBoolean('Migration.VerifyAfterCopy', True);
+    Options.OverwriteExisting := True;
+    Options.CreateBackup := False;
+    Options.UseBufferedIO := True;
+    Options.BufferSize := FConfigManager.GetInteger('Migration.BufferSize', 64) * 1024; // KB转换为字节
+    Options.MaxRetries := 3;
+    Options.RetryDelay := 1000;
+    Options.SkipLockedFiles := True;
+    Options.FollowSymlinks := False;
+
+    // 设置选项
+    FFileOperationEngine.SetOptions(Options);
+
+    // 清理之前的操作
+    FFileOperationEngine.ClearOperations;
+
+    // 添加复制操作
+    FFileOperationEngine.AddOperation(fotCopy, SourcePath, DestPath);
+
+    // 执行高性能复制
+    UpdateStatus('🚀 启动高性能文件操作引擎...');
+    OperationResult := FFileOperationEngine.Execute;
+
+    if OperationResult then
+    begin
+      UpdateStatus('✅ 高性能复制完成');
+      // 计算复制的字节数（简化版本）
+      Result := FTotalBytesToCopy;
+    end
+    else
+    begin
+      UpdateStatus('❌ 高性能复制失败，回退到标准复制');
+      Result := 0;
+      CopyDirRecursive(SourcePath, DestPath, Result);
+    end;
+
+  except
+    on E: Exception do
+    begin
+      UpdateStatus('⚠️ 高性能复制出错: ' + E.Message + '，回退到标准复制');
+      Result := 0;
+      CopyDirRecursive(SourcePath, DestPath, Result);
     end;
   end;
 end;

@@ -77,7 +77,7 @@
         <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
         <BT_BuildType>Debug</BT_BuildType>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
+        <VerInfo_Keys>CompanyName=Augment Code;FileDescription=C盘瘦身工具 - 企业级版本;FileVersion=2.0.0.0;InternalName=DiskCleanupTool;LegalCopyright=Copyright (C) 2025;LegalTrademarks=;OriginalFilename=C盘瘦身.exe;ProgramID=com.augmentcode.diskcleanup;ProductName=C盘瘦身工具;ProductVersion=2.0.0.0;Comments=智能重复文件清理，企业级功能</VerInfo_Keys>
         <VerInfo_Locale>1033</VerInfo_Locale>
         <Manifest_File>$(BDS)\bin\default_app.manifest</Manifest_File>
     </PropertyGroup>
@@ -86,7 +86,7 @@
         <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;$(DCC_Namespace)</DCC_Namespace>
         <BT_BuildType>Debug</BT_BuildType>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
+        <VerInfo_Keys>CompanyName=Augment Code;FileDescription=C盘瘦身工具 - 企业级版本;FileVersion=2.0.0.0;InternalName=DiskCleanupTool;LegalCopyright=Copyright (C) 2025;LegalTrademarks=;OriginalFilename=C盘瘦身.exe;ProgramID=com.augmentcode.diskcleanup;ProductName=C盘瘦身工具;ProductVersion=2.0.0.0;Comments=智能重复文件清理，企业级功能</VerInfo_Keys>
         <VerInfo_Locale>1033</VerInfo_Locale>
         <Manifest_File>$(BDS)\bin\default_app.manifest</Manifest_File>
     </PropertyGroup>

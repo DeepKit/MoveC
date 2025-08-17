@@ -39,31 +39,41 @@ object frmMain: TfrmMain
         Width = 39
         Height = 17
         Caption = #28304#30446#24405':'
+
       end
       object edtSourceDir: TEdit
         Left = 10
         Top = 33
-        Width = 220
+        Width = 300
         Height = 25
         TabOrder = 0
-        Text = 'C:\Users'
+        Text = 'C:\\Users'
+      end
+      object btnSourceUp: TButton
+        Left = 10
+        Top = 62
+        Width = 70
+        Height = 25
+        Caption = '上级'
+        TabOrder = 1
+        OnClick = btnSourceUpClick
       end
       object btnBrowseSource: TButton
-        Left = 240
-        Top = 33
+        Left = 90
+        Top = 62
         Width = 70
         Height = 25
         Caption = #27983#35272'...'
-        TabOrder = 1
+        TabOrder = 2
         OnClick = btnBrowseSourceClick
       end
       object btnSelectSourceRoot: TButton
-        Left = 320
-        Top = 33
-        Width = 70
+        Left = 170
+        Top = 62
+        Width = 100
         Height = 25
         Caption = #36873#25321#26681#30446#24405
-        TabOrder = 2
+        TabOrder = 3
         OnClick = btnSelectSourceRootClick
       end
       object stvSource: TShellTreeView
@@ -71,12 +81,18 @@ object frmMain: TfrmMain
         Top = 70
         Width = 380
         Height = 540
-        ObjectTypes = [otFolders, otNonFolders]
+
+        ObjectTypes = [otFolders]
         Root = 'rfDesktop'
+        ShowRoot = False
         UseShellImages = True
         AutoRefresh = True
         TabOrder = 3
         OnChange = stvSourceChange
+        OnDblClick = stvSourceDblClick
+        OnKeyDown = stvSourceKeyDown
+        PopupMenu = pmSource
+        OnContextPopup = stvSourceContextPopup
       end
     end
     object pnlRight: TPanel
@@ -98,27 +114,36 @@ object frmMain: TfrmMain
       object edtTargetDir: TEdit
         Left = 10
         Top = 33
-        Width = 220
+        Width = 300
         Height = 25
         TabOrder = 0
         Text = 'D:\Users'
       end
+      object btnTargetUp: TButton
+        Left = 10
+        Top = 62
+        Width = 70
+        Height = 25
+        Caption = '上级'
+        TabOrder = 1
+        OnClick = btnTargetUpClick
+      end
       object btnBrowseTarget: TButton
-        Left = 240
-        Top = 33
+        Left = 90
+        Top = 62
         Width = 70
         Height = 25
         Caption = #27983#35272'...'
-        TabOrder = 1
+        TabOrder = 2
         OnClick = btnBrowseTargetClick
       end
       object btnSelectTargetRoot: TButton
-        Left = 320
-        Top = 33
-        Width = 70
+        Left = 170
+        Top = 62
+        Width = 100
         Height = 25
         Caption = #36873#25321#26681#30446#24405
-        TabOrder = 2
+        TabOrder = 3
         OnClick = btnSelectTargetRootClick
       end
       object stvTarget: TShellTreeView
@@ -126,12 +151,17 @@ object frmMain: TfrmMain
         Top = 70
         Width = 380
         Height = 540
-        ObjectTypes = [otFolders, otNonFolders]
+        ObjectTypes = [otFolders]
         Root = 'rfDesktop'
+        ShowRoot = False
         UseShellImages = True
         AutoRefresh = True
         TabOrder = 3
         OnChange = stvTargetChange
+        OnDblClick = stvTargetDblClick
+        OnKeyDown = stvTargetKeyDown
+        PopupMenu = pmTarget
+        OnContextPopup = stvTargetContextPopup
       end
     end
     object pnlStatus: TPanel
@@ -275,9 +305,31 @@ object frmMain: TfrmMain
         Caption = #28165#29702'Windows'#26356#26032#32531#23384'(&W)'
         OnClick = MenuCleanupSoftwareDistributionClick
       end
+      object MenuCleanupSeparator2: TMenuItem
+        Caption = '-'
+      end
+      object MenuCleanupDuplicateFiles: TMenuItem
+        Caption = #26234#33021#37325#22797#25991#20214#28165#29702'(&D)'
+        OnClick = MenuCleanupDuplicateFilesClick
+      end
     end
     object MenuTools: TMenuItem
       Caption = #24037#20855'(&T)'
+      object miConfigManager: TMenuItem
+        Caption = #37197#32622#31649#29702'(&C)'
+        OnClick = miConfigManagerClick
+      end
+      object miSeparatorTools1: TMenuItem
+        Caption = '-'
+      end
+      object miLogManager: TMenuItem
+        Caption = #26085#24535#31649#29702'(&L)'
+        OnClick = miLogManagerClick
+      end
+      object miAdvancedOptions: TMenuItem
+        Caption = #39640#32423#21151#33021'(&A)'
+        OnClick = miAdvancedOptionsClick
+      end
       object MenuTheme: TMenuItem
         Caption = #20999#25442#20027#39064'(&T)'
         OnClick = MenuThemeClick
@@ -289,6 +341,73 @@ object frmMain: TfrmMain
         Caption = #20851#20110'(&A)'
         OnClick = MenuHelpAboutClick
       end
+    end
+  end
+  object InitTimer: TTimer
+    Enabled = False
+    Interval = 50
+    OnTimer = InitAfterShow
+    Left = 200
+    Top = 80
+  end
+  object pmSource: TPopupMenu
+    Left = 400
+    Top = 80
+    object miSrcOpen: TMenuItem
+      Caption = #25171#24320'(&O)'
+      OnClick = miSrcOpenClick
+    end
+    object miSrcOpenInExplorer: TMenuItem
+      Caption = #22312#36164#28304#31649#29702#22120#20013#25171#24320'(&E)'
+      OnClick = miSrcOpenInExplorerClick
+    end
+    object miSrcCopyPath: TMenuItem
+      Caption = #22797#21046#36335#24452'(&C)'
+      OnClick = miSrcCopyPathClick
+    end
+    object miSrcSetRoot: TMenuItem
+      Caption = #35774#20026#28304#26681'(&R)'
+      OnClick = miSrcSetRootClick
+    end
+    object miSrcScanHere: TMenuItem
+      Caption = #22312#27492#25195#25551'(&S)'
+      OnClick = miSrcScanHereClick
+    end
+    object miSrcAnalyzeHere: TMenuItem
+      Caption = #22312#27492#20998#26512'(&A)'
+      OnClick = miSrcAnalyzeHereClick
+    end
+    object miSrcRefresh: TMenuItem
+      Caption = #21047#26032'(&F)'
+      OnClick = miSrcRefreshClick
+    end
+  end
+  object pmTarget: TPopupMenu
+    Left = 560
+    Top = 80
+    object miTgtOpen: TMenuItem
+      Caption = #25171#24320'(&O)'
+      OnClick = miTgtOpenClick
+    end
+    object miTgtOpenInExplorer: TMenuItem
+      Caption = #22312#36164#28304#31649#29702#22120#20013#25171#24320'(&E)'
+      OnClick = miTgtOpenInExplorerClick
+    end
+    object miTgtCopyPath: TMenuItem
+      Caption = #22797#21046#36335#24452'(&C)'
+      OnClick = miTgtCopyPathClick
+    end
+    object miTgtSetRoot: TMenuItem
+      Caption = #35774#20026#30446#26631#26681'(&R)'
+      OnClick = miTgtSetRootClick
+    end
+    object miTgtSetAsTargetPath: TMenuItem
+      Caption = #35774#20026#30446#26631#36335#24452'(&T)'
+      OnClick = miTgtSetAsTargetPathClick
+    end
+    object miTgtRefresh: TMenuItem
+      Caption = #21047#26032'(&F)'
+      OnClick = miTgtRefreshClick
     end
   end
 end
