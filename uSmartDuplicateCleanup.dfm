@@ -11,12 +11,10 @@ object frmSmartDuplicateCleanup: TfrmSmartDuplicateCleanup
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   Position = poScreenCenter
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   OnShow = FormShow
-  PixelsPerInch = 96
   TextHeight = 13
   object pnlMain: TPanel
     Left = 0
@@ -26,6 +24,8 @@ object frmSmartDuplicateCleanup: TfrmSmartDuplicateCleanup
     Align = alClient
     BevelOuter = bvNone
     TabOrder = 0
+    ExplicitWidth = 594
+    ExplicitHeight = 483
     object pnlTop: TPanel
       Left = 0
       Top = 0
@@ -36,12 +36,13 @@ object frmSmartDuplicateCleanup: TfrmSmartDuplicateCleanup
       Color = clWhite
       ParentBackground = False
       TabOrder = 0
+      ExplicitWidth = 594
       object lblTitle: TLabel
         Left = 24
         Top = 16
-        Width = 200
+        Width = 136
         Height = 19
-        Caption = #129302' '#26234#33021#37325#22797#25991#20214#28165#29702
+        Caption = #26234#33021#37325#22797#25991#20214#28165#29702
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clWindowText
         Font.Height = -16
@@ -52,7 +53,7 @@ object frmSmartDuplicateCleanup: TfrmSmartDuplicateCleanup
       object lblSubtitle: TLabel
         Left = 24
         Top = 45
-        Width = 168
+        Width = 192
         Height = 13
         Caption = #38646#20915#31574#36127#25285#65292#19968#38190#26234#33021#28165#29702#37325#22797#25991#20214
       end
@@ -65,6 +66,8 @@ object frmSmartDuplicateCleanup: TfrmSmartDuplicateCleanup
       Align = alClient
       BevelOuter = bvNone
       TabOrder = 1
+      ExplicitWidth = 594
+      ExplicitHeight = 343
       object pnlActions: TPanel
         Left = 24
         Top = 16
@@ -72,12 +75,19 @@ object frmSmartDuplicateCleanup: TfrmSmartDuplicateCleanup
         Height = 120
         BevelOuter = bvLowered
         TabOrder = 0
+        object lblStatus: TLabel
+          Left = 16
+          Top = 72
+          Width = 162
+          Height = 13
+          Caption = #23601#32490' - '#28857#20987'"'#25195#25551#37325#22797#25991#20214'"'#24320#22987
+        end
         object btnScanDuplicates: TButton
           Left = 16
           Top = 16
           Width = 160
           Height = 40
-          Caption = #128269' '#25195#25551#37325#22797#25991#20214
+          Caption = #62733' '#25195#25551#37325#22797#25991#20214
           Font.Charset = DEFAULT_CHARSET
           Font.Color = clWindowText
           Font.Height = -12
@@ -107,7 +117,7 @@ object frmSmartDuplicateCleanup: TfrmSmartDuplicateCleanup
           Top = 16
           Width = 160
           Height = 40
-          Caption = #128202' '#26597#30475#35814#32454#25253#21578
+          Caption = #62666' '#26597#30475#35814#32454#25253#21578
           Font.Charset = DEFAULT_CHARSET
           Font.Color = clWindowText
           Font.Height = -12
@@ -116,13 +126,6 @@ object frmSmartDuplicateCleanup: TfrmSmartDuplicateCleanup
           ParentFont = False
           TabOrder = 2
           OnClick = btnViewReportClick
-        end
-        object lblStatus: TLabel
-          Left = 16
-          Top = 72
-          Width = 520
-          Height = 13
-          Caption = #23601#32490' - '#28857#20987'"'#25195#25551#37325#22797#25991#20214'"'#24320#22987
         end
         object ProgressBar: TProgressBar
           Left = 16
@@ -233,7 +236,7 @@ object frmSmartDuplicateCleanup: TfrmSmartDuplicateCleanup
         object lblResults: TLabel
           Left = 16
           Top = 12
-          Width = 520
+          Width = 169
           Height = 13
           Caption = #25195#25551#23436#25104#65306#25214#21040' 0 '#32452#37325#22797#25991#20214
           Font.Charset = DEFAULT_CHARSET
@@ -246,23 +249,23 @@ object frmSmartDuplicateCleanup: TfrmSmartDuplicateCleanup
         object lblFilesFound: TLabel
           Left = 16
           Top = 32
-          Width = 120
+          Width = 105
           Height = 13
           Caption = #37325#22797#25991#20214#25968#37327#65306'0 '#20010
         end
         object lblSpaceSaved: TLabel
           Left = 200
           Top = 32
-          Width = 120
+          Width = 87
           Height = 13
           Caption = #21487#33410#30465#31354#38388#65306'0 B'
         end
         object lblSafetyLevel: TLabel
           Left = 16
           Top = 52
-          Width = 520
+          Width = 183
           Height = 13
-          Caption = #128640' '#27809#26377#21457#29616#37325#22797#25991#20214#65292#31995#32479#24456#24178#20928
+          Caption = #63104' '#27809#26377#21457#29616#37325#22797#25991#20214#65292#31995#32479#24456#24178#20928
         end
       end
     end
@@ -274,6 +277,8 @@ object frmSmartDuplicateCleanup: TfrmSmartDuplicateCleanup
       Align = alBottom
       BevelOuter = bvNone
       TabOrder = 2
+      ExplicitTop = 423
+      ExplicitWidth = 594
       object btnClose: TButton
         Left = 500
         Top = 16

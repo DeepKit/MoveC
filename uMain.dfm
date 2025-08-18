@@ -1,9 +1,9 @@
 object frmMain: TfrmMain
   Left = 0
   Top = 0
-  Caption = 'C'#30424#28165#29702#24037#20855' v3.0 Enterprise - '#20225#19994#29256
-  ClientHeight = 720
-  ClientWidth = 1280
+  Caption = 'C'#30424#28411#36523#31070#22120' - '#26234#33021#30446#24405#36801#31227#19987#23478
+  ClientHeight = 875
+  ClientWidth = 984
   Color = 15790320
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -18,291 +18,178 @@ object frmMain: TfrmMain
   TextHeight = 17
   object pnlMain: TPanel
     Left = 0
-    Top = 50
-    Width = 1280
-    Height = 620
+    Top = 0
+    Width = 984
+    Height = 642
     Align = alClient
     BevelOuter = bvNone
     TabOrder = 0
+    ExplicitHeight = 633
     object pnlLeft: TPanel
       Left = 0
       Top = 0
-      Width = 400
-      Height = 620
+      Width = 320
+      Height = 642
       Align = alLeft
-      BevelOuter = bvNone
+      BevelOuter = bvLowered
       Caption = #28304#30446#24405
       TabOrder = 0
+      ExplicitTop = 89
+      ExplicitHeight = 592
       object lblSourceDir: TLabel
         Left = 10
         Top = 10
-        Width = 39
+        Width = 48
         Height = 17
-        Caption = #28304#30446#24405':'
-
+        Caption = #28304#30446#24405#65306
       end
       object edtSourceDir: TEdit
-        Left = 10
-        Top = 33
+        Left = 12
+        Top = 49
         Width = 300
         Height = 25
         TabOrder = 0
-        Text = 'C:\\Users'
       end
-      object btnSourceUp: TButton
-        Left = 10
-        Top = 62
-        Width = 70
-        Height = 25
-        Caption = '上级'
-        TabOrder = 1
-        OnClick = btnSourceUpClick
-      end
-      object btnBrowseSource: TButton
-        Left = 90
-        Top = 62
-        Width = 70
-        Height = 25
+      object btnBrowseSource: TBitBtn
+        Left = 234
+        Top = 14
+        Width = 74
+        Height = 22
         Caption = #27983#35272'...'
-        TabOrder = 2
+        TabOrder = 1
         OnClick = btnBrowseSourceClick
       end
-      object btnSelectSourceRoot: TButton
-        Left = 170
-        Top = 62
-        Width = 100
-        Height = 25
-        Caption = #36873#25321#26681#30446#24405
+      object btnSourceUp: TBitBtn
+        Left = 157
+        Top = 14
+        Width = 60
+        Height = 22
+        Caption = #19978#32423
         TabOrder = 3
-        OnClick = btnSelectSourceRootClick
+        OnClick = btnSourceUpClick
       end
-      object stvSource: TShellTreeView
-        Left = 10
-        Top = 70
-        Width = 380
-        Height = 540
-
-        ObjectTypes = [otFolders]
-        Root = 'rfDesktop'
-        ShowRoot = False
-        UseShellImages = True
-        AutoRefresh = True
-        TabOrder = 3
-        OnChange = stvSourceChange
-        OnDblClick = stvSourceDblClick
-        OnKeyDown = stvSourceKeyDown
+      object tvSource: TTreeView
+        Left = 14
+        Top = 80
+        Width = 300
+        Height = 545
+        Indent = 19
         PopupMenu = pmSource
+        TabOrder = 2
+        OnChange = tvSourceChange
+        OnDblClick = tvSourceDblClick
+        OnExpanding = tvSourceExpanding
+        OnKeyDown = tvSourceKeyDown
       end
     end
     object pnlRight: TPanel
-      Left = 400
+      Left = 320
       Top = 0
-      Width = 400
-      Height = 620
+      Width = 320
+      Height = 642
       Align = alLeft
-      BevelOuter = bvNone
+      BevelOuter = bvLowered
       Caption = #30446#26631#30446#24405
       TabOrder = 1
+      ExplicitTop = 89
+      ExplicitHeight = 592
       object lblTargetDir: TLabel
         Left = 10
         Top = 10
-        Width = 51
+        Width = 60
         Height = 17
-        Caption = #30446#26631#30446#24405':'
+        Caption = #30446#26631#30446#24405#65306
       end
       object edtTargetDir: TEdit
-        Left = 10
-        Top = 33
-        Width = 300
+        Left = 11
+        Top = 49
+        Width = 295
         Height = 25
         TabOrder = 0
-        Text = 'D:\Users'
       end
-      object btnTargetUp: TButton
-        Left = 10
-        Top = 62
-        Width = 70
-        Height = 25
-        Caption = '上级'
-        TabOrder = 1
-        OnClick = btnTargetUpClick
-      end
-      object btnBrowseTarget: TButton
-        Left = 90
-        Top = 62
-        Width = 70
-        Height = 25
+      object btnBrowseTarget: TBitBtn
+        Left = 235
+        Top = 10
+        Width = 80
+        Height = 22
         Caption = #27983#35272'...'
-        TabOrder = 2
+        TabOrder = 1
         OnClick = btnBrowseTargetClick
       end
-      object btnSelectTargetRoot: TButton
-        Left = 170
-        Top = 62
-        Width = 100
-        Height = 25
-        Caption = #36873#25321#26681#30446#24405
+      object btnTargetUp: TBitBtn
+        Left = 148
+        Top = 10
+        Width = 60
+        Height = 22
+        Caption = #19978#32423
         TabOrder = 3
-        OnClick = btnSelectTargetRootClick
+        OnClick = btnTargetUpClick
       end
-      object stvTarget: TShellTreeView
+      object tvTarget: TTreeView
         Left = 10
-        Top = 70
-        Width = 380
-        Height = 540
-        ObjectTypes = [otFolders]
-        Root = 'rfDesktop'
-        ShowRoot = False
-        UseShellImages = True
-        AutoRefresh = True
-        TabOrder = 3
-        OnChange = stvTargetChange
-        OnDblClick = stvTargetDblClick
-        OnKeyDown = stvTargetKeyDown
+        Top = 80
+        Width = 300
+        Height = 545
+        Indent = 19
         PopupMenu = pmTarget
+        TabOrder = 2
+        OnChange = tvTargetChange
+        OnDblClick = tvTargetDblClick
+        OnExpanding = tvTargetExpanding
+        OnKeyDown = tvTargetKeyDown
       end
     end
     object pnlStatus: TPanel
-      Left = 800
+      Left = 640
       Top = 0
-      Width = 480
-      Height = 620
+      Width = 344
+      Height = 642
       Align = alClient
-      BevelOuter = bvNone
-      Caption = #29366#24577#26174#31034#21306
+      BevelOuter = bvLowered
+      Caption = #29366#24577#20449#24687
       TabOrder = 2
+      ExplicitTop = 89
+      ExplicitHeight = 592
       object lblStatus: TLabel
         Left = 10
         Top = 10
-        Width = 24
+        Width = 36
         Height = 17
-        Caption = #23601#32490
+        Caption = #36827#24230#65306
       end
       object ProgressBar1: TProgressBar
         Left = 10
-        Top = 33
-        Width = 460
+        Top = 30
+        Width = 740
         Height = 17
         TabOrder = 0
+        Visible = False
       end
       object memoStatus: TMemo
-        Left = 10
-        Top = 60
-        Width = 460
-        Height = 550
+        AlignWithMargins = True
+        Left = 11
+        Top = 9
+        Width = 322
+        Height = 627
+        Margins.Left = 10
+        Margins.Top = 8
+        Margins.Right = 10
+        Margins.Bottom = 5
+        Align = alClient
         ScrollBars = ssVertical
         TabOrder = 1
+        ExplicitHeight = 577
       end
-    end
-  end
-  object pnlToolbar: TPanel
-    Left = 0
-    Top = 0
-    Width = 1280
-    Height = 50
-    Align = alTop
-    BevelOuter = bvNone
-    TabOrder = 1
-    object btnScan: TButton
-      Left = 10
-      Top = 10
-      Width = 80
-      Height = 30
-      Caption = #25195#25551
-      TabOrder = 0
-      OnClick = btnScanClick
-    end
-    object btnAnalyze: TButton
-      Left = 100
-      Top = 10
-      Width = 80
-      Height = 30
-      Caption = #20998#26512
-      TabOrder = 1
-      OnClick = btnAnalyzeClick
-    end
-    object btnExecute: TButton
-      Left = 190
-      Top = 10
-      Width = 80
-      Height = 30
-      Caption = #25191#34892
-      TabOrder = 2
-      OnClick = btnExecuteClick
-    end
-    object btnStop: TButton
-      Left = 280
-      Top = 10
-      Width = 80
-      Height = 30
-      Caption = #20572#27490
-      Enabled = False
-      TabOrder = 3
-      OnClick = btnStopClick
-    end
-    object btnCleanRecycleBin: TButton
-      Left = 370
-      Top = 10
-      Width = 100
-      Height = 30
-      Caption = #28165#31354#22238#25910#31449
-      TabOrder = 4
-      OnClick = MenuCleanupRecycleBinClick
-    end
-    object btnCleanTemp: TButton
-      Left = 480
-      Top = 10
-      Width = 100
-      Height = 30
-      Caption = #28165#29702#20020#26102#25991#20214
-      TabOrder = 5
-      OnClick = MenuCleanupTempClick
-    end
-    object btnCleanBackup: TButton
-      Left = 590
-      Top = 10
-      Width = 100
-      Height = 30
-      Caption = #28165#29702#22791#20221
-      TabOrder = 6
-      OnClick = MenuCleanupLastBackupClick
-    end
-    object btnCleanUpdate: TButton
-      Left = 700
-      Top = 10
-      Width = 120
-      Height = 30
-      Caption = #28165#29702#26356#26032#32531#23384
-      TabOrder = 7
-      OnClick = MenuCleanupSoftwareDistributionClick
-    end
-    object btnSmartClean: TButton
-      Left = 830
-      Top = 10
-      Width = 100
-      Height = 30
-      Caption = #26234#33021#28165#29702
-      TabOrder = 8
-      OnClick = MenuCleanupDuplicateFilesClick
-    end
-    object btnExit: TButton
-      Left = 940
-      Top = 10
-      Width = 80
-      Height = 30
-      Caption = #36864#20986
-      TabOrder = 9
-      OnClick = btnExitClick
     end
   end
   object StatusBar1: TStatusBar
     Left = 0
-    Top = 670
-    Width = 1280
-    Height = 50
+    Top = 856
+    Width = 984
+    Height = 19
     Panels = <
       item
-        Width = 300
+        Width = 200
       end
       item
         Width = 300
@@ -313,6 +200,142 @@ object frmMain: TfrmMain
       item
         Width = 50
       end>
+    ExplicitTop = 681
+  end
+  object pnlBottom: TPanel
+    Left = 0
+    Top = 642
+    Width = 984
+    Height = 214
+    Align = alBottom
+    TabOrder = 2
+    ExplicitTop = 644
+    object pnlToolbar: TPanel
+      Left = 624
+      Top = 1
+      Width = 359
+      Height = 212
+      Align = alRight
+      BevelOuter = bvNone
+      Color = 2565927
+      ParentBackground = False
+      TabOrder = 0
+      object btnCleanRecycleBin: TBitBtn
+        Left = 10
+        Top = 10
+        Width = 90
+        Height = 34
+        Caption = #28165#31354#22238#25910#31449
+        TabOrder = 0
+        OnClick = btnCleanRecycleBinClick
+      end
+      object btnCleanTemp: TBitBtn
+        Left = 127
+        Top = 10
+        Width = 90
+        Height = 34
+        Caption = #28165#29702#20020#26102#25991#20214
+        TabOrder = 1
+        OnClick = btnCleanTempClick
+      end
+      object btnCleanBackup: TBitBtn
+        Left = 246
+        Top = 10
+        Width = 90
+        Height = 34
+        Caption = #28165#29702#22791#20221
+        TabOrder = 2
+        OnClick = btnCleanBackupClick
+      end
+      object btnCleanUpdate: TBitBtn
+        Left = 10
+        Top = 50
+        Width = 90
+        Height = 34
+        Caption = #28165#29702#26356#26032#32531#23384
+        TabOrder = 3
+        OnClick = btnCleanUpdateClick
+      end
+      object btnSmartClean: TBitBtn
+        Left = 127
+        Top = 50
+        Width = 90
+        Height = 34
+        Caption = #26234#33021#28165#29702
+        TabOrder = 4
+        OnClick = btnSmartCleanClick
+      end
+      object btnSmartMigration: TBitBtn
+        Left = 246
+        Top = 50
+        Width = 90
+        Height = 34
+        Caption = #26234#33021#36801#31227
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clWindowText
+        Font.Height = -11
+        Font.Name = 'Tahoma'
+        Font.Style = [fsBold]
+        ParentFont = False
+        TabOrder = 5
+        OnClick = btnSmartMigrationClick
+      end
+      object btnExecute: TBitBtn
+        Left = 246
+        Top = 90
+        Width = 90
+        Height = 34
+        Caption = #25191#34892#36801#31227
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clWhite
+        Font.Height = -11
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Style = [fsBold]
+        ParentFont = False
+        TabOrder = 6
+        OnClick = btnExecuteClick
+      end
+      object btnAnalyze: TBitBtn
+        Left = 10
+        Top = 90
+        Width = 90
+        Height = 34
+        Caption = #20998#26512#30446#24405
+        TabOrder = 7
+        OnClick = btnAnalyzeClick
+      end
+      object btnCalculateSize: TBitBtn
+        Left = 127
+        Top = 89
+        Width = 90
+        Height = 34
+        Caption = #35745#31639#22823#23567
+        TabOrder = 8
+        OnClick = btnCalculateSizeClick
+      end
+      object btnExit: TBitBtn
+        Left = 246
+        Top = 162
+        Width = 90
+        Height = 34
+        Caption = #36864#20986
+        TabOrder = 9
+        OnClick = btnExitClick
+      end
+    end
+    object pnlAboutMe: TPanel
+      Left = 1
+      Top = 1
+      Width = 623
+      Height = 212
+      Align = alClient
+      BevelInner = bvLowered
+      TabOrder = 1
+      ExplicitLeft = 136
+      ExplicitTop = 40
+      ExplicitWidth = 185
+      ExplicitHeight = 41
+    end
   end
   object MainMenu1: TMainMenu
     Left = 40
@@ -385,13 +408,6 @@ object frmMain: TfrmMain
         OnClick = MenuHelpAboutClick
       end
     end
-  end
-  object InitTimer: TTimer
-    Enabled = False
-    Interval = 50
-    OnTimer = InitAfterShow
-    Left = 200
-    Top = 80
   end
   object pmSource: TPopupMenu
     OnPopup = pmSourcePopup

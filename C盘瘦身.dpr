@@ -5,8 +5,7 @@ uses
   Winapi.Windows,
   uSplash in 'uSplash.pas' {frmSplash},
   uMain in 'uMain.pas' {frmMain},
-  uConfigManager in 'uConfigManager.pas' {frmConfigManager},
-  uSmartDuplicateCleanup in 'uSmartDuplicateCleanup.pas' {frmSmartDuplicateCleanup};
+  uIconManager in 'uIconManager.pas';
 
 {$R *.res}
 

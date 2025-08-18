@@ -3,7 +3,7 @@ unit uStyles;
 interface
 
 uses
-  Winapi.Windows, Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls, Vcl.Buttons, Vcl.Shell.ShellCtrls;
+  Winapi.Windows, Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls, Vcl.Buttons;
 
 type
   // 现代化主题颜色
@@ -60,7 +60,7 @@ type
     procedure StyleEdit(AEdit: TEdit);
     procedure StyleListView(AListView: TListView);
     procedure StyleTreeView(ATreeView: TTreeView);
-    procedure StyleShellTreeView(AShellTreeView: TShellTreeView);
+    // procedure StyleShellTreeView(AShellTreeView: TShellTreeView); // 已移除
     procedure StyleProgressBar(AProgressBar: TProgressBar);
     procedure StyleRichEdit(ARichEdit: TRichEdit);
     procedure StyleStatusBar(AStatusBar: TStatusBar);
@@ -209,16 +209,7 @@ begin
   ATreeView.BorderStyle := bsNone;
 end;
 
-procedure TModernStyleManager.StyleShellTreeView(AShellTreeView: TShellTreeView);
-begin
-  AShellTreeView.Font.Name := 'Microsoft YaHei UI';
-  AShellTreeView.Font.Size := 9;
-  AShellTreeView.Font.Color := FCurrentTheme.TextPrimary;
-  AShellTreeView.Color := FCurrentTheme.Surface;
-  AShellTreeView.BorderStyle := bsNone;
-  AShellTreeView.UseShellImages := True;
-  AShellTreeView.AutoRefresh := True;
-end;
+// StyleShellTreeView方法已移除，因为不再使用TShellTreeView组件
 
 procedure TModernStyleManager.StyleProgressBar(AProgressBar: TProgressBar);
 begin
