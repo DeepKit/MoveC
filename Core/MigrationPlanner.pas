@@ -4,7 +4,7 @@ interface
 
 uses
   System.SysUtils, System.Classes, System.IOUtils, System.StrUtils, System.Generics.Collections,
-  Winapi.Windows, DataTypes, ConfigManager, FileSafetyEvaluator, DependencyAnalyzer, RebootDetector;
+  Winapi.Windows, DataTypes, ConfigManager, DependencyAnalyzer, RebootDetector;
 
 type
   // 迁移策略

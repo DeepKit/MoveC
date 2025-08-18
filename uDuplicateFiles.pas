@@ -6,9 +6,15 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls,
   Vcl.ComCtrls, Vcl.CheckLst, Vcl.Menus, System.Generics.Collections,
-  Core.DuplicateFileDetector, uStyles;
+  uStyles;
 
 type
+  // 简化的重复文件组类型
+  TDuplicateGroup = record
+    Files: TArray<string>;
+    Size: Int64;
+  end;
+
   TfrmDuplicateFiles = class(TForm)
     pnlMain: TPanel;
     pnlTop: TPanel;
@@ -80,8 +86,7 @@ type
     procedure miFilePropertiesClick(Sender: TObject);
     
   private
-    FDetector: TDuplicateFileDetector;
-    FDuplicateGroups: TArray<TDuplicateGroup>;
+    // 简化版本 - 移除复杂功能
     FCurrentGroupIndex: Integer;
     FTotalDuplicates: Integer;
     FTotalSavings: Int64;

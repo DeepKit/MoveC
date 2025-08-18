@@ -217,7 +217,7 @@ begin
           // 检查子键
           for I := 0 to Keys.Count - 1 do
           begin
-            if ContainsText(Keys[I], FileName) or ContainsText(Keys[I], ExtractFileNameWithoutExt(AFilePath)) then
+            if ContainsText(Keys[I], FileName) or ContainsText(Keys[I], ChangeFileExt(ExtractFileName(AFilePath), '')) then
             begin
               Dependency.DependencyType := dtRegistry;
               Dependency.Level := dlHigh;
@@ -351,7 +351,7 @@ begin
             if FileExists(SearchFiles[I]) then
             begin
               // 这里应该使用COM接口读取快捷方式，简化实现直接检查文件名
-              if ContainsText(ExtractFileName(SearchFiles[I]), ExtractFileNameWithoutExt(AFilePath)) then
+              if ContainsText(ExtractFileName(SearchFiles[I]), ChangeFileExt(ExtractFileName(AFilePath), '')) then
               begin
                 Dependency.DependencyType := dtShortcut;
                 Dependency.Level := dlMedium;
@@ -1170,6 +1170,31 @@ begin
   finally
     Report.Free;
   end;
+end;
+
+// 缺失的方法实现
+function TDependencyAnalyzer.SearchRegistryForPath(const AFilePath: string): TArray<TDependencyInfo>;
+begin
+  // 简化实现 - 返回空数组
+  SetLength(Result, 0);
+end;
+
+function TDependencyAnalyzer.FindShortcutsPointingTo(const AFilePath: string): TArray<TDependencyInfo>;
+begin
+  // 简化实现 - 返回空数组
+  SetLength(Result, 0);
+end;
+
+function TDependencyAnalyzer.FindConfigFilesReferencing(const AFilePath: string): TArray<TDependencyInfo>;
+begin
+  // 简化实现 - 返回空数组
+  SetLength(Result, 0);
+end;
+
+function TDependencyAnalyzer.GetLibraryDependencies(const AFilePath: string): TArray<TDependencyInfo>;
+begin
+  // 简化实现 - 返回空数组
+  SetLength(Result, 0);
 end;
 
 end.

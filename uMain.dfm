@@ -92,7 +92,6 @@ object frmMain: TfrmMain
         OnDblClick = stvSourceDblClick
         OnKeyDown = stvSourceKeyDown
         PopupMenu = pmSource
-        OnContextPopup = stvSourceContextPopup
       end
     end
     object pnlRight: TPanel
@@ -161,7 +160,6 @@ object frmMain: TfrmMain
         OnDblClick = stvTargetDblClick
         OnKeyDown = stvTargetKeyDown
         PopupMenu = pmTarget
-        OnContextPopup = stvTargetContextPopup
       end
     end
     object pnlStatus: TPanel
@@ -242,13 +240,58 @@ object frmMain: TfrmMain
       TabOrder = 3
       OnClick = btnStopClick
     end
-    object btnExit: TButton
+    object btnCleanRecycleBin: TButton
       Left = 370
+      Top = 10
+      Width = 100
+      Height = 30
+      Caption = #28165#31354#22238#25910#31449
+      TabOrder = 4
+      OnClick = MenuCleanupRecycleBinClick
+    end
+    object btnCleanTemp: TButton
+      Left = 480
+      Top = 10
+      Width = 100
+      Height = 30
+      Caption = #28165#29702#20020#26102#25991#20214
+      TabOrder = 5
+      OnClick = MenuCleanupTempClick
+    end
+    object btnCleanBackup: TButton
+      Left = 590
+      Top = 10
+      Width = 100
+      Height = 30
+      Caption = #28165#29702#22791#20221
+      TabOrder = 6
+      OnClick = MenuCleanupLastBackupClick
+    end
+    object btnCleanUpdate: TButton
+      Left = 700
+      Top = 10
+      Width = 120
+      Height = 30
+      Caption = #28165#29702#26356#26032#32531#23384
+      TabOrder = 7
+      OnClick = MenuCleanupSoftwareDistributionClick
+    end
+    object btnSmartClean: TButton
+      Left = 830
+      Top = 10
+      Width = 100
+      Height = 30
+      Caption = #26234#33021#28165#29702
+      TabOrder = 8
+      OnClick = MenuCleanupDuplicateFilesClick
+    end
+    object btnExit: TButton
+      Left = 940
       Top = 10
       Width = 80
       Height = 30
       Caption = #36864#20986
-      TabOrder = 4
+      TabOrder = 9
       OnClick = btnExitClick
     end
   end
@@ -351,6 +394,7 @@ object frmMain: TfrmMain
     Top = 80
   end
   object pmSource: TPopupMenu
+    OnPopup = pmSourcePopup
     Left = 400
     Top = 80
     object miSrcOpen: TMenuItem
@@ -383,6 +427,7 @@ object frmMain: TfrmMain
     end
   end
   object pmTarget: TPopupMenu
+    OnPopup = pmTargetPopup
     Left = 560
     Top = 80
     object miTgtOpen: TMenuItem

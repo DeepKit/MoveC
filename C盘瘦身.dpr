@@ -6,8 +6,7 @@ uses
   uSplash in 'uSplash.pas' {frmSplash},
   uMain in 'uMain.pas' {frmMain},
   uConfigManager in 'uConfigManager.pas' {frmConfigManager},
-  uSmartDuplicateCleanup in 'uSmartDuplicateCleanup.pas' {frmSmartDuplicateCleanup},
-  uDuplicateFiles in 'uDuplicateFiles.pas' {frmDuplicateFiles};
+  uSmartDuplicateCleanup in 'uSmartDuplicateCleanup.pas' {frmSmartDuplicateCleanup};
 
 {$R *.res}
 

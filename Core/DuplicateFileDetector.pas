@@ -5,7 +5,7 @@ interface
 uses
   System.SysUtils, System.Classes, System.IOUtils, System.Generics.Collections,
   System.Hash, System.Threading, System.DateUtils,
-  Winapi.Windows, DataTypes;
+  Winapi.Windows, DataTypes, SmartFileEvaluator;
 
 type
   // 重复文件信息

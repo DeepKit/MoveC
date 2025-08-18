@@ -6,7 +6,7 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls,
   Vcl.ComCtrls, Vcl.CheckLst, System.Generics.Collections,
-  Core.ConfigManager, uStyles;
+  ConfigManager, uStyles;
 
 type
   TfrmConfigManager = class(TForm)
@@ -215,7 +215,6 @@ procedure TfrmConfigManager.FormShow(Sender: TObject);
 begin
   // 应用样式
   StyleManager.StyleForm(Self);
-  StyleManager.StylePageControl(PageControl);
   
   // 加载当前设置
   LoadSettings;

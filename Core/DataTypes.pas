@@ -6,6 +6,9 @@ uses
   System.SysUtils, System.Classes, System.Generics.Collections;
 
 type
+  // 文件类型枚举
+  TFileType = (ftUnknown, ftExecutable, ftText, ftImage, ftMedia, ftDocument);
+
   // 打赏地址类型枚举
   TDonationAddressType = (datWechat, datAlipay, datBTC, datUSDT);
 
