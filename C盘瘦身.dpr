@@ -5,7 +5,12 @@ uses
   Winapi.Windows,
   uSplash in 'uSplash.pas' {frmSplash},
   uMain in 'uMain.pas' {frmMain},
-  uIconManager in 'uIconManager.pas';
+  uIconManager in 'uIconManager.pas',
+  // AboutMe安全模块
+  uBasicProtection in 'uBasicProtection.pas',
+  uSimpleSQLiteDB in 'uSimpleSQLiteDB.pas',
+  uSimpleSecureManager in 'uSimpleSecureManager.pas',
+  FrameAboutMe in 'FrameAboutMe.pas' {FrameAboutMe: TFrame};
 
 {$R *.res}
 

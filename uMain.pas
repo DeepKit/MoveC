@@ -11,8 +11,8 @@ uses
   System.IOUtils, System.UITypes,
   // Modern UI styles and strings
   uStyles, uStrings, uIconManager,
-  // Core modules
-  DataTypes, ConfigManager;
+  // Security modules
+  uSimpleSecureManager, FrameAboutMe;
 
 type
   TfrmMain = class(TForm)
@@ -166,6 +166,9 @@ type
     FTotalBytesToCopy: Int64;
     FCopiedBytesSoFar: Int64;
     FCancelRequested: Boolean;
+    // AboutMe安全模块
+    FFrameAboutMe: TFrameAboutMe;
+    FSecureManager: TSimpleSecureManager;
     
     procedure InitializeInterface;
     procedure InitializeTreeViews;
@@ -174,11 +177,8 @@ type
     procedure LoadDirectoryTree(ATreeView: TTreeView; const APath: string);
     procedure ExpandTreeNode(ATreeView: TTreeView; ANode: TTreeNode);
     procedure FreeTreeViewData(ATreeView: TTreeView);
-    procedure SetControlFont(AControl: TControl);
     procedure ApplyModernColors;
-    procedure SetButtonFonts;
     procedure SetButtonStyle(AButton: TBitBtn; ABackColor, AFontColor: TColor);
-    procedure ApplyLabelStyles;
     procedure SetInterfaceTexts;
     procedure LoadButtonIcons;
 
@@ -226,13 +226,9 @@ begin
   // 加载按钮图标
   LoadButtonIcons;
 
-  // 设置窗体字体
-  Font.Name := 'Microsoft YaHei UI';
-  Font.Size := 9;
-  Font.Charset := DEFAULT_CHARSET;
+  // 字体设置已移动到DFM
 
-  // 设置所有控件的字体
-  SetControlFont(Self);
+  // 字体设置已移动到DFM文件
 
   // 应用现代化配色
   ApplyModernColors;
@@ -246,6 +242,12 @@ begin
   // 释放目录树中分配的字符串内存
   FreeTreeViewData(tvSource);
   FreeTreeViewData(tvTarget);
+
+  // 清理AboutMe安全模块
+  if Assigned(FFrameAboutMe) then
+    FFrameAboutMe.Free;
+  if Assigned(FSecureManager) then
+    FSecureManager.Free;
 
   FStyleManager.Free;
 end;
@@ -267,6 +269,54 @@ begin
     LoadDirectoryTree(tvTarget, FTargetPath);
   end;
   
+  // 初始化AboutMe安全模块
+  try
+    // 确保pnlBottom面板可见并设置合适的高度
+    pnlBottom.Visible := True;
+    if pnlBottom.Height < 200 then
+      pnlBottom.Height := 250; // 设置足够的高度显示AboutMe内容
+    
+    // 创建并嵌入AboutMe框架到pnlBottom（在pnlAboutMe中）
+    if not Assigned(FFrameAboutMe) then
+    begin
+      FFrameAboutMe := TFrameAboutMe.Create(Self);
+      FFrameAboutMe.Parent := pnlAboutMe; // pnlAboutMe是pnlBottom的子面板
+      FFrameAboutMe.Align := alClient;
+      FFrameAboutMe.Visible := True;
+    end;
+
+    // 初始化安全管理器并进行严格验证
+    if not Assigned(FSecureManager) then
+    begin
+      FSecureManager := TSimpleSecureManager.Create(Self);
+      
+      // 关键：加载并验证数据，失败时退出程序
+      if not FSecureManager.LoadAndVerify(FFrameAboutMe) then
+      begin
+        ShowChineseMessage('程序数据完整性验证失败，为了您的安全，程序将退出。' + sLineBreak +
+                          '请访问 www.goodmem.cn 下载正版软件。');
+        FSecureManager.ShowTamperAlertAndRedirect('http://www.goodmem.cn');
+        Application.Terminate;
+        Exit;
+      end
+      else
+      begin
+        // 验证成功，让AboutMe框架从安全管理器加载数据
+        FFrameAboutMe.LoadFromSecureManager(FSecureManager);
+        OutputDebugString(PChar('AboutMe模块已成功加载并验证'));
+      end;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      ShowChineseMessage('初始化AboutMe模块失败：' + E.Message + sLineBreak +
+                        '程序将退出以确保安全。');
+      Application.Terminate;
+      Exit;
+    end;
+  end;
+  
   UpdateStatus('就绪 - 选择源目录和目标目录开始操作');
 end;
 
@@ -278,9 +328,9 @@ begin
     FStyleManager.StyleForm(Self);
     FStyleManager.StylePanel(pnlMain);
     FStyleManager.StylePanel(pnlToolbar);
-    FStyleManager.StylePanel(pnlLeft);
-    FStyleManager.StylePanel(pnlRight);
-    FStyleManager.StylePanel(pnlStatus);
+    // FStyleManager.StylePanel(pnlLeft);
+    // FStyleManager.StylePanel(pnlRight);
+    // FStyleManager.StylePanel(pnlStatus);
 
     // 应用按钮样式 - TBitBtn有自己的样式，暂时注释掉
     // FStyleManager.StyleButton(btnCleanRecycleBin);
@@ -304,10 +354,7 @@ begin
 
     // 应用其他控件样式
     FStyleManager.StyleProgressBar(ProgressBar1);
-    // 手动设置memo样式
-    memoStatus.Font.Name := 'Microsoft YaHei UI';
-    memoStatus.Font.Size := 9;
-    memoStatus.Font.Charset := DEFAULT_CHARSET;
+    // memo样式已在DFM中设置
     FStyleManager.StyleTreeView(tvSource);
     FStyleManager.StyleTreeView(tvTarget);
   end;
@@ -1118,44 +1165,7 @@ begin
   end;
 end;
 
-procedure TfrmMain.SetControlFont(AControl: TControl);
-var
-  I: Integer;
-begin
-  if AControl is TWinControl then
-  begin
-    // 设置控件字体
-    if AControl is TLabel then
-    begin
-      TLabel(AControl).Font.Name := 'Microsoft YaHei UI';
-      TLabel(AControl).Font.Charset := DEFAULT_CHARSET;
-    end
-    else if AControl is TButton then
-    begin
-      TButton(AControl).Font.Name := 'Microsoft YaHei UI';
-      TButton(AControl).Font.Charset := DEFAULT_CHARSET;
-    end
-    else if AControl is TEdit then
-    begin
-      TEdit(AControl).Font.Name := 'Microsoft YaHei UI';
-      TEdit(AControl).Font.Charset := DEFAULT_CHARSET;
-    end
-    else if AControl is TMemo then
-    begin
-      TMemo(AControl).Font.Name := 'Microsoft YaHei UI';
-      TMemo(AControl).Font.Charset := DEFAULT_CHARSET;
-    end
-    else if AControl is TTreeView then
-    begin
-      TTreeView(AControl).Font.Name := 'Microsoft YaHei UI';
-      TTreeView(AControl).Font.Charset := DEFAULT_CHARSET;
-    end;
-
-    // 递归设置子控件
-    for I := 0 to TWinControl(AControl).ControlCount - 1 do
-      SetControlFont(TWinControl(AControl).Controls[I]);
-  end;
-end;
+// SetControlFont 方法已被移除，字体设置已移动到DFM
 
 // 主菜单事件实现
 procedure TfrmMain.MenuFileExitClick(Sender: TObject);
@@ -1236,133 +1246,34 @@ end;
 
 procedure TfrmMain.ApplyModernColors;
 begin
-  // 主窗体 - 现代化渐变背景
-  Color := $F5F7FA;
+  // 基本颜色设置已移动到DFM，只保留动态颜色设置
 
-  // 工具栏 - 深色渐变，现代化设计
-  pnlToolbar.Color := $1A237E; // 深蓝紫色
-
-  // 左右面板 - 纯白背景配轻微阴影效果
-  pnlLeft.Color := clWhite;
-  pnlLeft.BevelOuter := bvNone;
-  pnlLeft.BorderStyle := bsSingle;
-  pnlLeft.BorderWidth := 1;
-
-  pnlRight.Color := clWhite;
-  pnlRight.BevelOuter := bvNone;
-  pnlRight.BorderStyle := bsSingle;
-  pnlRight.BorderWidth := 1;
-
-  // 状态面板 - 浅色背景
-  pnlStatus.Color := $FAFBFC;
-
-  // 设置按钮现代化配色和样式
-  // 主要操作按钮 - 使用黑色文字确保可读性
+  // 按钮背景色设置 (保留动态颜色功能)
   SetButtonStyle(btnExecute, $4CAF50, clBlack);      // Material Green
   SetButtonStyle(btnAnalyze, $2196F3, clBlack);      // Material Blue
   SetButtonStyle(btnCalculateSize, $FF9800, clBlack); // Material Orange
-
-  // 清理功能按钮组 - 使用紫色系渐变
   SetButtonStyle(btnCleanRecycleBin, $9C27B0, clBlack); // Material Purple
   SetButtonStyle(btnCleanTemp, $673AB7, clBlack);       // Material Deep Purple
   SetButtonStyle(btnCleanBackup, $3F51B5, clBlack);     // Material Indigo
   SetButtonStyle(btnCleanUpdate, $2196F3, clBlack);     // Material Blue
-
-  // 智能功能按钮 - 使用青色系
   SetButtonStyle(btnSmartClean, $009688, clBlack);      // Material Teal
   SetButtonStyle(btnSmartMigration, $00BCD4, clBlack);  // Material Cyan
-
-  // 导航按钮 - 使用中性色
   SetButtonStyle(btnBrowseSource, $607D8B, clBlack);    // Material Blue Grey
   SetButtonStyle(btnBrowseTarget, $607D8B, clBlack);    // Material Blue Grey
   SetButtonStyle(btnSourceUp, $795548, clBlack);        // Material Brown
   SetButtonStyle(btnTargetUp, $795548, clBlack);        // Material Brown
-
-  // 退出按钮 - 使用警告色
   SetButtonStyle(btnExit, $F44336, clBlack);            // Material Red
 
-  // 编辑框现代化美化
-  edtSourceDir.Color := $FFFFFF;
-  edtSourceDir.BorderStyle := bsSingle;
-  edtSourceDir.Font.Color := $212121;
-
-  edtTargetDir.Color := $FFFFFF;
-  edtTargetDir.BorderStyle := bsSingle;
-  edtTargetDir.Font.Color := $212121;
-
-  // 目录树现代化美化
-  tvSource.Color := $FFFFFF;
-  tvSource.Font.Color := $424242;
-  tvSource.BorderStyle := bsSingle;
-
-  tvTarget.Color := $FFFFFF;
-  tvTarget.Font.Color := $424242;
-  tvTarget.BorderStyle := bsSingle;
-
-  // 状态信息现代化美化
-  memoStatus.Color := $FAFBFC;
-  memoStatus.Font.Color := $37474F;
-  memoStatus.BorderStyle := bsSingle;
-  memoStatus.ScrollBars := ssVertical;
-
-  // 进度条现代化美化
-  ProgressBar1.Style := pbstNormal;
-
-  // 状态栏现代化美化
-  StatusBar1.Color := $ECEFF1;
-
-  // 标签美化
-  ApplyLabelStyles;
-
-  // 设置所有按钮的字体为微软雅黑
-  SetButtonFonts;
+  // 编辑框、树视图、状态信息和标签的样式已移动到DFM
+  // 进度条和状态栏颜色已移动到DFM
+  // 按钮字体已移动到DFM
 end;
 
-procedure TfrmMain.SetButtonFonts;
-var
-  Buttons: array of TBitBtn;
-  I: Integer;
-begin
-  // 创建按钮数组
-  SetLength(Buttons, 14);
-  Buttons[0] := btnExecute;
-  Buttons[1] := btnAnalyze;
-  Buttons[2] := btnCalculateSize;
-  Buttons[3] := btnCleanRecycleBin;
-  Buttons[4] := btnCleanTemp;
-  Buttons[5] := btnCleanBackup;
-  Buttons[6] := btnCleanUpdate;
-  Buttons[7] := btnSmartClean;
-  Buttons[8] := btnSmartMigration;
-  Buttons[9] := btnBrowseSource;
-  Buttons[10] := btnBrowseTarget;
-  Buttons[11] := btnSourceUp;
-  Buttons[12] := btnTargetUp;
-  Buttons[13] := btnExit;
-
-  // 设置所有按钮的字体
-  for I := 0 to High(Buttons) do
-  begin
-    Buttons[I].Font.Name := 'Microsoft YaHei UI';
-    Buttons[I].Font.Size := 11;              // 增大字体
-    Buttons[I].Font.Charset := DEFAULT_CHARSET;
-    Buttons[I].Font.Style := [fsBold];
-    Buttons[I].Font.Color := clBlack;        // 使用黑色文字
-  end;
-end;
+// SetButtonFonts 方法已被移除，字体设置已移动到DFM
 
 procedure TfrmMain.SetButtonStyle(AButton: TBitBtn; ABackColor, AFontColor: TColor);
 begin
-  // 设置TBitBtn的字体和颜色，确保文字清晰可见
-  AButton.Font.Name := 'Microsoft YaHei UI';
-  AButton.Font.Size := 11;        // 增大字体
-  AButton.Font.Charset := DEFAULT_CHARSET;
-  AButton.Font.Style := [fsBold];
-  AButton.Font.Color := clBlack;   // 使用黑色文字确保可读性
-
-  // 设置按钮的其他视觉属性
-  AButton.Height := 44;           // 再增加4像素高度 (40+4)
-  AButton.Width := AButton.Width + 30; // 再增加10像素宽度 (20+10)
+  // 字体和尺寸已在DFM中设置，只设置动态属性
 
   // TBitBtn的样式设置
   AButton.Kind := bkCustom;       // 自定义样式
@@ -1372,32 +1283,7 @@ begin
   AButton.Spacing := 4;           // 图标和文字间距
 end;
 
-procedure TfrmMain.ApplyLabelStyles;
-begin
-  // 美化标签样式
-  lblSourceDir.Font.Name := 'Microsoft YaHei UI';
-  lblSourceDir.Font.Size := 10;
-  lblSourceDir.Font.Style := [fsBold];
-  lblSourceDir.Font.Color := $1976D2;
-  lblSourceDir.Font.Charset := DEFAULT_CHARSET;
-
-  lblTargetDir.Font.Name := 'Microsoft YaHei UI';
-  lblTargetDir.Font.Size := 10;
-  lblTargetDir.Font.Style := [fsBold];
-  lblTargetDir.Font.Color := $1976D2;
-  lblTargetDir.Font.Charset := DEFAULT_CHARSET;
-
-  lblStatus.Font.Name := 'Microsoft YaHei UI';
-  lblStatus.Font.Size := 10;
-  lblStatus.Font.Style := [fsBold];
-  lblStatus.Font.Color := $388E3C;
-  lblStatus.Font.Charset := DEFAULT_CHARSET;
-
-  // 美化分组框标题
-  pnlLeft.Caption := '';  // 移除默认标题
-  pnlRight.Caption := '';
-  pnlStatus.Caption := '';
-end;
+// ApplyLabelStyles 方法已被移除，标签样式已移动到DFM
 
 procedure TfrmMain.SetInterfaceTexts;
 begin
@@ -1425,9 +1311,9 @@ begin
   lblStatus.Caption := '状态信息';
 
   // 设置面板标题
-  pnlLeft.Caption := '源目录';
-  pnlRight.Caption := '目标目录';
-  pnlStatus.Caption := '状态信息';
+  // pnlLeft.Caption := '源目录';
+  // pnlRight.Caption := '目标目录';
+  // pnlStatus.Caption := '状态信息';
 
   // 菜单文本已在DFM中设置，不需要在代码中重复设置
 end;

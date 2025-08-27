@@ -9,6 +9,7 @@ object frmMain: TfrmMain
   Font.Color = clWindowText
   Font.Height = -12
   Font.Name = 'Microsoft YaHei UI'
+  Font.Size = 9
   Font.Style = []
   Menu = MainMenu1
   Position = poScreenCenter
@@ -23,6 +24,7 @@ object frmMain: TfrmMain
     Height = 642
     Align = alClient
     BevelOuter = bvNone
+    Color = 16053754
     TabOrder = 0
     ExplicitHeight = 633
     object pnlLeft: TPanel
@@ -31,8 +33,11 @@ object frmMain: TfrmMain
       Width = 320
       Height = 642
       Align = alLeft
-      BevelOuter = bvLowered
+      BevelOuter = bvNone
+      BorderStyle = bsSingle
+      BorderWidth = 1
       Caption = #28304#30446#24405
+      Color = clWhite
       TabOrder = 0
       ExplicitTop = 89
       ExplicitHeight = 592
@@ -42,29 +47,58 @@ object frmMain: TfrmMain
         Width = 48
         Height = 17
         Caption = #28304#30446#24405#65306
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = 1668818
+        Font.Height = -13
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 10
+        Font.Style = [fsBold]
+        ParentFont = False
       end
       object edtSourceDir: TEdit
         Left = 12
         Top = 49
         Width = 300
         Height = 25
+        BorderStyle = bsSingle
+        Color = clWhite
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = 2171169
+        Font.Height = -12
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Style = []
+        ParentFont = False
         TabOrder = 0
       end
       object btnBrowseSource: TBitBtn
         Left = 234
         Top = 14
-        Width = 74
-        Height = 22
+        Width = 104
+        Height = 26
         Caption = #27983#35272'...'
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clBlack
+        Font.Height = -15
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 11
+        Font.Style = [fsBold]
+        ParentFont = False
         TabOrder = 1
         OnClick = btnBrowseSourceClick
       end
       object btnSourceUp: TBitBtn
         Left = 157
         Top = 14
-        Width = 60
-        Height = 22
+        Width = 90
+        Height = 26
         Caption = #19978#32423
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clBlack
+        Font.Height = -15
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 11
+        Font.Style = [fsBold]
+        ParentFont = False
         TabOrder = 3
         OnClick = btnSourceUpClick
       end
@@ -73,7 +107,15 @@ object frmMain: TfrmMain
         Top = 80
         Width = 300
         Height = 545
+        BorderStyle = bsSingle
+        Color = clWhite
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = 4342338
+        Font.Height = -12
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Style = []
         Indent = 19
+        ParentFont = False
         PopupMenu = pmSource
         TabOrder = 2
         OnChange = tvSourceChange
@@ -88,8 +130,11 @@ object frmMain: TfrmMain
       Width = 320
       Height = 642
       Align = alLeft
-      BevelOuter = bvLowered
+      BevelOuter = bvNone
+      BorderStyle = bsSingle
+      BorderWidth = 1
       Caption = #30446#26631#30446#24405
+      Color = clWhite
       TabOrder = 1
       ExplicitTop = 89
       ExplicitHeight = 592
@@ -99,29 +144,58 @@ object frmMain: TfrmMain
         Width = 60
         Height = 17
         Caption = #30446#26631#30446#24405#65306
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = 1668818
+        Font.Height = -13
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 10
+        Font.Style = [fsBold]
+        ParentFont = False
       end
       object edtTargetDir: TEdit
         Left = 11
         Top = 49
         Width = 295
         Height = 25
+        BorderStyle = bsSingle
+        Color = clWhite
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = 2171169
+        Font.Height = -12
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Style = []
+        ParentFont = False
         TabOrder = 0
       end
       object btnBrowseTarget: TBitBtn
         Left = 235
         Top = 10
-        Width = 80
-        Height = 22
+        Width = 110
+        Height = 26
         Caption = #27983#35272'...'
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clBlack
+        Font.Height = -15
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 11
+        Font.Style = [fsBold]
+        ParentFont = False
         TabOrder = 1
         OnClick = btnBrowseTargetClick
       end
       object btnTargetUp: TBitBtn
         Left = 148
         Top = 10
-        Width = 60
-        Height = 22
+        Width = 90
+        Height = 26
         Caption = #19978#32423
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clBlack
+        Font.Height = -15
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 11
+        Font.Style = [fsBold]
+        ParentFont = False
         TabOrder = 3
         OnClick = btnTargetUpClick
       end
@@ -130,7 +204,15 @@ object frmMain: TfrmMain
         Top = 80
         Width = 300
         Height = 545
+        BorderStyle = bsSingle
+        Color = clWhite
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = 4342338
+        Font.Height = -12
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Style = []
         Indent = 19
+        ParentFont = False
         PopupMenu = pmTarget
         TabOrder = 2
         OnChange = tvTargetChange
@@ -145,8 +227,9 @@ object frmMain: TfrmMain
       Width = 344
       Height = 642
       Align = alClient
-      BevelOuter = bvLowered
+      BevelOuter = bvNone
       Caption = #29366#24577#20449#24687
+      Color = 16449532
       TabOrder = 2
       ExplicitTop = 89
       ExplicitHeight = 592
@@ -156,6 +239,13 @@ object frmMain: TfrmMain
         Width = 36
         Height = 17
         Caption = #36827#24230#65306
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = 3830863
+        Font.Height = -13
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 10
+        Font.Style = [fsBold]
+        ParentFont = False
       end
       object ProgressBar1: TProgressBar
         Left = 10
@@ -176,6 +266,15 @@ object frmMain: TfrmMain
         Margins.Right = 10
         Margins.Bottom = 5
         Align = alClient
+        BorderStyle = bsSingle
+        Color = 16449532
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = 3687759
+        Font.Height = -12
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 9
+        Font.Style = []
+        ParentFont = False
         ScrollBars = ssVertical
         TabOrder = 1
         ExplicitHeight = 577
@@ -187,6 +286,7 @@ object frmMain: TfrmMain
     Top = 856
     Width = 984
     Height = 19
+    Color = 15527921
     Panels = <
       item
         Width = 200
@@ -217,64 +317,100 @@ object frmMain: TfrmMain
       Height = 212
       Align = alRight
       BevelOuter = bvNone
-      Color = 2565927
+      Color = 1713790
       ParentBackground = False
       TabOrder = 0
       object btnCleanRecycleBin: TBitBtn
         Left = 10
         Top = 10
-        Width = 90
-        Height = 34
+        Width = 120
+        Height = 38
         Caption = #28165#31354#22238#25910#31449
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clBlack
+        Font.Height = -15
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 11
+        Font.Style = [fsBold]
+        ParentFont = False
         TabOrder = 0
         OnClick = btnCleanRecycleBinClick
       end
       object btnCleanTemp: TBitBtn
         Left = 127
         Top = 10
-        Width = 90
-        Height = 34
+        Width = 120
+        Height = 38
         Caption = #28165#29702#20020#26102#25991#20214
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clBlack
+        Font.Height = -15
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 11
+        Font.Style = [fsBold]
+        ParentFont = False
         TabOrder = 1
         OnClick = btnCleanTempClick
       end
       object btnCleanBackup: TBitBtn
         Left = 246
         Top = 10
-        Width = 90
-        Height = 34
+        Width = 120
+        Height = 38
         Caption = #28165#29702#22791#20221
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clBlack
+        Font.Height = -15
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 11
+        Font.Style = [fsBold]
+        ParentFont = False
         TabOrder = 2
         OnClick = btnCleanBackupClick
       end
       object btnCleanUpdate: TBitBtn
         Left = 10
         Top = 50
-        Width = 90
-        Height = 34
+        Width = 120
+        Height = 38
         Caption = #28165#29702#26356#26032#32531#23384
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clBlack
+        Font.Height = -15
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 11
+        Font.Style = [fsBold]
+        ParentFont = False
         TabOrder = 3
         OnClick = btnCleanUpdateClick
       end
       object btnSmartClean: TBitBtn
         Left = 127
         Top = 50
-        Width = 90
-        Height = 34
+        Width = 120
+        Height = 38
         Caption = #26234#33021#28165#29702
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clBlack
+        Font.Height = -15
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 11
+        Font.Style = [fsBold]
+        ParentFont = False
         TabOrder = 4
         OnClick = btnSmartCleanClick
       end
       object btnSmartMigration: TBitBtn
         Left = 246
         Top = 50
-        Width = 90
-        Height = 34
+        Width = 120
+        Height = 38
         Caption = #26234#33021#36801#31227
         Font.Charset = DEFAULT_CHARSET
-        Font.Color = clWindowText
-        Font.Height = -11
-        Font.Name = 'Tahoma'
+        Font.Color = clBlack
+        Font.Height = -15
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 11
         Font.Style = [fsBold]
         ParentFont = False
         TabOrder = 5
@@ -283,13 +419,14 @@ object frmMain: TfrmMain
       object btnExecute: TBitBtn
         Left = 246
         Top = 90
-        Width = 90
-        Height = 34
+        Width = 120
+        Height = 38
         Caption = #25191#34892#36801#31227
         Font.Charset = DEFAULT_CHARSET
-        Font.Color = clWhite
-        Font.Height = -11
+        Font.Color = clBlack
+        Font.Height = -15
         Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 11
         Font.Style = [fsBold]
         ParentFont = False
         TabOrder = 6
@@ -298,27 +435,48 @@ object frmMain: TfrmMain
       object btnAnalyze: TBitBtn
         Left = 10
         Top = 90
-        Width = 90
-        Height = 34
+        Width = 120
+        Height = 38
         Caption = #20998#26512#30446#24405
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clBlack
+        Font.Height = -15
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 11
+        Font.Style = [fsBold]
+        ParentFont = False
         TabOrder = 7
         OnClick = btnAnalyzeClick
       end
       object btnCalculateSize: TBitBtn
         Left = 127
         Top = 89
-        Width = 90
-        Height = 34
+        Width = 120
+        Height = 38
         Caption = #35745#31639#22823#23567
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clBlack
+        Font.Height = -15
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 11
+        Font.Style = [fsBold]
+        ParentFont = False
         TabOrder = 8
         OnClick = btnCalculateSizeClick
       end
       object btnExit: TBitBtn
         Left = 246
         Top = 162
-        Width = 90
-        Height = 34
+        Width = 120
+        Height = 38
         Caption = #36864#20986
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clBlack
+        Font.Height = -15
+        Font.Name = 'Microsoft YaHei UI'
+        Font.Size = 11
+        Font.Style = [fsBold]
+        ParentFont = False
         TabOrder = 9
         OnClick = btnExitClick
       end
