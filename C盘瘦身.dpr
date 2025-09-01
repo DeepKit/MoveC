@@ -8,6 +8,8 @@ uses
   uIconManager in 'uIconManager.pas',
 
   FrameAboutMe in 'FrameAboutMe.pas' {FrameAboutMe: TFrame},
+  // 图像安全模块
+  uImageSecurity in 'uImageSecurity.pas',
   // 清理管理器
   uCleanupManager in 'uCleanupManager.pas';
 

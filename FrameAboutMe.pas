@@ -497,14 +497,63 @@ begin
               // 获取图像数据
               var ImageField := FDTable1.FieldByName('image_data');
               var AddressField := FDTable1.FieldByName('address_text');
+              var MD5Field := FDTable1.FieldByName('md5_hash');
 
               if not ImageField.IsNull then
               begin
                 try
                   MemoryStream := TMemoryStream.Create;
                   try
-                    // 从Blob字段加载图像数据
+                    // 从Blob字段加载加密的图像数据
                     TBlobField(ImageField).SaveToStream(MemoryStream);
+                    MemoryStream.Position := 0;
+
+                    // 读取加密数据
+                    var EncryptedData: TBytes;
+                    SetLength(EncryptedData, MemoryStream.Size);
+                    MemoryStream.ReadBuffer(EncryptedData[0], MemoryStream.Size);
+
+                    try
+                      AssignFile(LogFile, LogFileName);
+                      Append(LogFile);
+                      WriteLn(LogFile, Format('[%s] 加密数据长度: %d bytes, 前4字节: %02X %02X %02X %02X',
+                        [DateTimeToStr(Now), Length(EncryptedData),
+                         EncryptedData[0], EncryptedData[1], EncryptedData[2], EncryptedData[3]]));
+                      CloseFile(LogFile);
+                    except
+                    end;
+
+                    // 解密数据
+                    var DecryptedData := TImageSecurity.DecryptImageData(EncryptedData);
+
+                    try
+                      AssignFile(LogFile, LogFileName);
+                      Append(LogFile);
+                      WriteLn(LogFile, Format('[%s] 解密数据长度: %d bytes, 前4字节: %02X %02X %02X %02X',
+                        [DateTimeToStr(Now), Length(DecryptedData),
+                         DecryptedData[0], DecryptedData[1], DecryptedData[2], DecryptedData[3]]));
+                      CloseFile(LogFile);
+                    except
+                    end;
+
+                    // MD5校验
+                    var ExpectedMD5 := MD5Field.AsString;
+                    if not TImageSecurity.VerifyImageIntegrity(DecryptedData, ExpectedMD5) then
+                    begin
+                      try
+                        AssignFile(LogFile, LogFileName);
+                        Append(LogFile);
+                        WriteLn(LogFile, Format('[%s] MD5校验失败: %s', [DateTimeToStr(Now), FImageMappings[I].Key]));
+                        CloseFile(LogFile);
+                      except
+                      end;
+                      TImageSecurity.HandleSecurityViolation(FImageMappings[I].Key, 'MD5校验失败');
+                      Exit;
+                    end;
+
+                    // 从解密数据创建新的内存流
+                    MemoryStream.Clear;
+                    MemoryStream.WriteBuffer(DecryptedData[0], Length(DecryptedData));
                     MemoryStream.Position := 0;
 
                     if MemoryStream.Size > 0 then

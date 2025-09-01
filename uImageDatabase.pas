@@ -8,7 +8,7 @@ uses
   FireDAC.DApt, FireDAC.UI.Intf, FireDAC.VCLUI.Wait, FireDAC.Comp.UI,
   FireDAC.Phys, FireDAC.Phys.SQLite, FireDAC.Phys.SQLiteDef,
   FireDAC.Stan.ExprFuncs, FireDAC.Phys.SQLiteWrapper.Stat,
-  FireDAC.Stan.Param, System.Hash, System.NetEncoding, uBasicProtection;
+  FireDAC.Stan.Param, System.Hash, System.NetEncoding, uBasicProtection, uImageSecurity;
 
 function BytesToRawByteString(const ABytes: TBytes): RawByteString;
 
@@ -25,8 +25,6 @@ type
     procedure CreateTables;
     procedure LogError(const AMessage: string);
     procedure LogInfo(const AMessage: string);
-    function EncryptImageData(const AData: TBytes): TBytes;
-    function DecryptImageData(const AData: TBytes): TBytes;
     
   public
     constructor Create(const ADatabasePath: string; const APassword: string = '@2241114');
@@ -109,21 +107,7 @@ begin
   Writeln('[INFO] ', AMessage);
 end;
 
-function TImageDatabase.EncryptImageData(const AData: TBytes): TBytes;
-begin
-  // 第1阶段：不加密，直接返回原数据
-  Result := AData;
-  // TODO: 第2阶段将实现真正的加密功能
-  // Result := TBasicProtection.EncryptBinaryData(AData, FPassword);
-end;
-
-function TImageDatabase.DecryptImageData(const AData: TBytes): TBytes;
-begin
-  // 第1阶段：不解密，直接返回原数据
-  Result := AData;
-  // TODO: 第2阶段将实现真正的解密功能
-  // Result := TBasicProtection.DecryptBinaryData(AData, FPassword);
-end;
+// 旧的加密解密方法已删除，现在使用TImageSecurity类
 
 procedure TImageDatabase.InitializeDatabase;
 var
@@ -279,6 +263,7 @@ begin
       '  image_data BLOB NOT NULL,' +
       '  address_text TEXT,' +
       '  description TEXT,' +
+      '  md5_hash TEXT NOT NULL,' +
       '  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,' +
       '  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP' +
       ')';
@@ -287,6 +272,19 @@ begin
     // 创建索引
     FQuery.SQL.Text := 'CREATE INDEX IF NOT EXISTS idx_images_key ON images(image_key)';
     FQuery.ExecSQL;
+
+    // 为现有数据库添加md5_hash字段（如果不存在）
+    try
+      FQuery.SQL.Text := 'ALTER TABLE images ADD COLUMN md5_hash TEXT';
+      FQuery.ExecSQL;
+      LogInfo('md5_hash字段添加成功');
+    except
+      on E: Exception do
+      begin
+        // 字段可能已存在，忽略错误
+        LogInfo('md5_hash字段可能已存在: ' + E.Message);
+      end;
+    end;
 
     LogInfo('数据库表创建完成');
 
@@ -302,24 +300,29 @@ end;
 function TImageDatabase.SaveImageData(const AImageKey: string; const AImageData: TBytes; const ADescription: string; const AAddressText: string): Boolean;
 var
   EncryptedData: TBytes;
+  OriginalMD5: string;
 begin
   Result := False;
-  
+
   try
     if not IsConnected then
     begin
       LogError('数据库未连接');
       Exit;
     end;
-    
+
     if Length(AImageData) = 0 then
     begin
       LogError('图像数据为空');
       Exit;
     end;
-    
+
+    // 计算原始图像数据的MD5
+    OriginalMD5 := TImageSecurity.CalculateMD5(AImageData);
+    LogInfo(Format('图像 %s 的MD5: %s', [AImageKey, OriginalMD5]));
+
     // 加密图像数据
-    EncryptedData := EncryptImageData(AImageData);
+    EncryptedData := TImageSecurity.EncryptImageData(AImageData);
     
     // 检查图像是否已存在
     FQuery.SQL.Text := 'SELECT COUNT(*) FROM images WHERE image_key = :key';
@@ -332,7 +335,7 @@ begin
         // 更新现有记录
         FQuery.Close;
         FQuery.SQL.Text :=
-          'UPDATE images SET image_data = :data, address_text = :addr, description = :desc, updated_at = CURRENT_TIMESTAMP ' +
+          'UPDATE images SET image_data = :data, address_text = :addr, description = :desc, md5_hash = :md5, updated_at = CURRENT_TIMESTAMP ' +
           'WHERE image_key = :key';
       end
       else
@@ -340,14 +343,15 @@ begin
         // 插入新记录
         FQuery.Close;
         FQuery.SQL.Text :=
-          'INSERT INTO images (image_key, image_data, address_text, description) ' +
-          'VALUES (:key, :data, :addr, :desc)';
+          'INSERT INTO images (image_key, image_data, address_text, description, md5_hash) ' +
+          'VALUES (:key, :data, :addr, :desc, :md5)';
       end;
 
       FQuery.ParamByName('key').AsString := AImageKey;
       FQuery.ParamByName('data').AsBlob := BytesToRawByteString(EncryptedData);
       FQuery.ParamByName('addr').AsString := AAddressText;
       FQuery.ParamByName('desc').AsString := ADescription;
+      FQuery.ParamByName('md5').AsString := OriginalMD5;
       FQuery.ExecSQL;
       
       Result := True;
@@ -369,31 +373,42 @@ end;
 function TImageDatabase.LoadImageData(const AImageKey: string; out AImageData: TBytes): Boolean;
 var
   EncryptedData: TBytes;
+  ExpectedMD5: string;
 begin
   SetLength(AImageData, 0);
   Result := False;
-  
+
   try
     if not IsConnected then
     begin
       LogError('数据库未连接');
       Exit;
     end;
-    
-    FQuery.SQL.Text := 'SELECT image_data FROM images WHERE image_key = :key';
+
+    FQuery.SQL.Text := 'SELECT image_data, md5_hash FROM images WHERE image_key = :key';
     FQuery.ParamByName('key').AsString := AImageKey;
     FQuery.Open;
-    
+
     try
       if not FQuery.IsEmpty then
       begin
-        // 获取加密的数据
+        // 获取加密的数据和MD5
         EncryptedData := FQuery.FieldByName('image_data').AsBytes;
-        
+        ExpectedMD5 := FQuery.FieldByName('md5_hash').AsString;
+
         if Length(EncryptedData) > 0 then
         begin
           // 解密数据
-          AImageData := DecryptImageData(EncryptedData);
+          AImageData := TImageSecurity.DecryptImageData(EncryptedData);
+
+          // MD5校验
+          if not TImageSecurity.VerifyImageIntegrity(AImageData, ExpectedMD5) then
+          begin
+            LogError(Format('图像 %s MD5校验失败', [AImageKey]));
+            TImageSecurity.HandleSecurityViolation(AImageKey, 'MD5校验失败，图像数据可能被篡改');
+            Exit;
+          end;
+
           Result := Length(AImageData) > 0;
           
           if Result then
@@ -520,6 +535,7 @@ end;
 function TImageDatabase.LoadImageAndText(const AImageKey: string; out AImageData: TBytes; out AAddressText: string): Boolean;
 var
   EncryptedData: TBytes;
+  ExpectedMD5: string;
 begin
   SetLength(AImageData, 0);
   AAddressText := '';
@@ -532,22 +548,33 @@ begin
       Exit;
     end;
 
-    FQuery.SQL.Text := 'SELECT image_data, address_text FROM images WHERE image_key = :key';
+    FQuery.SQL.Text := 'SELECT image_data, address_text, md5_hash FROM images WHERE image_key = :key';
     FQuery.ParamByName('key').AsString := AImageKey;
     FQuery.Open;
 
     try
       if not FQuery.IsEmpty then
       begin
-        // 获取加密的数据
+        // 获取加密的数据和MD5
         EncryptedData := FQuery.FieldByName('image_data').AsBytes;
         AAddressText := FQuery.FieldByName('address_text').AsString;
+        ExpectedMD5 := FQuery.FieldByName('md5_hash').AsString;
 
         if Length(EncryptedData) > 0 then
         begin
           // 解密数据
-          AImageData := DecryptImageData(EncryptedData);
+          AImageData := TImageSecurity.DecryptImageData(EncryptedData);
+
+          // MD5校验
+          if not TImageSecurity.VerifyImageIntegrity(AImageData, ExpectedMD5) then
+          begin
+            LogError(Format('图像 %s MD5校验失败', [AImageKey]));
+            TImageSecurity.HandleSecurityViolation(AImageKey, 'MD5校验失败，图像数据可能被篡改');
+            Exit;
+          end;
+
           Result := Length(AImageData) > 0;
+          LogInfo(Format('图像 %s 加载并校验成功', [AImageKey]));
 
           if Result then
             LogInfo(Format('图像和文本加载成功: %s (%d 字节)', [AImageKey, Length(AImageData)]))
