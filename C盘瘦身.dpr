@@ -6,11 +6,10 @@ uses
   uSplash in 'uSplash.pas' {frmSplash},
   uMain in 'uMain.pas' {frmMain},
   uIconManager in 'uIconManager.pas',
-  // AboutMe安全模块
-  uBasicProtection in 'uBasicProtection.pas',
-  uSimpleSQLiteDB in 'uSimpleSQLiteDB.pas',
-  uSimpleSecureManager in 'uSimpleSecureManager.pas',
-  FrameAboutMe in 'FrameAboutMe.pas' {FrameAboutMe: TFrame};
+
+  FrameAboutMe in 'FrameAboutMe.pas' {FrameAboutMe: TFrame},
+  // 清理管理器
+  uCleanupManager in 'uCleanupManager.pas';
 
 {$R *.res}
 
@@ -31,6 +30,6 @@ begin
   Application.CreateForm(TfrmMain, frmMain);
   frmMain.Show; // 显式显示主窗体
 
-  // 进入消息循环；主窗体在 InitAfterShow 完成后关闭并释放 Splash
+  // 进入消息循环
   Application.Run;
 end.

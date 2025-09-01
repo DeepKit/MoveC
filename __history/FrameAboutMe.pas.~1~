@@ -1,0 +1,805 @@
+﻿unit FrameAboutMe;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
+  Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ComCtrls, Vcl.StdCtrls,
+  Vcl.ExtCtrls, System.NetEncoding, System.Hash,
+  Vcl.Clipbrd, System.IOUtils, uImageDatabase;
+
+type
+  // 打赏地址类型
+  TDonationAddressType = (datWechat, datAlipay, datBTC, datUSDT, datAboutMe);
+
+  TFrameAboutMe = class(TFrame)
+    pcAboutMe: TPageControl;
+    tsWechat: TTabSheet;
+    tsAlipay: TTabSheet;
+    tsBTC: TTabSheet;
+    tsUSDT: TTabSheet;
+    tsAboutMe: TTabSheet;
+    
+    // 微信页面
+    imgWechat: TImage;
+    lblWechatTip: TLabel;
+    lblWechatAddress: TLabel;
+
+    // 支付宝页面
+    imgAlipay: TImage;
+    lblAlipayTip: TLabel;
+    lblAlipayAddress: TLabel;
+
+    // BTC页面
+    imgBTC: TImage;
+    lblBTCTip: TLabel;
+    lblBTCAddress: TLabel;
+    btnCopyBTC: TButton;
+
+    // USDT页面
+    imgUSDT: TImage;
+    lblUSDTTip: TLabel;
+    lblUSDTAddress: TLabel;
+    btnCopyUSDT: TButton;
+
+    // 关于我页面
+    imgAboutMe: TImage;
+    lblAboutMeTip: TLabel;
+    lblMachineCode: TLabel;
+    lblMachineCodeValue: TLabel;
+    
+    procedure btnCopyBTCClick(Sender: TObject);
+    procedure btnCopyUSDTClick(Sender: TObject);
+    procedure lblMachineCodeValueClick(Sender: TObject);
+    procedure pcAboutMeDrawTab(Control: TCustomTabControl; TabIndex: Integer;
+      const Rect: TRect; Active: Boolean);
+    
+  private
+    FDatabase: TImageDatabase;
+    
+    // 硬编码备用地址
+    const
+      BACKUP_BTC_ADDRESS = 'bc1qze0ggsrdtjqwjpjfufydsuyjxc08tgcq5xkct3';
+      BACKUP_USDT_ADDRESS = 'TH1NazpoEpUqcEotGzLPHs13SbLDJKKCys';
+    
+    // 内部方法
+    procedure InitializeDatabase;
+    procedure CreateImagesDirectory;
+    procedure ClearImagesDirectory;
+    procedure LoadAndDecryptImages;
+    function LoadImageFromDatabase(const ImageKey: string): TBytes;
+    function LoadImageAndText(const ImageKey: string; out ImageData: TBytes; out AddressText: string): Boolean;
+    procedure SaveImageToDebugFolder(const ImageKey: string; const ImageData: TBytes);
+
+    // 加密解密方法（第1阶段为空实现）
+    function EncryptImageData(const ImageData: TBytes): TBytes;
+    function DecryptImageData(const EncryptedData: TBytes): TBytes;
+
+    // UI更新
+    procedure CopyAddressToClipboard(const Address: string; const AddressName: string);
+    function GenerateMachineCode: string;
+    procedure UpdateMachineCodeDisplay;
+    
+    // 日志记录
+    procedure LogMessage(const Msg: string);
+    
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    
+    // 公共接口
+    procedure RotateToNextPage;
+    function GetCurrentPageIndex: Integer;
+    procedure SetActivePage(PageIndex: Integer);
+  end;
+
+implementation
+
+{$R *.dfm}
+
+constructor TFrameAboutMe.Create(AOwner: TComponent);
+var
+  ForceLogFile: TextFile;
+begin
+  inherited Create(AOwner);
+
+  // 强制显示消息框确认Create被调用
+  try
+    MessageBox(0, 'FrameAboutMe.Create被调用了！', 'Frame调试', MB_OK);
+  except
+  end;
+
+  // 强制写入日志到固定文件，不依赖LogMessage
+  try
+    AssignFile(ForceLogFile, 'FRAME_CREATE_DEBUG.log');
+    Rewrite(ForceLogFile);
+    WriteLn(ForceLogFile, '=== FrameAboutMe.Create 开始执行 ===');
+    WriteLn(ForceLogFile, '时间: ' + DateTimeToStr(Now));
+    CloseFile(ForceLogFile);
+  except
+    // 如果连这个都失败，说明有严重问题
+  end;
+
+  // 初始化数据库
+  try
+    AssignFile(ForceLogFile, 'FRAME_CREATE_DEBUG.log');
+    Append(ForceLogFile);
+    WriteLn(ForceLogFile, '开始初始化数据库...');
+    CloseFile(ForceLogFile);
+  except
+  end;
+
+  InitializeDatabase;
+
+  // 强制显示消息框确认数据库初始化完成
+  try
+    MessageBox(0, '数据库初始化完成，即将加载图像', 'Frame调试', MB_OK);
+  except
+  end;
+
+  // 强制调用图像加载
+  try
+    AssignFile(ForceLogFile, 'FRAME_CREATE_DEBUG.log');
+    Append(ForceLogFile);
+    WriteLn(ForceLogFile, '强制调用LoadAndDecryptImages...');
+    CloseFile(ForceLogFile);
+
+    LoadAndDecryptImages;
+
+    AssignFile(ForceLogFile, 'FRAME_CREATE_DEBUG.log');
+    Append(ForceLogFile);
+    WriteLn(ForceLogFile, 'LoadAndDecryptImages调用完成');
+    CloseFile(ForceLogFile);
+  except
+    on E: Exception do
+    begin
+      MessageBox(0, PChar('LoadAndDecryptImages失败: ' + E.Message), '错误', MB_OK);
+      try
+        AssignFile(ForceLogFile, 'FRAME_CREATE_DEBUG.log');
+        Append(ForceLogFile);
+        WriteLn(ForceLogFile, 'LoadAndDecryptImages异常: ' + E.Message);
+        CloseFile(ForceLogFile);
+      except
+      end;
+    end;
+  end;
+
+  // 设置PageControl的OnDrawTab事件
+  pcAboutMe.OwnerDraw := True;
+  pcAboutMe.OnDrawTab := pcAboutMeDrawTab;
+
+  // 更新机器码显示
+  UpdateMachineCodeDisplay;
+
+  // 创建和清空images目录
+  CreateImagesDirectory;
+  ClearImagesDirectory;
+
+  // 从数据库加载并解密图像
+  LoadAndDecryptImages;
+
+  LogMessage('FrameAboutMe: 初始化完成');
+end;
+
+destructor TFrameAboutMe.Destroy;
+begin
+  if Assigned(FDatabase) then
+    FDatabase.Free;
+  inherited;
+end;
+
+procedure TFrameAboutMe.InitializeDatabase;
+var
+  DatabasePath: string;
+begin
+  try
+    LogMessage('FrameAboutMe: 开始初始化数据库');
+
+    // 使用项目根目录下的MoveC.db
+    DatabasePath := TImageDatabase.GetProjectDatabasePath;
+    LogMessage('数据库路径: ' + DatabasePath);
+
+    try
+      // 创建数据库连接
+      if Assigned(FDatabase) then
+        FDatabase.Free;
+
+      FDatabase := TImageDatabase.Create(DatabasePath);
+      if FDatabase.Connect then
+      begin
+        LogMessage('数据库连接成功: ' + DatabasePath);
+      end
+      else
+      begin
+        LogMessage('数据库连接失败: ' + DatabasePath);
+        if Assigned(FDatabase) then
+        begin
+          FDatabase.Free;
+          FDatabase := nil;
+        end;
+      end;
+    except
+      on E: Exception do
+      begin
+        LogMessage('数据库连接异常: ' + DatabasePath + ' - ' + E.Message);
+        if Assigned(FDatabase) then
+        begin
+          FDatabase.Free;
+          FDatabase := nil;
+        end;
+      end;
+    end;
+
+    LogMessage('FrameAboutMe: 数据库初始化完成');
+  except
+    on E: Exception do
+    begin
+      LogMessage('数据库初始化失败: ' + E.Message);
+      if Assigned(FDatabase) then
+      begin
+        FDatabase.Free;
+        FDatabase := nil;
+      end;
+    end;
+  end;
+end;
+
+procedure TFrameAboutMe.CreateImagesDirectory;
+var
+  ImagesPath: string;
+begin
+  ImagesPath := ExtractFilePath(ParamStr(0)) + 'images';
+  if not TDirectory.Exists(ImagesPath) then
+  begin
+    TDirectory.CreateDirectory(ImagesPath);
+    LogMessage('创建images目录: ' + ImagesPath);
+  end;
+end;
+
+procedure TFrameAboutMe.ClearImagesDirectory;
+var
+  ImagesPath: string;
+  Files: TArray<string>;
+  FileName: string;
+begin
+  ImagesPath := ExtractFilePath(ParamStr(0)) + 'images';
+  if TDirectory.Exists(ImagesPath) then
+  begin
+    Files := TDirectory.GetFiles(ImagesPath);
+    for FileName in Files do
+    begin
+      TFile.Delete(FileName);
+    end;
+    LogMessage('清空images目录');
+  end;
+end;
+
+
+
+function TFrameAboutMe.LoadImageFromDatabase(const ImageKey: string): TBytes;
+begin
+  SetLength(Result, 0);
+
+  try
+    // 检查数据库是否可用
+    if not Assigned(FDatabase) then
+    begin
+      LogMessage('数据库未初始化，跳过数据库加载: ' + ImageKey);
+      Exit;
+    end;
+
+    // 直接从新的数据库类加载解密后的数据
+    if FDatabase.LoadImageData(ImageKey, Result) then
+    begin
+      LogMessage(Format('图像已从数据库加载: %s (%d 字节)', [ImageKey, Length(Result)]));
+    end
+    else
+    begin
+      LogMessage('数据库中未找到图像: ' + ImageKey);
+    end;
+  except
+    on E: Exception do
+    begin
+      LogMessage(Format('从数据库加载图像失败: %s - %s', [ImageKey, E.Message]));
+      SetLength(Result, 0);
+    end;
+  end;
+end;
+
+function TFrameAboutMe.LoadImageAndText(const ImageKey: string; out ImageData: TBytes; out AddressText: string): Boolean;
+begin
+  SetLength(ImageData, 0);
+  AddressText := '';
+  Result := False;
+
+  try
+    // 检查数据库是否可用
+    if not Assigned(FDatabase) then
+    begin
+      LogMessage('数据库未初始化，跳过: ' + ImageKey);
+      Exit;
+    end;
+
+    // 从数据库加载图像和文本
+    Result := FDatabase.LoadImageAndText(ImageKey, ImageData, AddressText);
+    if Result then
+    begin
+      LogMessage(Format('图像和文本加载成功: %s (%d 字节, 文本: %s)', [ImageKey, Length(ImageData), AddressText]));
+    end
+    else
+    begin
+      LogMessage('数据库中未找到图像和文本: ' + ImageKey);
+    end;
+  except
+    on E: Exception do
+    begin
+      LogMessage(Format('加载图像和文本失败: %s - %s', [ImageKey, E.Message]));
+      SetLength(ImageData, 0);
+      AddressText := '';
+      Result := False;
+    end;
+  end;
+end;
+
+function TFrameAboutMe.EncryptImageData(const ImageData: TBytes): TBytes;
+begin
+  // 第1阶段：不加密，直接返回原数据
+  Result := ImageData;
+  // TODO: 第2阶段将实现真正的加密功能
+end;
+
+function TFrameAboutMe.DecryptImageData(const EncryptedData: TBytes): TBytes;
+begin
+  // 第1阶段：不解密，直接返回原数据
+  Result := EncryptedData;
+  // TODO: 第2阶段将实现真正的解密功能
+end;
+
+procedure TFrameAboutMe.LoadAndDecryptImages;
+var
+  ImageData: TBytes;
+  MemoryStream: TMemoryStream;
+  ImageMappings: array[0..4] of record
+    Key: string;
+    Image: TImage;
+    AddressLabel: TLabel;
+    DefaultAddress: string;
+  end;
+  I: Integer;
+  AddressText: string;
+  ForceLogFile: TextFile;
+begin
+  try
+    // 强制写入日志
+    try
+      AssignFile(ForceLogFile, 'FORCE_DEBUG.log');
+      Append(ForceLogFile);
+      WriteLn(ForceLogFile, '=== LoadAndDecryptImages 开始执行 ===');
+      CloseFile(ForceLogFile);
+    except
+    end;
+
+    LogMessage('开始从数据库加载图像...');
+
+    // 定义图像映射
+    ImageMappings[0].Key := 'wechat';
+    ImageMappings[0].Image := imgWechat;
+    ImageMappings[0].AddressLabel := lblWechatAddress;
+    ImageMappings[0].DefaultAddress := '微信收款码';
+
+    ImageMappings[1].Key := 'alipay';
+    ImageMappings[1].Image := imgAlipay;
+    ImageMappings[1].AddressLabel := lblAlipayAddress;
+    ImageMappings[1].DefaultAddress := '支付宝收款码';
+
+    ImageMappings[2].Key := 'btc';
+    ImageMappings[2].Image := imgBTC;
+    ImageMappings[2].AddressLabel := lblBTCAddress;
+    ImageMappings[2].DefaultAddress := BACKUP_BTC_ADDRESS;
+
+    ImageMappings[3].Key := 'usdt';
+    ImageMappings[3].Image := imgUSDT;
+    ImageMappings[3].AddressLabel := lblUSDTAddress;
+    ImageMappings[3].DefaultAddress := BACKUP_USDT_ADDRESS;
+
+    ImageMappings[4].Key := 'aboutme';
+    ImageMappings[4].Image := imgAboutMe;
+    ImageMappings[4].AddressLabel := nil; // 关于我页面没有地址标签
+    ImageMappings[4].DefaultAddress := '';
+
+    // 验证ImageMappings数组
+    try
+      AssignFile(ForceLogFile, 'FORCE_DEBUG.log');
+      Append(ForceLogFile);
+      WriteLn(ForceLogFile, '=== 验证ImageMappings数组 ===');
+      for I := 0 to 4 do
+      begin
+        WriteLn(ForceLogFile, Format('ImageMappings[%d].Key = %s', [I, ImageMappings[I].Key]));
+        WriteLn(ForceLogFile, Format('ImageMappings[%d].Image = %s', [I, BoolToStr(Assigned(ImageMappings[I].Image), True)]));
+        if Assigned(ImageMappings[I].Image) then
+          WriteLn(ForceLogFile, Format('ImageMappings[%d].Image.Name = %s', [I, ImageMappings[I].Image.Name]));
+      end;
+      CloseFile(ForceLogFile);
+    except
+    end;
+
+    // 强制显示消息框确认数组初始化
+    MessageBox(0, 'ImageMappings数组已初始化，开始加载图像', '调试', MB_OK);
+
+    // 加载图像和文本
+    for I := 0 to High(ImageMappings) do
+    begin
+      LogMessage(Format('处理图像 %d: %s', [I, ImageMappings[I].Key]));
+
+      // 特殊处理：第一个图像（微信）直接从文件加载，用于对比测试
+      if I = 0 then // 微信图像
+      begin
+        // 强制日志
+        try
+          AssignFile(ForceLogFile, 'FORCE_DEBUG.log');
+          Append(ForceLogFile);
+          WriteLn(ForceLogFile, '=== 开始处理微信图像 ===');
+          CloseFile(ForceLogFile);
+        except
+        end;
+
+        LogMessage('微信图像：直接从assets文件加载（对比测试）');
+        try
+          var FilePath := ExtractFilePath(Application.ExeName) + 'assets\wechat.png';
+
+          // 强制日志文件路径
+          try
+            AssignFile(ForceLogFile, 'FORCE_DEBUG.log');
+            Append(ForceLogFile);
+            WriteLn(ForceLogFile, '文件路径: ' + FilePath);
+            WriteLn(ForceLogFile, '当前目录: ' + GetCurrentDir);
+            WriteLn(ForceLogFile, '程序路径: ' + ExtractFilePath(Application.ExeName));
+            CloseFile(ForceLogFile);
+          except
+          end;
+
+          LogMessage('尝试加载文件: ' + FilePath);
+          LogMessage('文件存在检查: ' + BoolToStr(TFile.Exists(FilePath), True));
+
+          if TFile.Exists(FilePath) then
+          begin
+            // 强制显示消息框确认文件存在
+            MessageBox(0, PChar('微信文件存在，开始加载: ' + FilePath), '调试', MB_OK);
+
+            LogMessage('开始加载图像到TImage控件...');
+            LogMessage('Image控件地址: ' + IntToHex(NativeInt(ImageMappings[I].Image), 8));
+            LogMessage('Image控件已分配: ' + BoolToStr(Assigned(ImageMappings[I].Image), True));
+
+            if Assigned(ImageMappings[I].Image) then
+            begin
+              MessageBox(0, 'Image控件已分配，开始加载图像', '调试', MB_OK);
+
+              ImageMappings[I].Image.Picture.LoadFromFile(FilePath);
+              LogMessage('从文件加载微信图像成功');
+              LogMessage('图像尺寸: ' + IntToStr(ImageMappings[I].Image.Picture.Width) + 'x' + IntToStr(ImageMappings[I].Image.Picture.Height));
+
+              // 强制显示消息框确认加载完成
+              MessageBox(0, PChar('微信图像加载完成！尺寸: ' + IntToStr(ImageMappings[I].Image.Picture.Width) + 'x' + IntToStr(ImageMappings[I].Image.Picture.Height)), '调试', MB_OK);
+
+              // 强制刷新显示
+              ImageMappings[I].Image.Invalidate;
+              ImageMappings[I].Image.Repaint;
+              ImageMappings[I].Image.Update;
+
+              // 设置微信地址文本
+              if Assigned(ImageMappings[I].AddressLabel) then
+              begin
+                ImageMappings[I].AddressLabel.Caption := '微信收款码（文件加载）';
+                LogMessage('微信地址文本已设置');
+              end
+              else
+                LogMessage('微信地址标签未分配');
+            end
+            else
+              LogMessage('错误：Image控件未分配！');
+          end
+          else
+          begin
+            LogMessage('微信图像文件不存在: ' + FilePath);
+            if Assigned(ImageMappings[I].AddressLabel) then
+              ImageMappings[I].AddressLabel.Caption := '微信图像文件未找到';
+          end;
+        except
+          on E: Exception do
+          begin
+            LogMessage('加载微信图像文件失败: ' + E.Message);
+            LogMessage('异常类型: ' + E.ClassName);
+            if Assigned(ImageMappings[I].AddressLabel) then
+              ImageMappings[I].AddressLabel.Caption := '微信图像加载失败: ' + E.Message;
+          end;
+        end;
+        Continue; // 跳过数据库处理
+      end;
+
+      // 其他图像从数据库加载
+      // 检查数据库是否可用
+      if not Assigned(FDatabase) then
+      begin
+        LogMessage('数据库未初始化，跳过: ' + ImageMappings[I].Key);
+        // 设置默认文本
+        if Assigned(ImageMappings[I].AddressLabel) then
+          ImageMappings[I].AddressLabel.Caption := ImageMappings[I].DefaultAddress;
+        Continue;
+      end;
+
+      // 从数据库加载图像和地址文本
+      if LoadImageAndText(ImageMappings[I].Key, ImageData, AddressText) then
+      begin
+        try
+          // 加载图像
+          MemoryStream := TMemoryStream.Create;
+          try
+            MemoryStream.WriteBuffer(ImageData[0], Length(ImageData));
+            MemoryStream.Position := 0;
+            ImageMappings[I].Image.Picture.LoadFromStream(MemoryStream);
+            LogMessage('从数据库加载图像成功: ' + ImageMappings[I].Key);
+          finally
+            MemoryStream.Free;
+          end;
+
+          // 设置地址文本
+          if Assigned(ImageMappings[I].AddressLabel) then
+          begin
+            if AddressText <> '' then
+              ImageMappings[I].AddressLabel.Caption := AddressText
+            else
+              ImageMappings[I].AddressLabel.Caption := ImageMappings[I].DefaultAddress;
+          end;
+
+        except
+          on E: Exception do
+          begin
+            LogMessage('显示图像失败: ' + ImageMappings[I].Key + ' - ' + E.Message);
+            // 设置默认文本
+            if Assigned(ImageMappings[I].AddressLabel) then
+              ImageMappings[I].AddressLabel.Caption := ImageMappings[I].DefaultAddress;
+          end;
+        end;
+      end
+      else
+      begin
+        LogMessage('数据库中未找到图像: ' + ImageMappings[I].Key);
+        // 设置默认文本
+        if Assigned(ImageMappings[I].AddressLabel) then
+          ImageMappings[I].AddressLabel.Caption := ImageMappings[I].DefaultAddress;
+      end;
+    end;
+    
+    // 设置地址标签
+    lblBTCAddress.Caption := BACKUP_BTC_ADDRESS;
+    lblUSDTAddress.Caption := BACKUP_USDT_ADDRESS;
+    lblWechatTip.Caption := '微信收款码';
+    lblAlipayTip.Caption := '支付宝收款码';
+    lblBTCTip.Caption := 'BTC打赏地址';
+    lblUSDTTip.Caption := 'USDT打赏地址（波场链TRON）';
+    lblAboutMeTip.Caption := 'C盘瘦身工具' + #13#10 + '开发者: 好记忆管理工作室' + #13#10 + 
+                             '官网: www.goodmem.cn';
+    
+    LogMessage('所有图像加载完成');
+  except
+    on E: Exception do
+      LogMessage('加载图像失败: ' + E.Message);
+  end;
+end;
+
+procedure TFrameAboutMe.SaveImageToDebugFolder(const ImageKey: string; const ImageData: TBytes);
+var
+  DebugPath: string;
+  FileStream: TFileStream;
+  FileExt: string;
+begin
+  try
+    if Length(ImageData) = 0 then Exit;
+    
+    // 根据图像数据头部确定文件扩展名
+    FileExt := '.bin'; // 默认扩展名
+    
+    if Length(ImageData) >= 8 then
+    begin
+      // PNG文件头: 89 50 4E 47 0D 0A 1A 0A
+      if (ImageData[0] = $89) and (ImageData[1] = $50) and (ImageData[2] = $4E) and (ImageData[3] = $47) then
+        FileExt := '.png'
+      // JPEG文件头: FF D8 FF
+      else if (ImageData[0] = $FF) and (ImageData[1] = $D8) and (ImageData[2] = $FF) then
+        FileExt := '.jpg'
+      // GIF文件头: 47 49 46 38
+      else if (ImageData[0] = $47) and (ImageData[1] = $49) and (ImageData[2] = $46) and (ImageData[3] = $38) then
+        FileExt := '.gif'
+      // BMP文件头: 42 4D
+      else if (ImageData[0] = $42) and (ImageData[1] = $4D) then
+        FileExt := '.bmp';
+    end;
+    
+    DebugPath := ExtractFilePath(ParamStr(0)) + 'images\' + ImageKey + '_decrypted' + FileExt;
+    FileStream := TFileStream.Create(DebugPath, fmCreate);
+    try
+      FileStream.WriteBuffer(ImageData[0], Length(ImageData));
+      LogMessage('调试图像已保存: ' + DebugPath);
+    finally
+      FileStream.Free;
+    end;
+  except
+    on E: Exception do
+      LogMessage('保存调试图像失败: ' + ImageKey + ' - ' + E.Message);
+  end;
+end;
+
+procedure TFrameAboutMe.btnCopyBTCClick(Sender: TObject);
+begin
+  CopyAddressToClipboard(BACKUP_BTC_ADDRESS, 'BTC地址');
+end;
+
+procedure TFrameAboutMe.btnCopyUSDTClick(Sender: TObject);
+begin
+  CopyAddressToClipboard(BACKUP_USDT_ADDRESS, 'USDT地址');
+end;
+
+procedure TFrameAboutMe.CopyAddressToClipboard(const Address: string; const AddressName: string);
+begin
+  try
+    Clipboard.AsText := Address;
+    LogMessage(Format('%s已复制到剪贴板', [AddressName]));
+  except
+    on E: Exception do
+      LogMessage(Format('复制%s失败: %s', [AddressName, E.Message]));
+  end;
+end;
+
+procedure TFrameAboutMe.RotateToNextPage;
+var
+  NextIndex: Integer;
+begin
+  NextIndex := (pcAboutMe.ActivePageIndex + 1) mod pcAboutMe.PageCount;
+  pcAboutMe.ActivePageIndex := NextIndex;
+  LogMessage(Format('切换到页面 %d', [NextIndex]));
+end;
+
+function TFrameAboutMe.GetCurrentPageIndex: Integer;
+begin
+  Result := pcAboutMe.ActivePageIndex;
+end;
+
+procedure TFrameAboutMe.SetActivePage(PageIndex: Integer);
+begin
+  if (PageIndex >= 0) and (PageIndex < pcAboutMe.PageCount) then
+  begin
+    pcAboutMe.ActivePageIndex := PageIndex;
+    LogMessage(Format('设置活动页面为 %d', [PageIndex]));
+  end;
+end;
+
+function TFrameAboutMe.GenerateMachineCode: string;
+var
+  ComputerName: array[0..MAX_COMPUTERNAME_LENGTH] of Char;
+  Size: DWORD;
+  HashValue: string;
+begin
+  try
+    Size := SizeOf(ComputerName);
+    if GetComputerName(ComputerName, Size) then
+    begin
+      HashValue := THashSHA2.GetHashString(string(ComputerName) + IntToStr(GetTickCount64), SHA256);
+      Result := Copy(HashValue, 1, 16).ToUpper;
+      Result := Copy(Result, 1, 4) + '-' + Copy(Result, 5, 4) + '-' + 
+                Copy(Result, 9, 4) + '-' + Copy(Result, 13, 4);
+    end
+    else
+      Result := 'ERROR-GENE-RATE-CODE';
+  except
+    Result := 'ERROR-GENE-RATE-CODE';
+  end;
+end;
+
+procedure TFrameAboutMe.UpdateMachineCodeDisplay;
+begin
+  try
+    lblMachineCodeValue.Caption := GenerateMachineCode;
+    lblMachineCodeValue.Hint := '点击复制机器码到剪贴板';
+  except
+    lblMachineCodeValue.Caption := 'ERROR-DISPLAY';
+  end;
+end;
+
+procedure TFrameAboutMe.lblMachineCodeValueClick(Sender: TObject);
+begin
+  try
+    Clipboard.AsText := lblMachineCodeValue.Caption;
+    ShowMessage('机器码已复制到剪贴板: ' + lblMachineCodeValue.Caption);
+    LogMessage('机器码已复制到剪贴板: ' + lblMachineCodeValue.Caption);
+  except
+    on E: Exception do
+    begin
+      LogMessage('复制机器码失败: ' + E.Message);
+      ShowMessage('复制机器码失败: ' + E.Message);
+    end;
+  end;
+end;
+
+procedure TFrameAboutMe.pcAboutMeDrawTab(Control: TCustomTabControl; TabIndex: Integer;
+  const Rect: TRect; Active: Boolean);
+var
+  TabControl: TPageControl;
+  Canvas: TCanvas;
+  TabRect: TRect;
+  TextRect: TRect;
+  TabText: string;
+  ActiveColor, InactiveColor, TextColor: TColor;
+begin
+  TabControl := Control as TPageControl;
+  Canvas := TabControl.Canvas;
+  TabRect := Rect;
+
+  // 设置颜色
+  ActiveColor := $FF6B35;  // 橙色高亮
+  InactiveColor := clBtnFace;
+  TextColor := clWindowText;
+
+  // 绘制tab背景
+  if Active then
+  begin
+    Canvas.Brush.Color := ActiveColor;
+    Canvas.Pen.Color := ActiveColor;
+    Canvas.FillRect(TabRect);
+    Canvas.Pen.Color := RGB(255, 255, 255);
+    Canvas.Pen.Width := 2;
+    Canvas.MoveTo(TabRect.Left, TabRect.Top);
+    Canvas.LineTo(TabRect.Right, TabRect.Top);
+  end
+  else
+  begin
+    Canvas.Brush.Color := InactiveColor;
+    Canvas.Pen.Color := InactiveColor;
+    Canvas.FillRect(TabRect);
+  end;
+
+  // 绘制tab文本
+  if (TabIndex >= 0) and (TabIndex < TabControl.PageCount) then
+  begin
+    TabText := TabControl.Pages[TabIndex].Caption;
+    Canvas.Brush.Style := bsClear;
+    Canvas.Font.Color := TextColor;
+
+    if Active then
+    begin
+      Canvas.Font.Style := [fsBold];
+      Canvas.Font.Color := clWhite;
+    end
+    else
+    begin
+      Canvas.Font.Style := [];
+    end;
+
+    TextRect := TabRect;
+    DrawText(Canvas.Handle, PChar(TabText), Length(TabText), TextRect,
+             DT_CENTER or DT_VCENTER or DT_SINGLELINE);
+  end;
+end;
+
+procedure TFrameAboutMe.LogMessage(const Msg: string);
+var
+  LogFile: TextFile;
+  LogFileName: string;
+  FullMsg: string;
+begin
+  FullMsg := Format('[%s] FrameAboutMe: %s', [TimeToStr(Now), Msg]);
+
+  OutputDebugString(PChar(FullMsg));
+
+  // 强制写入日志，不忽略异常
+  LogFileName := ExtractFilePath(ParamStr(0)) + 'aboutme_debug.log';
+  AssignFile(LogFile, LogFileName);
+  if FileExists(LogFileName) then
+    Append(LogFile)
+  else
+    Rewrite(LogFile);
+
+  WriteLn(LogFile, FullMsg);
+  CloseFile(LogFile);
+end;
+
+end.

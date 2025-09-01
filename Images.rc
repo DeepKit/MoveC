@@ -1,0 +1,15 @@
+// 图像资源文件
+// 包含所有支付二维码和开发者照片
+
+// PNG 图像
+WECHAT   PNG   "placeholder_wechat.png"
+ALIPAY   PNG   "placeholder_alipay.png"  
+BTC      PNG   "placeholder_btc.png"
+
+// JPG 图像
+USDT     JPG   "placeholder_usdt.jpg"
+ABOUTME  JPG   "placeholder_aboutme.jpg"
+
+// 如果有USDT_TP图像，也可以添加
+// USDT_TP  PNG   "placeholder_usdt_tp.png"
+

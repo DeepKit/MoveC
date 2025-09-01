@@ -16,8 +16,6 @@ object FrameAboutMe: TFrameAboutMe
     ActivePage = tsWechat
     Align = alClient
     TabOrder = 0
-    ExplicitWidth = 1740
-    ExplicitHeight = 500
     object tsWechat: TTabSheet
       Margins.Left = 6
       Margins.Top = 6
@@ -52,15 +50,18 @@ object FrameAboutMe: TFrameAboutMe
         Font.Style = []
         ParentFont = False
       end
-      object imgWechat: TSkAnimatedImage
-        Left = 16
-        Top = 16
+      object imgWechat: TImage
+        Left = 20
+        Top = 6
         Width = 120
         Height = 120
         Margins.Left = 6
         Margins.Top = 6
         Margins.Right = 6
         Margins.Bottom = 6
+        Center = True
+        Proportional = True
+        Stretch = True
       end
     end
     object tsAlipay: TTabSheet
@@ -98,7 +99,7 @@ object FrameAboutMe: TFrameAboutMe
         Font.Style = []
         ParentFont = False
       end
-      object imgAlipay: TSkAnimatedImage
+      object imgAlipay: TImage
         Left = 16
         Top = 16
         Width = 120
@@ -107,6 +108,9 @@ object FrameAboutMe: TFrameAboutMe
         Margins.Top = 6
         Margins.Right = 6
         Margins.Bottom = 6
+        Center = True
+        Proportional = True
+        Stretch = True
       end
     end
     object tsBTC: TTabSheet
@@ -119,7 +123,7 @@ object FrameAboutMe: TFrameAboutMe
       object lblBTCTip: TLabel
         Left = 152
         Top = 16
-        Width = 72
+        Width = 71
         Height = 15
         Margins.Left = 6
         Margins.Top = 6
@@ -144,7 +148,7 @@ object FrameAboutMe: TFrameAboutMe
         Font.Style = []
         ParentFont = False
       end
-      object imgBTC: TSkAnimatedImage
+      object imgBTC: TImage
         Left = 16
         Top = 16
         Width = 120
@@ -153,6 +157,9 @@ object FrameAboutMe: TFrameAboutMe
         Margins.Top = 6
         Margins.Right = 6
         Margins.Bottom = 6
+        Center = True
+        Proportional = True
+        Stretch = True
       end
       object btnCopyBTC: TButton
         Left = 152
@@ -178,7 +185,7 @@ object FrameAboutMe: TFrameAboutMe
       object lblUSDTTip: TLabel
         Left = 152
         Top = 16
-        Width = 120
+        Width = 118
         Height = 15
         Margins.Left = 6
         Margins.Top = 6
@@ -203,7 +210,7 @@ object FrameAboutMe: TFrameAboutMe
         Font.Style = []
         ParentFont = False
       end
-      object imgUSDT: TSkAnimatedImage
+      object imgUSDT: TImage
         Left = 16
         Top = 16
         Width = 120
@@ -212,6 +219,9 @@ object FrameAboutMe: TFrameAboutMe
         Margins.Top = 6
         Margins.Right = 6
         Margins.Bottom = 6
+        Center = True
+        Proportional = True
+        Stretch = True
       end
       object btnCopyUSDT: TButton
         Left = 152
@@ -290,7 +300,7 @@ object FrameAboutMe: TFrameAboutMe
         ParentFont = False
         OnClick = lblMachineCodeValueClick
       end
-      object imgAboutMe: TSkAnimatedImage
+      object imgAboutMe: TImage
         Left = 16
         Top = 16
         Width = 120
@@ -299,7 +309,31 @@ object FrameAboutMe: TFrameAboutMe
         Margins.Top = 6
         Margins.Right = 6
         Margins.Bottom = 6
+        Center = True
+        Proportional = True
+        Stretch = True
       end
     end
+  end
+  object FDConnection1: TFDConnection
+    Params.Strings = (
+      'DriverID=SQLite')
+    Connected = False
+    LoginPrompt = False
+    Left = 272
+    Top = 115
+  end
+  object FDPhysSQLiteDriverLink1: TFDPhysSQLiteDriverLink
+    Left = 368
+    Top = 115
+  end
+  object FDTable1: TFDTable
+    Active = False
+    IndexFieldNames = 'id'
+    Connection = FDConnection1
+    ResourceOptions.AssignedValues = [rvEscapeExpand]
+    TableName = 'images'
+    Left = 264
+    Top = 219
   end
 end
