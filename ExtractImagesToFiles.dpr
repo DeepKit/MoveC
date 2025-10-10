@@ -5,35 +5,35 @@ program ExtractImagesToFiles;
 uses
   System.SysUtils,
   System.IOUtils,
-  uSQLiteDB;
+  uImageDatabase;
 
 var
-  DB: TSQLiteDatabase;
+  Database: TImageDatabase;
   ImageData: TBytes;
-  ImageKeys: array[0..4] of string = ('WECHAT', 'ALIPAY', 'BTC', 'USDT', 'ABOUTME');
-  Extensions: array[0..4] of string = ('.png', '.png', '.png', '.jpg', '.jpg');
+  ImageKeys: array[0..4] of string = ('wechat', 'alipay', 'btc', 'usdt', 'aboutme');
+  Extensions: array[0..4] of string = ('.png', '.png', '.png', '.png', '.jpg');
   i: Integer;
   FileName: string;
-  DBPath: string;
+  DatabasePath: string;
 
 begin
   try
     WriteLn('正在从数据库提取图像文件...');
     
-    // 数据库路径
-    DBPath := TPath.Combine(ExtractFilePath(ParamStr(0)), 'data.db');
+    // 统一使用项目根目录下的数据库（MoveC.db）
+    DatabasePath := TImageDatabase.GetProjectDatabasePath;
     
-    if not TFile.Exists(DBPath) then
+    if not TFile.Exists(DatabasePath) then
     begin
-      WriteLn('错误：找不到数据库文件: ' + DBPath);
+      WriteLn('错误：找不到数据库文件: ' + DatabasePath);
       Exit;
     end;
     
-    // 创建数据库连接
-    DB := TSQLiteDatabase.Create(DBPath);
+    // 创建数据库连接（FireDAC 封装）
+    Database := TImageDatabase.Create(DatabasePath);
     
     try
-      if not DB.Connect then
+      if not Database.Connect then
       begin
         WriteLn('错误：无法连接到数据库');
         Exit;
@@ -41,12 +41,12 @@ begin
       
       WriteLn('数据库连接成功');
       
-      // 提取每个图像
+      // 提取每个图像（统一小写键）
       for i := 0 to Length(ImageKeys) - 1 do
       begin
         WriteLn('正在提取: ' + ImageKeys[i]);
         
-        if DB.LoadImageData(ImageKeys[i], ImageData) then
+        if Database.LoadImageData(ImageKeys[i], ImageData) then
         begin
           FileName := ImageKeys[i] + Extensions[i];
           TFile.WriteAllBytes(FileName, ImageData);
@@ -61,7 +61,7 @@ begin
       WriteLn('图像提取完成！');
       
     finally
-      DB.Free;
+      Database.Free;
     end;
     
   except
@@ -72,4 +72,3 @@ begin
   WriteLn('按回车键退出...');
   ReadLn;
 end.
-

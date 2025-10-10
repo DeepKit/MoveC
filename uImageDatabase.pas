@@ -60,7 +60,7 @@ begin
     Move(ABytes[0], Result[1], Length(ABytes));
 end;
 
-constructor TImageDatabase.Create(const ADatabasePath: string; const APassword: string);
+constructor TImageDatabase.Create(const ADatabasePath: string; const APassword: string = '');
 begin
   inherited Create;
   FDatabasePath := ADatabasePath;

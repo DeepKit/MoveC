@@ -367,13 +367,10 @@ begin
       // 关键：加载并验证数据，失败时显示警告但继续运行
       if not FSecureManager.LoadAndVerify(FFrameAboutMe) then
       begin
-        ShowChineseMessage('程序数据完整性验证失败，但将继续运行。' + sLineBreak +
-                          '建议访问 www.goodmem.cn 下载正版软件。');
-        // 暂时不退出程序，继续运行
-        // FSecureManager.ShowTamperAlertAndRedirect('http://www.goodmem.cn');
-        // Application.Terminate;
-        // Exit;
-        OutputDebugString(PChar('AboutMe模块验证失败但继续运行'));
+        ShowChineseMessage('程序数据完整性验证失败，程序将退出以确保安全。即将打开官网获取正版。');
+        ShellExecute(Handle, 'open', 'http://www.goodmem.cn', nil, nil, SW_SHOWNORMAL);
+        Application.Terminate;
+        Exit;
       end
       else
       begin
