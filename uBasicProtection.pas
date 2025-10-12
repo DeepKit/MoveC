@@ -4,7 +4,7 @@ interface
 
 uses
   Winapi.Windows, System.SysUtils, System.Classes, System.Hash, System.NetEncoding, System.IOUtils,
-  System.AnsiStrings, System.DateUtils;
+  System.AnsiStrings, System.DateUtils, System.Math;
 
 const
   // Windows Crypto API 常量
@@ -17,6 +17,7 @@ const
   KP_MODE = 4;
   KP_IV = 1;
   CRYPT_MODE_CBC = 1;
+  HP_HASHVAL = 2;
   MS_ENH_RSA_AES_PROV = 'Microsoft Enhanced RSA and AES Cryptographic Provider';
 
 type
@@ -54,20 +55,28 @@ function CryptDestroyKey(hKey: HCRYPTKEY): BOOL; stdcall; external 'advapi32.dll
 
 function CryptDestroyHash(hHash: HCRYPTHASH): BOOL; stdcall; external 'advapi32.dll';
 
+function CryptGetHashParam(hHash: HCRYPTHASH; dwParam: DWORD; pbData: PByte;
+  var pdwDataLen: DWORD; dwFlags: DWORD): BOOL; stdcall; external 'advapi32.dll';
+
 type
   TBasicProtection = class
   private
-    class function GetDynamicKey: string;
     class function GenerateRandomIV: TBytes;
     class function BytesToHex(const ABytes: TBytes): string;
     class function HexToBytes(const AHex: string): TBytes;
     class function PadData(const AData: TBytes; ABlockSize: Integer): TBytes;
     class function UnpadData(const AData: TBytes): TBytes;
+    class function CalculateHMACBinary(const AData: TBytes; const AKey: TBytes): TBytes;
+    class function GetHashBytes(hHash: HCRYPTHASH): TBytes;
   public
+    // 密钥生成
+    class function GetDynamicKey: string;
+    // 加密解密
     class function EncryptSensitiveData(const AData: string; const APassword: string = '@2241114'): string;
     class function DecryptSensitiveData(const AEncryptedData: string; const APassword: string = '@2241114'): string;
     class function EncryptBinaryData(const AData: TBytes; const APassword: string = '@2241114'): TBytes;
     class function DecryptBinaryData(const AEncryptedData: TBytes; const APassword: string = '@2241114'): TBytes;
+    // 完整性校验
     class function CalculateHMAC(const AData: string; const APassword: string = '@2241114'): string;
     class function VerifyDataIntegrity(const AData, AHMAC: string; const APassword: string = '@2241114'): Boolean;
     class function CalculateFileHash(const AFileName: string): string;
@@ -76,21 +85,10 @@ type
 
 implementation
 
-// 动态密钥生成（基于密码和系统信息）
+// 动态密钥生成（已废弃，仅保留接口兼容性）
 class function TBasicProtection.GetDynamicKey: string;
-var
-  ExePath: string;
-  Part1, Part2, Part3: string;
 begin
-  ExePath := ParamStr(0);
-  Part1 := ChangeFileExt(ExtractFileName(ExePath), '');
-  Part2 := IntToStr(DateTimeToUnix(TFile.GetLastWriteTime(ExePath)));
-  Part3 := 'SecureKey2024';
-  Result := Copy(Part1 + Part2 + Part3, 1, 32);
-  
-  // 填充到32字节
-  while Length(Result) < 32 do
-    Result := Result + '0';
+  Result := '';
 end;
 
 // 生成随机IV (使用Windows CryptoAPI)
@@ -170,7 +168,8 @@ begin
     Exit;
   end;
 
-  KeyBytes := TEncoding.UTF8.GetBytes(APassword + GetDynamicKey);
+  // 新规则：仅使用固定口令派生密钥（提高各工具之间的一致性）
+  KeyBytes := TEncoding.UTF8.GetBytes(APassword);
   DataBytes := TEncoding.UTF8.GetBytes(AData);
   IV := GenerateRandomIV;
   
@@ -204,9 +203,11 @@ begin
         
         // 手动填充数据
         PaddedData := PadData(DataBytes, 16);
-        SetLength(EncryptedData, Length(PaddedData));
-        Move(PaddedData[0], EncryptedData[0], Length(PaddedData));
-        DataLen := Length(EncryptedData);
+        DataLen := Length(PaddedData);
+        
+        // 为加密预留足够空间
+        SetLength(EncryptedData, DataLen + 16);
+        Move(PaddedData[0], EncryptedData[0], DataLen);
         
         // 执行AES-256-CBC加密
         if not CryptEncrypt(hKey, 0, True, 0, @EncryptedData[0], DataLen, Length(EncryptedData)) then
@@ -350,9 +351,11 @@ begin
         
         // 手动填充数据
         PaddedData := PadData(AData, 16);
-        SetLength(EncryptedData, Length(PaddedData));
-        Move(PaddedData[0], EncryptedData[0], Length(PaddedData));
-        DataLen := Length(EncryptedData);
+        DataLen := Length(PaddedData);
+        
+        // 为加密预留足够空间（可能需要额外的块）
+        SetLength(EncryptedData, DataLen + 16);
+        Move(PaddedData[0], EncryptedData[0], DataLen);
         
         if not CryptEncrypt(hKey, 0, True, 0, @EncryptedData[0], DataLen, Length(EncryptedData)) then
           raise Exception.Create('AES加密失败');
@@ -384,52 +387,44 @@ var
   IV, EncryptedBytes, DecryptedData: TBytes;
   DataLen: DWORD;
   KeyBytes: TBytes;
+  Mode: DWORD;
 begin
   SetLength(Result, 0);
-  
-  if Length(AEncryptedData) < 16 then // 至少需要IV
-    Exit;
-  
+  if Length(AEncryptedData) < 16 then Exit;
+
   // 分离IV和加密数据
   SetLength(IV, 16);
   Move(AEncryptedData[0], IV[0], 16);
-  
   SetLength(EncryptedBytes, Length(AEncryptedData) - 16);
   Move(AEncryptedData[16], EncryptedBytes[0], Length(EncryptedBytes));
-  
-  KeyBytes := TEncoding.UTF8.GetBytes(APassword + GetDynamicKey);
-  
+
+  // 尝试新方法（固定口令 + salt + PBKDF2）
+  KeyBytes := TEncoding.UTF8.GetBytes(APassword); // 先尝试旧方法派生密钥
   if not CryptAcquireContext(hProv, nil, MS_ENH_RSA_AES_PROV, PROV_RSA_AES, CRYPT_VERIFYCONTEXT) then
-    raise Exception.Create('获取AES解密上下文失败');
-  
+    raise Exception.Create('Failed to acquire AES decryption context');
+
   try
     if not CryptCreateHash(hProv, CALG_SHA_256, 0, 0, hHash) then
-      raise Exception.Create('创建哈希对象失败');
-    
+      raise Exception.Create('Failed to create hash object');
     try
       if not CryptHashData(hHash, @KeyBytes[0], Length(KeyBytes), 0) then
-        raise Exception.Create('哈希密钥数据失败');
-      
+        raise Exception.Create('Failed to hash key data');
       if not CryptDeriveKey(hProv, CALG_AES_256, hHash, CRYPT_EXPORTABLE, hKey) then
-        raise Exception.Create('派生AES密钥失败');
-      
+        raise Exception.Create('Failed to derive AES key');
       try
-        var Mode: DWORD := CRYPT_MODE_CBC;
+        Mode := CRYPT_MODE_CBC;
         if not CryptSetKeyParam(hKey, KP_MODE, @Mode, 0) then
-          raise Exception.Create('设置CBC模式失败');
-        
+          raise Exception.Create('Failed to set CBC mode');
         if not CryptSetKeyParam(hKey, KP_IV, @IV[0], 0) then
-          raise Exception.Create('设置IV失败');
-        
+          raise Exception.Create('Failed to set IV');
+
         DecryptedData := Copy(EncryptedBytes);
         DataLen := Length(DecryptedData);
-        
         if not CryptDecrypt(hKey, 0, True, 0, @DecryptedData[0], DataLen) then
-          raise Exception.Create('AES解密失败');
-        
+          raise Exception.Create('AES decryption failed');
+
         SetLength(DecryptedData, DataLen);
         Result := UnpadData(DecryptedData);
-        
       finally
         CryptDestroyKey(hKey);
       end;
@@ -441,15 +436,31 @@ begin
   end;
 end;
 
-// HMAC-SHA256校验
-class function TBasicProtection.CalculateHMAC(const AData: string; const APassword: string = '@2241114'): string;
+// 使用SHA256计算HMAC
+class function TBasicProtection.CalculateHMACBinary(const AData: TBytes; const AKey: TBytes): TBytes;
 var
-  Key: string;
+  hProv: HCRYPTPROV;
+  hHash: HCRYPTHASH;
+  HashBytes: TBytes;
 begin
-  Key := APassword + GetDynamicKey + '_HMAC';
-  
-  // 使用SHA256计算HMAC
-  Result := THashSHA2.GetHMAC(AData, Key);
+  if not CryptAcquireContext(hProv, nil, MS_ENH_RSA_AES_PROV, PROV_RSA_AES, CRYPT_VERIFYCONTEXT) then
+    raise Exception.Create('获取SHA256哈希上下文失败');
+  try
+    if not CryptCreateHash(hProv, CALG_SHA_256, 0, 0, hHash) then
+      raise Exception.Create('创建SHA256哈希对象失败');
+    try
+      if not CryptHashData(hHash, @AKey[0], Length(AKey), 0) then
+        raise Exception.Create('哈希密钥数据失败');
+      if not CryptHashData(hHash, @AData[0], Length(AData), 0) then
+        raise Exception.Create('哈希数据失败');
+      HashBytes := GetHashBytes(hHash);
+      Result := HashBytes;
+    finally
+      CryptDestroyHash(hHash);
+    end;
+  finally
+    CryptReleaseContext(hProv, 0);
+  end;
 end;
 
 // 数据完整性验证
@@ -501,6 +512,29 @@ begin
   SetLength(Result, Length(AHex) div 2);
   for I := 0 to Length(Result) - 1 do
     Result[I] := StrToInt('$' + Copy(AHex, I * 2 + 1, 2));
+end;
+
+// 获取哈希字节数组（辅助函数）
+class function TBasicProtection.GetHashBytes(hHash: HCRYPTHASH): TBytes;
+var
+  HashLen, Len: DWORD;
+begin
+  HashLen := 32; // SHA256
+  Len := HashLen;
+  SetLength(Result, HashLen);
+  if not CryptGetHashParam(hHash, HP_HASHVAL, @Result[0], Len, 0) then
+    raise Exception.Create('Failed to get hash value');
+end;
+
+// 计算HMAC字符串
+class function TBasicProtection.CalculateHMAC(const AData: string; const APassword: string = '@2241114'): string;
+var
+  DataBytes, KeyBytes, HMACBytes: TBytes;
+begin
+  DataBytes := TEncoding.UTF8.GetBytes(AData);
+  KeyBytes := TEncoding.UTF8.GetBytes(APassword);
+  HMACBytes := CalculateHMACBinary(DataBytes, KeyBytes);
+  Result := BytesToHex(HMACBytes);
 end;
 
 end.

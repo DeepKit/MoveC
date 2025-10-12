@@ -1,0 +1,10 @@
+=== Direct Image Insert Tool ===
+
+Database connected
+
+Inserting: alipay
+  File size: 14348 bytes
+  Encrypted size: 14384 bytes
+ERROR: ESQLiteNativeException: [FireDAC][Phys][SQLite] ERROR: no such table: donation_images
+
+Press Enter...

@@ -1,0 +1,6 @@
+@echo off
+echo Running DirectInsert to add 4 images...
+DirectInsert.exe
+echo.
+echo Done! Press any key to exit...
+pause > nul

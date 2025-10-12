@@ -1,4 +1,4 @@
-﻿unit uMain;
+unit uMain;
 
 interface
 
@@ -12,7 +12,7 @@ uses
   // Modern UI styles and strings
   uStyles, uStrings, uIconManager,
   // Security modules
-  uSimpleSecureManager, FrameAboutMe,
+  uSimpleSecureManager, FrameAboutMe, uAntiTamperPackage, uAntiDebug,
   // Cleanup manager
   uCleanupManager;
 
@@ -173,7 +173,7 @@ type
     FSecureManager: TSimpleSecureManager;
     // 清理管理器
     FCleanupManager: TCleanupManager;
-    
+
     procedure InitializeInterface;
     procedure InitializeTreeViews;
     procedure UpdateTreeViewPath(ATreeView: TTreeView; const APath: string);
@@ -218,11 +218,30 @@ implementation
 
 {$R *.dfm}
 
+
 procedure TfrmMain.FormCreate(Sender: TObject);
 var
   LogFile: TextFile;
 begin
   // FormCreate开始执行
+  
+  // 反调试保护（仅在Release版本启用）
+  {$IFDEF RELEASE}
+  if TAntiDebug.CheckAll then
+  begin
+    MessageBox(0, '检测到调试器，程序将退出。', '安全警告', MB_OK or MB_ICONERROR);
+    Application.Terminate;
+    Exit;
+  end;
+  {$ENDIF}
+  
+  // 初始化防篡改包
+  var Config := TAntiTamperPackage.GetDefaultConfig;
+  Config.EncryptionKey := 'MoveC_AntiTamper_Key_2025';
+  Config.DownloadURL := 'http://www.goodmem.cn';
+  Config.EnableLogging := {$IFDEF DEBUG}True{$ELSE}False{$ENDIF};
+  Config.EncryptionType := etAES256; // 使用AES-256加密
+  TAntiTamperPackage.Initialize(Config);
 
   FStyleManager := TModernStyleManager.Create;
   FSourcePath := '';

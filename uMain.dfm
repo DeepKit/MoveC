@@ -7,9 +7,9 @@ object frmMain: TfrmMain
   Color = 15790320
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
-  Font.Height = -12
-  Font.Name = 'Microsoft YaHei UI'
-  Font.Size = 9
+  Font.Height = -10
+  Font.Name = 'Segoe UI'
+  Font.Size = 7
   Font.Style = []
   Menu = MainMenu1
   Position = poScreenCenter
@@ -78,11 +78,11 @@ object frmMain: TfrmMain
         Caption = #27983#35272'...'
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clBlack
-        Font.Height = -15
-        Font.Name = 'Microsoft YaHei UI'
-        Font.Size = 6
-        Font.Style = [fsBold]
-        ParentFont = False
+        Font.Height = -12
+        Font.Name = 'Segoe UI'
+        Font.Size = 8
+        Font.Style = []
+        ParentFont = True
         TabOrder = 1
         OnClick = btnBrowseSourceClick
       end
@@ -94,11 +94,11 @@ object frmMain: TfrmMain
         Caption = #19978#32423
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clBlack
-        Font.Height = -15
-        Font.Name = 'Microsoft YaHei UI'
-        Font.Size = 6
-        Font.Style = [fsBold]
-        ParentFont = False
+        Font.Height = -12
+        Font.Name = 'Segoe UI'
+        Font.Size = 8
+        Font.Style = []
+        ParentFont = True
         TabOrder = 3
         OnClick = btnSourceUpClick
       end
@@ -168,34 +168,34 @@ object frmMain: TfrmMain
         TabOrder = 0
       end
       object btnBrowseTarget: TBitBtn
-        Left = 235
-        Top = 10
-        Width = 110
+        Left = 234
+        Top = 14
+        Width = 104
         Height = 26
         Caption = #27983#35272'...'
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clBlack
-        Font.Height = -15
-        Font.Name = 'Microsoft YaHei UI'
-        Font.Size = 6
-        Font.Style = [fsBold]
-        ParentFont = False
+        Font.Height = -12
+        Font.Name = 'Segoe UI'
+        Font.Size = 8
+        Font.Style = []
+        ParentFont = True
         TabOrder = 1
         OnClick = btnBrowseTargetClick
       end
       object btnTargetUp: TBitBtn
-        Left = 148
-        Top = 10
+        Left = 157
+        Top = 14
         Width = 90
         Height = 26
         Caption = #19978#32423
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clBlack
-        Font.Height = -15
-        Font.Name = 'Microsoft YaHei UI'
-        Font.Size = 6
-        Font.Style = [fsBold]
-        ParentFont = False
+        Font.Height = -12
+        Font.Name = 'Segoe UI'
+        Font.Size = 8
+        Font.Style = []
+        ParentFont = True
         TabOrder = 3
         OnClick = btnTargetUpClick
       end
@@ -268,12 +268,9 @@ object frmMain: TfrmMain
         Align = alClient
         BorderStyle = bsSingle
         Color = 16449532
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = 3687759
-        Font.Height = -8
+        Font.Charset = GB2312_CHARSET
         Font.Name = 'Microsoft YaHei UI'
-        Font.Size = 6
-        Font.Style = []
+        Font.Size = 9
         ParentFont = False
         ScrollBars = ssVertical
         TabOrder = 1
@@ -328,11 +325,11 @@ object frmMain: TfrmMain
         Caption = #28165#31354#22238#25910#31449
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clBlack
-        Font.Height = -17
-        Font.Name = 'Microsoft YaHei UI'
+        Font.Height = -12
+        Font.Name = 'Segoe UI'
         Font.Size = 8
-        Font.Style = [fsBold]
-        ParentFont = False
+        Font.Style = []
+        ParentFont = True
         TabOrder = 0
         OnClick = btnCleanRecycleBinClick
       end
@@ -344,11 +341,11 @@ object frmMain: TfrmMain
         Caption = #28165#29702#20020#26102#25991#20214
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clBlack
-        Font.Height = -17
-        Font.Name = 'Microsoft YaHei UI'
+        Font.Height = -12
+        Font.Name = 'Segoe UI'
         Font.Size = 8
-        Font.Style = [fsBold]
-        ParentFont = False
+        Font.Style = []
+        ParentFont = True
         TabOrder = 1
         OnClick = btnCleanTempClick
       end
@@ -360,11 +357,11 @@ object frmMain: TfrmMain
         Caption = #28165#29702#22791#20221
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clBlack
-        Font.Height = -17
-        Font.Name = 'Microsoft YaHei UI'
+        Font.Height = -12
+        Font.Name = 'Segoe UI'
         Font.Size = 8
-        Font.Style = [fsBold]
-        ParentFont = False
+        Font.Style = []
+        ParentFont = True
         TabOrder = 2
         OnClick = btnCleanBackupClick
       end
@@ -376,11 +373,11 @@ object frmMain: TfrmMain
         Caption = #28165#29702#26356#26032#32531#23384
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clBlack
-        Font.Height = -17
-        Font.Name = 'Microsoft YaHei UI'
+        Font.Height = -12
+        Font.Name = 'Segoe UI'
         Font.Size = 8
-        Font.Style = [fsBold]
-        ParentFont = False
+        Font.Style = []
+        ParentFont = True
         TabOrder = 3
         OnClick = btnCleanUpdateClick
       end
@@ -392,11 +389,11 @@ object frmMain: TfrmMain
         Caption = #26234#33021#28165#29702
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clBlack
-        Font.Height = -17
-        Font.Name = 'Microsoft YaHei UI'
+        Font.Height = -12
+        Font.Name = 'Segoe UI'
         Font.Size = 8
-        Font.Style = [fsBold]
-        ParentFont = False
+        Font.Style = []
+        ParentFont = True
         TabOrder = 4
         OnClick = btnSmartCleanClick
       end
@@ -408,11 +405,11 @@ object frmMain: TfrmMain
         Caption = #26234#33021#36801#31227
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clBlack
-        Font.Height = -17
-        Font.Name = 'Microsoft YaHei UI'
+        Font.Height = -12
+        Font.Name = 'Segoe UI'
         Font.Size = 8
-        Font.Style = [fsBold]
-        ParentFont = False
+        Font.Style = []
+        ParentFont = True
         TabOrder = 5
         OnClick = btnSmartMigrationClick
       end
@@ -424,11 +421,11 @@ object frmMain: TfrmMain
         Caption = #25191#34892#36801#31227
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clBlack
-        Font.Height = -17
-        Font.Name = 'Microsoft YaHei UI'
+        Font.Height = -12
+        Font.Name = 'Segoe UI'
         Font.Size = 8
-        Font.Style = [fsBold]
-        ParentFont = False
+        Font.Style = []
+        ParentFont = True
         TabOrder = 6
         OnClick = btnExecuteClick
       end
@@ -440,11 +437,11 @@ object frmMain: TfrmMain
         Caption = #20998#26512#30446#24405
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clBlack
-        Font.Height = -17
-        Font.Name = 'Microsoft YaHei UI'
+        Font.Height = -12
+        Font.Name = 'Segoe UI'
         Font.Size = 8
-        Font.Style = [fsBold]
-        ParentFont = False
+        Font.Style = []
+        ParentFont = True
         TabOrder = 7
         OnClick = btnAnalyzeClick
       end
@@ -456,11 +453,11 @@ object frmMain: TfrmMain
         Caption = #35745#31639#22823#23567
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clBlack
-        Font.Height = -17
-        Font.Name = 'Microsoft YaHei UI'
+        Font.Height = -12
+        Font.Name = 'Segoe UI'
         Font.Size = 8
-        Font.Style = [fsBold]
-        ParentFont = False
+        Font.Style = []
+        ParentFont = True
         TabOrder = 8
         OnClick = btnCalculateSizeClick
       end
@@ -472,11 +469,11 @@ object frmMain: TfrmMain
         Caption = #36864#20986
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clBlack
-        Font.Height = -17
-        Font.Name = 'Microsoft YaHei UI'
+        Font.Height = -12
+        Font.Name = 'Segoe UI'
         Font.Size = 8
-        Font.Style = [fsBold]
-        ParentFont = False
+        Font.Style = []
+        ParentFont = True
         TabOrder = 9
         OnClick = btnExitClick
       end

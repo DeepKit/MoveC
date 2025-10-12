@@ -1,4 +1,4 @@
-﻿unit FrameAboutMe;
+unit FrameAboutMe;
 
 interface
 
@@ -12,11 +12,20 @@ uses
   FireDAC.Phys.SQLite, FireDAC.Phys.SQLiteDef, FireDAC.Stan.ExprFuncs,
   FireDAC.VCLUI.Wait, FireDAC.Phys.SQLiteWrapper.Stat, Data.DB,
   FireDAC.Comp.Client, FireDAC.Stan.Param, FireDAC.DatS, FireDAC.DApt.Intf,
-  FireDAC.DApt, FireDAC.Comp.DataSet;
+  FireDAC.DApt, FireDAC.Comp.DataSet, uAntiTamperPackage, uBasicProtection;
 
 type
   // 打赏地址类型
   TDonationAddressType = (datWechat, datAlipay, datBTC, datUSDT, datAboutMe);
+
+  // 图像映射记录类型（修复E2169：不能在字段处定义匿名record）
+  TImageMapping = record
+    Key: string;
+    Image: TImage;
+    AddressLabel: TLabel;
+    DefaultAddress: string;
+  end;
+  { MigrateEncryptedImages implementation moved to implementation section }
 
   TFrameAboutMe = class(TFrame)
     pcAboutMe: TPageControl;
@@ -62,20 +71,19 @@ type
     procedure lblMachineCodeValueClick(Sender: TObject);
     procedure pcAboutMeDrawTab(Control: TCustomTabControl; TabIndex: Integer;
       const Rect: TRect; Active: Boolean);
-    
-  private
-    FInitTimer: TTimer;
-    FImageMappings: array[0..4] of record
-      Key: string;
-      Image: TImage;
-      AddressLabel: TLabel;
-      DefaultAddress: string;
-    end;
 
-    // 内部方法
+  private
+    // 字段应在方法之前声明，避免E2169
+    FInitTimer: TTimer;
+    FImageMappings: array[0..4] of TImageMapping;
+
+    // 日志与内部方法
+    procedure Log(const Msg: string);
     procedure InitializeDataManager;
+    procedure MigrateEncryptedImages; // 迁移旧加密数据为固定口令方案
     procedure LoadAndDisplayImages;
     procedure InitializeImageMappings;
+    procedure EnsureDefaultImagesPresent;
     procedure OnInitTimerTimer(Sender: TObject);
     function GetProjectRootPath: string;
 
@@ -100,20 +108,31 @@ implementation
 
 {$R *.dfm}
 
+procedure TFrameAboutMe.Log(const Msg: string);
+var
+  LogFileName: string;
+  Writer: TStreamWriter;
+begin
+  try
+    LogFileName := GetProjectRootPath + 'aboutme_debug.log';
+    Writer := TStreamWriter.Create(LogFileName, True, TEncoding.UTF8);
+    try
+      Writer.WriteLine(Format('[%s] %s', [DateTimeToStr(Now), Msg]));
+    finally
+      Writer.Free;
+    end;
+  except
+    // 静默失败，防止日志记录本身导致崩溃
+  end;
+end;
+
 constructor TFrameAboutMe.Create(AOwner: TComponent);
 var
   LogFile: TextFile;
 begin
   inherited Create(AOwner);
 
-  // 立即写入日志确认Constructor被调用
-  try
-    AssignFile(LogFile, 'FRAME_CONSTRUCTOR_DEBUG.log');
-    Rewrite(LogFile);
-    WriteLn(LogFile, Format('[%s] FrameAboutMe.Create 开始执行', [DateTimeToStr(Now)]));
-    CloseFile(LogFile);
-  except
-  end;
+  Log('FrameAboutMe.Create 开始执行');
 
   // 设置PageControl的OnDrawTab事件
   pcAboutMe.OwnerDraw := True;
@@ -122,13 +141,7 @@ begin
   // 更新机器码显示
   UpdateMachineCodeDisplay;
 
-  try
-    AssignFile(LogFile, 'FRAME_CONSTRUCTOR_DEBUG.log');
-    Append(LogFile);
-    WriteLn(LogFile, Format('[%s] 基本设置完成，创建Timer', [DateTimeToStr(Now)]));
-    CloseFile(LogFile);
-  except
-  end;
+  Log('基本设置完成，创建Timer');
 
   // 创建延迟初始化Timer
   FInitTimer := TTimer.Create(Self);
@@ -136,13 +149,7 @@ begin
   FInitTimer.OnTimer := OnInitTimerTimer;
   FInitTimer.Enabled := True;
 
-  try
-    AssignFile(LogFile, 'FRAME_CONSTRUCTOR_DEBUG.log');
-    Append(LogFile);
-    WriteLn(LogFile, Format('[%s] FrameAboutMe.Create 完成', [DateTimeToStr(Now)]));
-    CloseFile(LogFile);
-  except
-  end;
+  Log('FrameAboutMe.Create 完成');
 end;
 
 procedure TFrameAboutMe.AfterConstruction;
@@ -156,6 +163,7 @@ procedure TFrameAboutMe.ManualInitialize;
 begin
   // 手动初始化方法，由主窗体调用
   InitializeDataManager;
+  EnsureDefaultImagesPresent;
   LoadAndDisplayImages;
 end;
 
@@ -166,25 +174,14 @@ begin
   // 停止Timer
   FInitTimer.Enabled := False;
 
-  try
-    AssignFile(LogFile, 'FRAME_CONSTRUCTOR_DEBUG.log');
-    Append(LogFile);
-    WriteLn(LogFile, Format('[%s] Timer触发，开始延迟初始化', [DateTimeToStr(Now)]));
-    CloseFile(LogFile);
-  except
-  end;
+  Log('Timer触发，开始延迟初始化');
 
   // 执行延迟初始化
   InitializeDataManager;
+  EnsureDefaultImagesPresent;
   LoadAndDisplayImages;
 
-  try
-    AssignFile(LogFile, 'FRAME_CONSTRUCTOR_DEBUG.log');
-    Append(LogFile);
-    WriteLn(LogFile, Format('[%s] 延迟初始化完成', [DateTimeToStr(Now)]));
-    CloseFile(LogFile);
-  except
-  end;
+  Log('延迟初始化完成');
 end;
 
 destructor TFrameAboutMe.Destroy;
@@ -197,106 +194,60 @@ procedure TFrameAboutMe.InitializeDataManager;
 var
   LogFile: TextFile;
   LogFileName: string;
+  DatabasePath: string;
 begin
   try
     LogFileName := GetProjectRootPath + 'aboutme_debug.log';
-
-    // 启动时清理旧日志
+    
+    // 启动时强制清空日志文件（截断为0字节）
     try
-      if TFile.Exists(LogFileName) then
-        TFile.Delete(LogFileName);
+      TFile.WriteAllText(LogFileName, '');
     except
+      // 忽略清空日志的异常
     end;
 
-    // 写入日志
-    try
-      AssignFile(LogFile, LogFileName);
-      Rewrite(LogFile);
-      WriteLn(LogFile, Format('[%s] InitializeDataManager 开始', [DateTimeToStr(Now)]));
-      WriteLn(LogFile, Format('[%s] 项目根目录: %s', [DateTimeToStr(Now), GetProjectRootPath]));
-      CloseFile(LogFile);
-    except
-    end;
+    Log('InitializeDataManager started');
+    Log('Project root directory: ' + GetProjectRootPath);
 
     // 设置动态数据库路径
-    var DatabasePath := GetProjectRootPath + 'MoveC.db';
-    try
-      AssignFile(LogFile, LogFileName);
-      Append(LogFile);
-      WriteLn(LogFile, Format('[%s] 设置数据库路径: %s', [DateTimeToStr(Now), DatabasePath]));
-      CloseFile(LogFile);
-    except
-    end;
+    DatabasePath := GetProjectRootPath + 'MoveC.db';
+    Log('Setting database path: ' + DatabasePath);
 
     // 检查数据库文件是否存在
     if not TFile.Exists(DatabasePath) then
     begin
-      try
-        AssignFile(LogFile, LogFileName);
-        Append(LogFile);
-        WriteLn(LogFile, Format('[%s] 错误: 数据库文件不存在', [DateTimeToStr(Now)]));
-        CloseFile(LogFile);
-      except
-      end;
-      Exit;
+      Log('Database file does not exist: ' + DatabasePath);
+      raise Exception.Create('Database file not found');
     end;
 
-    // 设置连接参数
+    // 设置数据库连接字符串
+    Log('Setting up database connection');
     FDConnection1.Params.Values['Database'] := DatabasePath;
+    // Note: Password is not set here as encryption is handled at application level
+
+    // 绑定表到 images（防止设计时指向错误的表）
+    FDTable1.Connection := FDConnection1;
+    FDTable1.TableName := 'images';
 
     // 检查设计时数据库组件状态
-    try
-      AssignFile(LogFile, LogFileName);
-      Append(LogFile);
-      WriteLn(LogFile, Format('[%s] 检查设计时数据库组件:', [DateTimeToStr(Now)]));
-      WriteLn(LogFile, Format('[%s]   FDConnection1.Connected: %s', [DateTimeToStr(Now), BoolToStr(FDConnection1.Connected, True)]));
-      WriteLn(LogFile, Format('[%s]   FDTable1.Active: %s', [DateTimeToStr(Now), BoolToStr(FDTable1.Active, True)]));
-      WriteLn(LogFile, Format('[%s]   数据库路径: %s', [DateTimeToStr(Now), FDConnection1.Params.Values['Database']]));
-      CloseFile(LogFile);
-    except
-      on E: Exception do
-      begin
-        try
-          AssignFile(LogFile, LogFileName);
-          Append(LogFile);
-          WriteLn(LogFile, Format('[%s] 检查数据库组件时出错: %s', [DateTimeToStr(Now), E.Message]));
-          CloseFile(LogFile);
-        except
-        end;
-      end;
-    end;
+    Log('Checking design-time database components:');
+    Log('  FDConnection1.Connected: ' + BoolToStr(FDConnection1.Connected, True));
+    Log('  FDTable1.Active: ' + BoolToStr(FDTable1.Active, True));
+    Log('  Database path: ' + FDConnection1.Params.Values['Database']);
+    Log('  FDTable1.TableName: ' + FDTable1.TableName);
 
     // 如果连接未激活，尝试激活
     if not FDConnection1.Connected then
     begin
-      try
-        AssignFile(LogFile, LogFileName);
-        Append(LogFile);
-        WriteLn(LogFile, Format('[%s] 尝试激活数据库连接', [DateTimeToStr(Now)]));
-        CloseFile(LogFile);
-      except
-      end;
-
+      Log('Attempting to activate database connection');
       try
         FDConnection1.Connected := True;
-
-        try
-          AssignFile(LogFile, LogFileName);
-          Append(LogFile);
-          WriteLn(LogFile, Format('[%s] 数据库连接激活成功', [DateTimeToStr(Now)]));
-          CloseFile(LogFile);
-        except
-        end;
+        Log('Database connection activated successfully');
       except
         on E: Exception do
         begin
-          try
-            AssignFile(LogFile, LogFileName);
-            Append(LogFile);
-            WriteLn(LogFile, Format('[%s] 数据库连接激活失败: %s', [DateTimeToStr(Now), E.Message]));
-            CloseFile(LogFile);
-          except
-          end;
+          Log('Database connection activation failed: ' + E.Message);
+          raise;
         end;
       end;
     end;
@@ -304,52 +255,33 @@ begin
     // 如果表未激活，尝试激活
     if not FDTable1.Active then
     begin
-      try
-        AssignFile(LogFile, LogFileName);
-        Append(LogFile);
-        WriteLn(LogFile, Format('[%s] 尝试激活数据表', [DateTimeToStr(Now)]));
-        CloseFile(LogFile);
-      except
-      end;
-
+      Log('Attempting to activate data table');
       try
         FDTable1.Active := True;
-
-        try
-          AssignFile(LogFile, LogFileName);
-          Append(LogFile);
-          WriteLn(LogFile, Format('[%s] 数据表激活成功', [DateTimeToStr(Now)]));
-          CloseFile(LogFile);
-        except
-        end;
+        Log('Data table activated successfully');
       except
         on E: Exception do
         begin
-          try
-            AssignFile(LogFile, LogFileName);
-            Append(LogFile);
-            WriteLn(LogFile, Format('[%s] 数据表激活失败: %s', [DateTimeToStr(Now), E.Message]));
-            CloseFile(LogFile);
-          except
-          end;
+          Log('Data table activation failed: ' + E.Message);
+          raise;
         end;
       end;
     end;
 
+    // 在加载图像前执行一次性迁移（将旧加密改为“仅固定口令”方案）
+    MigrateEncryptedImages;
+
     // 初始化图像映射数组
     InitializeImageMappings;
+
+    // 自愈：确保默认5张图像存在
+    EnsureDefaultImagesPresent;
 
   except
     on E: Exception do
     begin
       // 记录错误但不中断程序
-      try
-        AssignFile(LogFile, LogFileName);
-        Append(LogFile);
-        WriteLn(LogFile, Format('[%s] 初始化数据管理器失败: %s', [DateTimeToStr(Now), E.Message]));
-        CloseFile(LogFile);
-      except
-      end;
+      Log('InitializeDataManager failed: ' + E.Message);
     end;
   end;
 end;
@@ -383,6 +315,133 @@ begin
   Result := ExtractFilePath(ParamStr(0));
 end;
 
+procedure TFrameAboutMe.MigrateEncryptedImages;
+begin
+  // 迁移功能已废弃，不再需要兼容旧加密方式
+  // 所有图像应使用ImportImages工具重新导入
+end;
+
+procedure TFrameAboutMe.EnsureDefaultImagesPresent;
+var
+  Q: TFDQuery;
+  Total: Integer;
+
+  procedure InsertOne(const AKey, AFileName, AAddress: string);
+  var
+    Q2: TFDQuery;
+    Cnt: Integer;
+    AssetPath: string;
+    Plain, Encrypted: TBytes;
+    SHA: string;
+    MS: TMemoryStream;
+  begin
+    try
+      if not FDConnection1.Connected then
+      begin
+        Log('EnsureDefaultImagesPresent: database not connected');
+        Exit;
+      end;
+
+      Q2 := TFDQuery.Create(nil);
+      try
+        Q2.Connection := FDConnection1;
+
+        // Check existence
+        Q2.SQL.Text := 'SELECT COUNT(*) FROM images WHERE image_key = :key';
+        Q2.ParamByName('key').AsString := AKey;
+        Q2.Open;
+        try
+          Cnt := Q2.Fields[0].AsInteger;
+        finally
+          Q2.Close;
+        end;
+
+        if Cnt > 0 then
+        begin
+          Log(Format('EnsureDefaultImagesPresent: %s already exists, skip', [AKey]));
+          Exit;
+        end;
+
+        // Load asset file
+        AssetPath := GetProjectRootPath + 'assets\' + AFileName;
+        if not TFile.Exists(AssetPath) then
+        begin
+          Log(Format('EnsureDefaultImagesPresent: asset not found: %s', [AssetPath]));
+          Exit;
+        end;
+
+        Plain := TFile.ReadAllBytes(AssetPath);
+        SHA := TAntiTamperPackage.CalculateSHA256(Plain);
+        Encrypted := TBasicProtection.EncryptBinaryData(Plain, '@2241114');
+
+        // Insert row (write encrypted bytes as BLOB)
+        Q2.SQL.Text := 'INSERT INTO images (image_key, image_data, address_text, description, md5_hash) ' +
+                      'VALUES (:key, :data, :addr, :desc, :md5)';
+        Q2.ParamByName('key').AsString := AKey;
+        Q2.ParamByName('addr').AsString := AAddress;
+        Q2.ParamByName('desc').AsString := 'Auto-insert on startup';
+        Q2.ParamByName('md5').AsString := SHA;
+        MS := TMemoryStream.Create;
+        try
+          if Length(Encrypted) > 0 then
+            MS.WriteBuffer(Encrypted[0], Length(Encrypted));
+          MS.Position := 0;
+          Q2.ParamByName('data').LoadFromStream(MS, ftBlob);
+        finally
+          MS.Free;
+        end;
+        Q2.ExecSQL;
+        Log(Format('EnsureDefaultImagesPresent: inserted %s (%d bytes encrypted)', [AKey, Length(Encrypted)]));
+      finally
+        Q2.Free;
+      end;
+    except
+      on E: Exception do
+        Log(Format('EnsureDefaultImagesPresent error on %s: %s', [AKey, E.Message]));
+    end;
+  end;
+
+begin
+  // 自愈插入：若某些记录缺失，仅补齐缺失项（幂等，不重复写入）
+  try
+    if FDConnection1.Connected then
+    begin
+      // 可选：记录当前行数到日志，便于诊断
+      Q := TFDQuery.Create(nil);
+      try
+        Q.Connection := FDConnection1;
+        Q.SQL.Text := 'SELECT COUNT(*) FROM images';
+        Q.Open;
+        try
+          Total := Q.Fields[0].AsInteger;
+          Log(Format('EnsureDefaultImagesPresent: current records = %d', [Total]));
+        finally
+          Q.Close;
+        end;
+      finally
+        Q.Free;
+      end;
+    end
+    else
+    begin
+      Log('EnsureDefaultImagesPresent: database not connected, skip');
+      Exit;
+    end;
+  except
+    on E: Exception do
+    begin
+      Log('EnsureDefaultImagesPresent: failed to count records - ' + E.Message);
+      // 统计失败不影响后续按键检查
+    end;
+  end;
+
+  // Insert remaining images if missing (wechat may already be present)
+  InsertOne('alipay', 'AliPay.png', '支付宝收款码');
+  InsertOne('btc', 'btc.png', 'bc1qze0ggsrdtjqwjpjfufydsuyjxc08tgcq5xkct3');
+  InsertOne('usdt', 'usdt.png', 'TH1NazpoEpUqcEotGzLPHs13SbLDJKKCys');
+  InsertOne('aboutme', 'itsMe.jpg', '');
+end;
+
 procedure TFrameAboutMe.InitializeImageMappings;
 var
   LogFile: TextFile;
@@ -390,28 +449,17 @@ var
 begin
   LogFileName := GetProjectRootPath + 'aboutme_debug.log';
 
-  try
-    AssignFile(LogFile, LogFileName);
-    Append(LogFile);
-    WriteLn(LogFile, Format('[%s] 开始初始化图像映射数组', [DateTimeToStr(Now)]));
-
-    // 验证Image控件是否分配
-    WriteLn(LogFile, Format('[%s] 验证Image控件分配状态:', [DateTimeToStr(Now)]));
-    WriteLn(LogFile, Format('[%s]   imgWechat: %s (地址: %p)', [DateTimeToStr(Now), BoolToStr(Assigned(imgWechat), True), Pointer(imgWechat)]));
-    WriteLn(LogFile, Format('[%s]   imgAlipay: %s (地址: %p)', [DateTimeToStr(Now), BoolToStr(Assigned(imgAlipay), True), Pointer(imgAlipay)]));
-    WriteLn(LogFile, Format('[%s]   imgBTC: %s (地址: %p)', [DateTimeToStr(Now), BoolToStr(Assigned(imgBTC), True), Pointer(imgBTC)]));
-    WriteLn(LogFile, Format('[%s]   imgUSDT: %s (地址: %p)', [DateTimeToStr(Now), BoolToStr(Assigned(imgUSDT), True), Pointer(imgUSDT)]));
-    WriteLn(LogFile, Format('[%s]   imgAboutMe: %s (地址: %p)', [DateTimeToStr(Now), BoolToStr(Assigned(imgAboutMe), True), Pointer(imgAboutMe)]));
-
-    // 验证Frame本身的状态
-    WriteLn(LogFile, Format('[%s] Frame状态检查:', [DateTimeToStr(Now)]));
-    WriteLn(LogFile, Format('[%s]   Frame.Parent: %s', [DateTimeToStr(Now), BoolToStr(Assigned(Parent), True)]));
-    WriteLn(LogFile, Format('[%s]   Frame.Visible: %s', [DateTimeToStr(Now), BoolToStr(Visible, True)]));
-    WriteLn(LogFile, Format('[%s]   Frame.ComponentCount: %d', [DateTimeToStr(Now), ComponentCount]));
-
-    CloseFile(LogFile);
-  except
-  end;
+  Log('开始初始化图像映射数组');
+  Log('验证Image控件分配状态:');
+  Log(Format('  imgWechat: %s (地址: %p)', [BoolToStr(Assigned(imgWechat), True), Pointer(imgWechat)]));
+  Log(Format('  imgAlipay: %s (地址: %p)', [BoolToStr(Assigned(imgAlipay), True), Pointer(imgAlipay)]));
+  Log(Format('  imgBTC: %s (地址: %p)', [BoolToStr(Assigned(imgBTC), True), Pointer(imgBTC)]));
+  Log(Format('  imgUSDT: %s (地址: %p)', [BoolToStr(Assigned(imgUSDT), True), Pointer(imgUSDT)]));
+  Log(Format('  imgAboutMe: %s (地址: %p)', [BoolToStr(Assigned(imgAboutMe), True), Pointer(imgAboutMe)]));
+  Log('Frame状态检查:');
+  Log(Format('  Frame.Parent: %s', [BoolToStr(Assigned(Parent), True)]));
+  Log(Format('  Frame.Visible: %s', [BoolToStr(Visible, True)]));
+  Log(Format('  Frame.ComponentCount: %d', [ComponentCount]));
 
   FImageMappings[0].Key := 'wechat';
   FImageMappings[0].Image := imgWechat;
@@ -438,230 +486,109 @@ begin
   FImageMappings[4].AddressLabel := nil;
   FImageMappings[4].DefaultAddress := '';
 
-  try
-    AssignFile(LogFile, LogFileName);
-    Append(LogFile);
-    WriteLn(LogFile, Format('[%s] 图像映射数组初始化完成', [DateTimeToStr(Now)]));
-    CloseFile(LogFile);
-  except
-  end;
+  Log('图像映射数组初始化完成');
 end;
 
 procedure TFrameAboutMe.LoadAndDisplayImages;
 var
   I: Integer;
-  LogFile: TextFile;
   LogFileName: string;
-  FilePath: string;
-  ImageData: TBytes;
-  AddressText: string;
+  ImageField, AddressField, SHAField: TField;
   MemoryStream: TMemoryStream;
+  EncryptedData, DecryptedData: TBytes;
 begin
   LogFileName := GetProjectRootPath + 'aboutme_debug.log';
+  Log('开始加载和显示图像');
 
   try
-    AssignFile(LogFile, LogFileName);
-    Append(LogFile);
-    WriteLn(LogFile, Format('[%s] 开始加载和显示图像', [DateTimeToStr(Now)]));
-    CloseFile(LogFile);
-  except
-  end;
-
-  try
-    // 加载所有图像
     for I := 0 to High(FImageMappings) do
     begin
-      try
-        AssignFile(LogFile, LogFileName);
-        Append(LogFile);
-        WriteLn(LogFile, Format('[%s] 处理图像 %d: %s', [DateTimeToStr(Now), I, FImageMappings[I].Key]));
-        CloseFile(LogFile);
-      except
-      end;
+      Log(Format('处理图像 %d: %s', [I, FImageMappings[I].Key]));
 
-      // 所有图像都从数据库加载（包括微信）
       if FDTable1.Active and Assigned(FImageMappings[I].Image) then
-        begin
-          try
-            // 查找指定image_key的记录
-            if FDTable1.Locate('image_key', FImageMappings[I].Key, []) then
+      begin
+        try
+          if FDTable1.Locate('image_key', FImageMappings[I].Key, []) then
+          begin
+            Log(Format('在数据库中找到记录: %s', [FImageMappings[I].Key]));
+
+            ImageField := FDTable1.FieldByName('image_data');
+            AddressField := FDTable1.FieldByName('address_text');
+            // 数据库列名为 md5_hash（实际存储为SHA-256值）
+            SHAField := FDTable1.FieldByName('md5_hash');
+
+            if not ImageField.IsNull then
             begin
+              MemoryStream := TMemoryStream.Create;
               try
-                AssignFile(LogFile, LogFileName);
-                Append(LogFile);
-                WriteLn(LogFile, Format('[%s] 在数据库中找到记录: %s', [DateTimeToStr(Now), FImageMappings[I].Key]));
-                CloseFile(LogFile);
-              except
-              end;
+                TBlobField(ImageField).SaveToStream(MemoryStream);
+                MemoryStream.Position := 0;
 
-              // 获取图像数据
-              var ImageField := FDTable1.FieldByName('image_data');
-              var AddressField := FDTable1.FieldByName('address_text');
-              var MD5Field := FDTable1.FieldByName('md5_hash');
+                SetLength(EncryptedData, MemoryStream.Size);
+                if MemoryStream.Size > 0 then
+                  MemoryStream.ReadBuffer(EncryptedData[0], MemoryStream.Size);
 
-              if not ImageField.IsNull then
-              begin
-                try
-                  MemoryStream := TMemoryStream.Create;
-                  try
-                    // 从Blob字段加载加密的图像数据
-                    TBlobField(ImageField).SaveToStream(MemoryStream);
-                    MemoryStream.Position := 0;
+                Log(Format('加密数据长度: %d bytes', [Length(EncryptedData)]));
 
-                    // 读取加密数据
-                    var EncryptedData: TBytes;
-                    SetLength(EncryptedData, MemoryStream.Size);
-                    MemoryStream.ReadBuffer(EncryptedData[0], MemoryStream.Size);
+                DecryptedData := TBasicProtection.DecryptBinaryData(EncryptedData, '@2241114');
+                Log(Format('解密数据长度: %d bytes', [Length(DecryptedData)]));
 
-                    try
-                      AssignFile(LogFile, LogFileName);
-                      Append(LogFile);
-                      WriteLn(LogFile, Format('[%s] 加密数据长度: %d bytes, 前4字节: %02X %02X %02X %02X',
-                        [DateTimeToStr(Now), Length(EncryptedData),
-                         EncryptedData[0], EncryptedData[1], EncryptedData[2], EncryptedData[3]]));
-                      CloseFile(LogFile);
-                    except
-                    end;
+                if not TAntiTamperPackage.VerifyImageIntegrity(DecryptedData, SHAField.AsString) then
+                begin
+                  Log(Format('SHA-256校验失败: %s', [FImageMappings[I].Key]));
+                  TAntiTamperPackage.HandleSecurityViolation(FImageMappings[I].Key, 'SHA-256校验失败');
+                  Exit;
+                end;
 
-                    // 解密数据
-                    var DecryptedData := TImageSecurity.DecryptImageData(EncryptedData);
+                MemoryStream.Clear;
+                if Length(DecryptedData) > 0 then
+                  MemoryStream.WriteBuffer(DecryptedData[0], Length(DecryptedData));
+                MemoryStream.Position := 0;
 
-                    try
-                      AssignFile(LogFile, LogFileName);
-                      Append(LogFile);
-                      WriteLn(LogFile, Format('[%s] 解密数据长度: %d bytes, 前4字节: %02X %02X %02X %02X',
-                        [DateTimeToStr(Now), Length(DecryptedData),
-                         DecryptedData[0], DecryptedData[1], DecryptedData[2], DecryptedData[3]]));
-                      CloseFile(LogFile);
-                    except
-                    end;
+                if MemoryStream.Size > 0 then
+                begin
+                  FImageMappings[I].Image.Picture.LoadFromStream(MemoryStream);
+                  Log(Format('数据库图像加载成功: %s, 数据大小: %d bytes',
+                    [FImageMappings[I].Key, MemoryStream.Size]));
 
-                    // MD5校验
-                    var ExpectedMD5 := MD5Field.AsString;
-                    if not TImageSecurity.VerifyImageIntegrity(DecryptedData, ExpectedMD5) then
-                    begin
-                      try
-                        AssignFile(LogFile, LogFileName);
-                        Append(LogFile);
-                        WriteLn(LogFile, Format('[%s] MD5校验失败: %s', [DateTimeToStr(Now), FImageMappings[I].Key]));
-                        CloseFile(LogFile);
-                      except
-                      end;
-                      TImageSecurity.HandleSecurityViolation(FImageMappings[I].Key, 'MD5校验失败');
-                      Exit;
-                    end;
-
-                    // 从解密数据创建新的内存流
-                    MemoryStream.Clear;
-                    MemoryStream.WriteBuffer(DecryptedData[0], Length(DecryptedData));
-                    MemoryStream.Position := 0;
-
-                    if MemoryStream.Size > 0 then
-                    begin
-                      FImageMappings[I].Image.Picture.LoadFromStream(MemoryStream);
-
-                      try
-                        AssignFile(LogFile, LogFileName);
-                        Append(LogFile);
-                        WriteLn(LogFile, Format('[%s] 数据库图像加载成功: %s, 尺寸: %dx%d, 数据大小: %d bytes',
-                          [DateTimeToStr(Now), FImageMappings[I].Key, FImageMappings[I].Image.Picture.Width,
-                           FImageMappings[I].Image.Picture.Height, MemoryStream.Size]));
-                        CloseFile(LogFile);
-                      except
-                      end;
-
-                      // 设置地址文本
-                      if Assigned(FImageMappings[I].AddressLabel) then
-                      begin
-                        if not AddressField.IsNull and (AddressField.AsString <> '') then
-                          FImageMappings[I].AddressLabel.Caption := AddressField.AsString
-                        else
-                          FImageMappings[I].AddressLabel.Caption := FImageMappings[I].DefaultAddress;
-                      end;
-                    end
-                    else
-                    begin
-                      try
-                        AssignFile(LogFile, LogFileName);
-                        Append(LogFile);
-                        WriteLn(LogFile, Format('[%s] 图像数据为空: %s', [DateTimeToStr(Now), FImageMappings[I].Key]));
-                        CloseFile(LogFile);
-                      except
-                      end;
-                    end;
-                  finally
-                    MemoryStream.Free;
-                  end;
-                except
-                  on E: Exception do
+                  if Assigned(FImageMappings[I].AddressLabel) then
                   begin
-                    try
-                      AssignFile(LogFile, LogFileName);
-                      Append(LogFile);
-                      WriteLn(LogFile, Format('[%s] 数据库图像加载失败: %s - %s', [DateTimeToStr(Now), FImageMappings[I].Key, E.Message]));
-                      CloseFile(LogFile);
-                    except
-                    end;
+                    if not AddressField.IsNull and (AddressField.AsString <> '') then
+                      FImageMappings[I].AddressLabel.Caption := AddressField.AsString
+                    else
+                      FImageMappings[I].AddressLabel.Caption := FImageMappings[I].DefaultAddress;
                   end;
+                end
+                else
+                begin
+                  Log(Format('图像数据为空: %s', [FImageMappings[I].Key]));
                 end;
-              end
-              else
-              begin
-                try
-                  AssignFile(LogFile, LogFileName);
-                  Append(LogFile);
-                  WriteLn(LogFile, Format('[%s] 图像字段为空: %s', [DateTimeToStr(Now), FImageMappings[I].Key]));
-                  CloseFile(LogFile);
-                except
-                end;
+              finally
+                MemoryStream.Free;
               end;
             end
             else
             begin
-              try
-                AssignFile(LogFile, LogFileName);
-                Append(LogFile);
-                WriteLn(LogFile, Format('[%s] 数据库中未找到记录: %s', [DateTimeToStr(Now), FImageMappings[I].Key]));
-                CloseFile(LogFile);
-              except
-              end;
+              Log(Format('图像字段为空: %s', [FImageMappings[I].Key]));
             end;
-          except
-            on E: Exception do
-            begin
-              try
-                AssignFile(LogFile, LogFileName);
-                Append(LogFile);
-                WriteLn(LogFile, Format('[%s] 查询数据库时出错: %s - %s', [DateTimeToStr(Now), FImageMappings[I].Key, E.Message]));
-                CloseFile(LogFile);
-              except
-              end;
-            end;
+          end
+          else
+          begin
+            Log(Format('未找到图像记录: %s', [FImageMappings[I].Key]));
           end;
-        end
-        else
-        begin
-          try
-            AssignFile(LogFile, LogFileName);
-            Append(LogFile);
-            WriteLn(LogFile, Format('[%s] 数据表未激活或Image控件未分配: %s', [DateTimeToStr(Now), FImageMappings[I].Key]));
-            CloseFile(LogFile);
-          except
-          end;
+        except
+          on E: Exception do
+            Log(Format('处理图像时异常: %s - %s', [FImageMappings[I].Key, E.Message]));
         end;
-    end;
-
-  except
-    on E: Exception do
-    begin
-      try
-        AssignFile(LogFile, LogFileName);
-        Append(LogFile);
-        WriteLn(LogFile, Format('[%s] 加载图像失败: %s', [DateTimeToStr(Now), E.Message]));
-        CloseFile(LogFile);
-      except
+      end
+      else
+      begin
+        Log(Format('数据表未激活或Image控件未分配: %s', [FImageMappings[I].Key]));
       end;
     end;
+  except
+    on E: Exception do
+      Log(Format('LoadAndDisplayImages顶层异常: %s', [E.Message]));
   end;
 end;
 
@@ -676,12 +603,13 @@ end;
 procedure TFrameAboutMe.btnCopyBTCClick(Sender: TObject);
 var
   BTCAddress: string;
+  AddressField: TField;
 begin
   if FDTable1.Active then
   begin
     if FDTable1.Locate('image_key', 'btc', []) then
     begin
-      var AddressField := FDTable1.FieldByName('address_text');
+      AddressField := FDTable1.FieldByName('address_text');
       if not AddressField.IsNull and (AddressField.AsString <> '') then
         BTCAddress := AddressField.AsString
       else
@@ -699,12 +627,13 @@ end;
 procedure TFrameAboutMe.btnCopyUSDTClick(Sender: TObject);
 var
   USDTAddress: string;
+  AddressField: TField;
 begin
   if FDTable1.Active then
   begin
     if FDTable1.Locate('image_key', 'usdt', []) then
     begin
-      var AddressField := FDTable1.FieldByName('address_text');
+      AddressField := FDTable1.FieldByName('address_text');
       if not AddressField.IsNull and (AddressField.AsString <> '') then
         USDTAddress := AddressField.AsString
       else

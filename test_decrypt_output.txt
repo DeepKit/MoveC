@@ -1,0 +1,5 @@
+=== 测试数据库图像解密 ===
+
+错误: Object factory for class {3E9B315B-F456-4175-A864-B2573C4A2304} is missing. To register it, you can include unit [FireDAC.DApt] into your project
+
+按回车键退出...

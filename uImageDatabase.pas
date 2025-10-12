@@ -8,7 +8,7 @@ uses
   FireDAC.DApt, FireDAC.UI.Intf, FireDAC.VCLUI.Wait, FireDAC.Comp.UI,
   FireDAC.Phys, FireDAC.Phys.SQLite, FireDAC.Phys.SQLiteDef,
   FireDAC.Stan.ExprFuncs, FireDAC.Phys.SQLiteWrapper.Stat,
-  FireDAC.Stan.Param, System.Hash, System.NetEncoding, uBasicProtection, uImageSecurity;
+  FireDAC.Stan.Param, System.Hash, System.NetEncoding, uBasicProtection, uAntiTamperPackage;
 
 function BytesToRawByteString(const ABytes: TBytes): RawByteString;
 
@@ -20,6 +20,8 @@ type
     FDatabasePath: string;
     FPassword: string;
     FConnected: Boolean;
+    FLogFile: TextFile;
+    FLogFileName: string;
     
     procedure InitializeDatabase;
     procedure CreateTables;
@@ -27,7 +29,7 @@ type
     procedure LogInfo(const AMessage: string);
     
   public
-    constructor Create(const ADatabasePath: string; const APassword: string = '@2241114');
+    constructor Create(const ADatabasePath: string; const APassword: string = '');
     destructor Destroy; override;
     
     // 连接管理
@@ -66,6 +68,9 @@ begin
   FDatabasePath := ADatabasePath;
   FPassword := APassword;
   FConnected := False;
+  
+  // 初始化日志文件
+  FLogFileName := ExtractFilePath(ParamStr(0)) + 'import_log.txt';
 
   // 创建FireDAC组件
   FConnection := TFDConnection.Create(nil);
@@ -93,17 +98,37 @@ end;
 
 procedure TImageDatabase.LogError(const AMessage: string);
 begin
-  // 简单的日志记录
+  try
+    AssignFile(FLogFile, FLogFileName);
+    if FileExists(FLogFileName) then
+      Append(FLogFile)
+    else
+      Rewrite(FLogFile);
+    Writeln(FLogFile, FormatDateTime('yyyy-mm-dd hh:nn:ss', Now), ' - [ERROR] ', AMessage);
+    Flush(FLogFile);
+    CloseFile(FLogFile);
+  except
+    // 忽略日志错误
+  end;
   OutputDebugString(PChar('[ERROR] ' + AMessage));
-  // 同时输出到控制台
   Writeln('[ERROR] ', AMessage);
 end;
 
 procedure TImageDatabase.LogInfo(const AMessage: string);
 begin
-  // 简单的日志记录
+  try
+    AssignFile(FLogFile, FLogFileName);
+    if FileExists(FLogFileName) then
+      Append(FLogFile)
+    else
+      Rewrite(FLogFile);
+    Writeln(FLogFile, FormatDateTime('yyyy-mm-dd hh:nn:ss', Now), ' - [INFO] ', AMessage);
+    Flush(FLogFile);
+    CloseFile(FLogFile);
+  except
+    // 忽略日志错误
+  end;
   OutputDebugString(PChar('[INFO] ' + AMessage));
-  // 同时输出到控制台
   Writeln('[INFO] ', AMessage);
 end;
 
@@ -127,6 +152,7 @@ begin
     FConnection.Params.Clear;
     FConnection.Params.Add('DriverID=SQLite');
     FConnection.Params.Add('Database=' + FDatabasePath);
+    FConnection.Params.Add('OpenMode=CreateUTF8'); // 自动创建数据库
     FConnection.Params.Add('LockingMode=Normal');
     FConnection.Params.Add('Synchronous=Normal');
     FConnection.Params.Add('JournalMode=WAL');
@@ -164,25 +190,27 @@ begin
 
       LogInfo(Format('尝试连接数据库 (第%d次)', [RetryCount + 1]));
 
-      // 检查数据库文件是否存在
+      // 如果数据库文件不存在，SQLite会自动创建
       if not TFile.Exists(FDatabasePath) then
       begin
-        LogError('数据库文件不存在: ' + FDatabasePath);
-        Break;
+        LogInfo('数据库文件不存在，将自动创建: ' + FDatabasePath);
       end;
 
-      // 检查文件是否可读写
-      try
-        var TestFile := TFileStream.Create(FDatabasePath, fmOpenReadWrite or fmShareDenyNone);
-        TestFile.Free;
-        LogInfo('数据库文件访问权限正常');
-      except
-        on E: Exception do
-        begin
-          LogError('数据库文件访问权限错误: ' + E.Message);
-          Inc(RetryCount);
-          Sleep(200);
-          Continue;
+      // 如果数据库文件不存在，跳过权限检查（SQLite会自动创建）
+      if TFile.Exists(FDatabasePath) then
+      begin
+        try
+          var TestFile := TFileStream.Create(FDatabasePath, fmOpenReadWrite or fmShareDenyNone);
+          TestFile.Free;
+          LogInfo('数据库文件访问权限正常');
+        except
+          on E: Exception do
+          begin
+            LogError('数据库文件访问权限错误: ' + E.Message);
+            Inc(RetryCount);
+            Sleep(200);
+            Continue;
+          end;
         end;
       end;
 
@@ -317,12 +345,14 @@ begin
       Exit;
     end;
 
-    // 计算原始图像数据的MD5
-    OriginalMD5 := TImageSecurity.CalculateMD5(AImageData);
-    LogInfo(Format('图像 %s 的MD5: %s', [AImageKey, OriginalMD5]));
+    // 计算原始图像数据的SHA-256
+    OriginalMD5 := TAntiTamperPackage.CalculateSHA256(AImageData);
+    LogInfo(Format('图像 %s 的SHA-256: %s', [AImageKey, OriginalMD5]));
 
-    // 加密图像数据
-    EncryptedData := TImageSecurity.EncryptImageData(AImageData);
+    // 加密图像数据（使用AES-256）
+    LogInfo(Format('开始加密图像 %s，原始大小: %d 字节', [AImageKey, Length(AImageData)]));
+    EncryptedData := TBasicProtection.EncryptBinaryData(AImageData, FPassword);
+    LogInfo(Format('加密完成，加密后大小: %d 字节', [Length(EncryptedData)]));
     
     // 检查图像是否已存在
     FQuery.SQL.Text := 'SELECT COUNT(*) FROM images WHERE image_key = :key';
@@ -333,6 +363,7 @@ begin
       if FQuery.Fields[0].AsInteger > 0 then
       begin
         // 更新现有记录
+        LogInfo(Format('图像 %s 已存在，执行更新', [AImageKey]));
         FQuery.Close;
         FQuery.SQL.Text :=
           'UPDATE images SET image_data = :data, address_text = :addr, description = :desc, md5_hash = :md5, updated_at = CURRENT_TIMESTAMP ' +
@@ -341,6 +372,7 @@ begin
       else
       begin
         // 插入新记录
+        LogInfo(Format('图像 %s 不存在，执行插入', [AImageKey]));
         FQuery.Close;
         FQuery.SQL.Text :=
           'INSERT INTO images (image_key, image_data, address_text, description, md5_hash) ' +
@@ -348,14 +380,17 @@ begin
       end;
 
       FQuery.ParamByName('key').AsString := AImageKey;
+      LogInfo(Format('准备写入BLOB数据，大小: %d 字节', [Length(EncryptedData)]));
       FQuery.ParamByName('data').AsBlob := BytesToRawByteString(EncryptedData);
       FQuery.ParamByName('addr').AsString := AAddressText;
       FQuery.ParamByName('desc').AsString := ADescription;
       FQuery.ParamByName('md5').AsString := OriginalMD5;
+      
+      LogInfo(Format('执行SQL: %s', [AImageKey]));
       FQuery.ExecSQL;
       
       Result := True;
-      LogInfo(Format('图像数据已保存: %s (%d 字节)', [AImageKey, Length(AImageData)]));
+      LogInfo(Format('✓ 图像数据已保存: %s (%d 字节)', [AImageKey, Length(AImageData)]));
       
     finally
       FQuery.Close;
@@ -392,20 +427,20 @@ begin
     try
       if not FQuery.IsEmpty then
       begin
-        // 获取加密的数据和MD5
+        // 获取加密的数据和SHA-256哈希
         EncryptedData := FQuery.FieldByName('image_data').AsBytes;
         ExpectedMD5 := FQuery.FieldByName('md5_hash').AsString;
 
         if Length(EncryptedData) > 0 then
         begin
-          // 解密数据
-          AImageData := TImageSecurity.DecryptImageData(EncryptedData);
+          // 解密数据（使用AES-256）
+          AImageData := TBasicProtection.DecryptBinaryData(EncryptedData, FPassword);
 
-          // MD5校验
-          if not TImageSecurity.VerifyImageIntegrity(AImageData, ExpectedMD5) then
+          // SHA-256校验
+          if not TAntiTamperPackage.VerifyImageIntegrity(AImageData, ExpectedMD5) then
           begin
-            LogError(Format('图像 %s MD5校验失败', [AImageKey]));
-            TImageSecurity.HandleSecurityViolation(AImageKey, 'MD5校验失败，图像数据可能被篡改');
+            LogError(Format('图像 %s SHA-256校验失败', [AImageKey]));
+            TAntiTamperPackage.HandleSecurityViolation(AImageKey, 'SHA-256校验失败，图像数据可能被篡改');
             Exit;
           end;
 
@@ -555,21 +590,21 @@ begin
     try
       if not FQuery.IsEmpty then
       begin
-        // 获取加密的数据和MD5
+        // 获取加密的数据和SHA-256哈希
         EncryptedData := FQuery.FieldByName('image_data').AsBytes;
         AAddressText := FQuery.FieldByName('address_text').AsString;
         ExpectedMD5 := FQuery.FieldByName('md5_hash').AsString;
 
         if Length(EncryptedData) > 0 then
         begin
-          // 解密数据
-          AImageData := TImageSecurity.DecryptImageData(EncryptedData);
+          // 解密数据（使用AES-256）
+          AImageData := TBasicProtection.DecryptBinaryData(EncryptedData, FPassword);
 
-          // MD5校验
-          if not TImageSecurity.VerifyImageIntegrity(AImageData, ExpectedMD5) then
+          // SHA-256校验
+          if not TAntiTamperPackage.VerifyImageIntegrity(AImageData, ExpectedMD5) then
           begin
-            LogError(Format('图像 %s MD5校验失败', [AImageKey]));
-            TImageSecurity.HandleSecurityViolation(AImageKey, 'MD5校验失败，图像数据可能被篡改');
+            LogError(Format('图像 %s SHA-256校验失败', [AImageKey]));
+            TAntiTamperPackage.HandleSecurityViolation(AImageKey, 'SHA-256校验失败，图像数据可能被篡改');
             Exit;
           end;
 
