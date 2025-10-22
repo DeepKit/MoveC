@@ -1,4 +1,4 @@
-﻿unit uSmartDuplicateCleanup;
+unit uSmartDuplicateCleanup;
 
 interface
 
@@ -18,6 +18,248 @@ type
     Size: Int64;
   end;
 
+function TfrmSmartDuplicateCleanup.EnumerateAllFiles(const Root: string): TArray<string>;
+var
+  Stack: TStack<string>;
+  Dir: string;
+  SubDirs, Files: TArray<string>;
+  List: TList<string>;
+  F: string;
+  I: Integer;
+begin
+  List := TList<string>.Create;
+  Stack := TStack<string>.Create;
+  try
+    if TDirectory.Exists(Root) then
+      Stack.Push(Root);
+    while Stack.Count > 0 do
+    begin
+      Dir := Stack.Pop;
+      try
+        Files := TDirectory.GetFiles(Dir, '*', TSearchOption.soTopDirectoryOnly);
+        for F in Files do
+          List.Add(F);
+        SubDirs := TDirectory.GetDirectories(Dir, '*', TSearchOption.soTopDirectoryOnly);
+        for I := 0 to High(SubDirs) do
+          Stack.Push(SubDirs[I]);
+      except
+        // 忽略不可访问目录
+      end;
+    end;
+    Result := List.ToArray;
+  finally
+    List.Free;
+    Stack.Free;
+  end;
+end;
+
+function TfrmSmartDuplicateCleanup.PartialHashOfFile(const FilePath: string; MaxBytes: Integer): string;
+var
+  FS: TFileStream;
+  Buffer: TBytes;
+  Read: Integer;
+  SHA2: THashSHA2;
+begin
+  Result := '';
+  if not TFile.Exists(FilePath) then Exit;
+  FS := TFileStream.Create(FilePath, fmOpenRead or fmShareDenyNone);
+  try
+    SetLength(Buffer, MaxBytes);
+    Read := FS.Read(Buffer[0], Length(Buffer));
+    if Read > 0 then
+    begin
+      SetLength(Buffer, Read);
+      SHA2 := THashSHA2.Create;
+      SHA2.Update(Buffer, Length(Buffer));
+      Result := THash.DigestAsString(SHA2.HashAsBytes);
+    end;
+  finally
+    FS.Free;
+  end;
+end;
+
+function TfrmSmartDuplicateCleanup.FullHashOfFile(const FilePath: string): string;
+var
+  FS: TFileStream;
+  Buffer: TBytes;
+  Read: Integer;
+  Hash: THashSHA2;
+begin
+  Result := '';
+  if not TFile.Exists(FilePath) then Exit;
+  FS := TFileStream.Create(FilePath, fmOpenRead or fmShareDenyNone);
+  Hash := THashSHA2.Create;
+  try
+    SetLength(Buffer, 1 shl 16);
+    repeat
+      Read := FS.Read(Buffer[0], Length(Buffer));
+      if Read > 0 then
+        Hash.Update(Buffer, Read);
+    until Read = 0;
+    Result := THash.DigestAsString(Hash.HashAsBytes);
+  finally
+    FS.Free;
+  end;
+end;
+
+function TfrmSmartDuplicateCleanup.DeleteFileToRecycleBin(const FilePath: string): Boolean;
+var
+  Op: TSHFileOpStruct;
+  FromBuf: array[0..MAX_PATH] of Char;
+begin
+  Result := False;
+  if not TFile.Exists(FilePath) then Exit(True);
+  ZeroMemory(@Op, SizeOf(Op));
+  FillChar(FromBuf, SizeOf(FromBuf), 0);
+  StrPCopy(FromBuf, FilePath);
+  Op.Wnd := 0;
+  Op.wFunc := FO_DELETE;
+  Op.pFrom := @FromBuf[0];
+  Op.fFlags := FOF_ALLOWUNDO or FOF_NOCONFIRMATION or FOF_SILENT;
+  Result := (SHFileOperation(Op) = 0);
+end;
+
+function TfrmSmartDuplicateCleanup.SameVolume(const A, B: string): Boolean;
+var
+  DA, DB: string;
+begin
+  DA := '';
+  DB := '';
+  if Length(A) >= 2 then DA := AnsiUpperCase(Copy(A, 1, 2));
+  if Length(B) >= 2 then DB := AnsiUpperCase(Copy(B, 1, 2));
+  Result := (DA <> '') and (DA = DB);
+end;
+
+function TfrmSmartDuplicateCleanup.CreateHardLinkSafeReplace(const ExistingPath, TargetPath: string): Boolean;
+begin
+  Result := False;
+  if (ExistingPath = '') or (TargetPath = '') then Exit;
+  if not TFile.Exists(TargetPath) then Exit;
+  try
+    if TFile.Exists(ExistingPath) then
+      TFile.Delete(ExistingPath);
+  except
+    Exit(False);
+  end;
+  Result := CreateHardLink(PChar(ExistingPath), PChar(TargetPath), nil);
+end;
+
+function TfrmSmartDuplicateCleanup.ScanDuplicateGroups(const Paths: TArray<string>): TArray<TDuplicateGroup>;
+var
+  SizeMap: TDictionary<Int64, TStringList>;
+  PartialMap: TDictionary<string, TStringList>;
+  FullMap: TDictionary<string, TStringList>;
+  P: string;
+  Files: TArray<string>;
+  F: string;
+  Sz: Int64;
+  Part: string;
+  PairSize: TPair<Int64, TStringList>;
+  PairPart: TPair<string, TStringList>;
+  PairFull: TPair<string, TStringList>;
+  L: TStringList;
+  Groups: TList<TDuplicateGroup>;
+  newGroup: TDuplicateGroup;
+  I: Integer;
+begin
+  SizeMap := TDictionary<Int64, TStringList>.Create;
+  PartialMap := TDictionary<string, TStringList>.Create;
+  FullMap := TDictionary<string, TStringList>.Create;
+  Groups := TList<TDuplicateGroup>.Create;
+  try
+    // 第一阶段：按大小分桶
+    for P in Paths do
+    begin
+      Files := EnumerateAllFiles(P);
+      for F in Files do
+      begin
+        try
+          Sz := TFile.GetSize(F);
+          if not SizeMap.TryGetValue(Sz, L) then
+          begin
+            L := TStringList.Create;
+            SizeMap.Add(Sz, L);
+          end;
+          L.Add(F);
+        except
+        end;
+      end;
+    end;
+
+    // 第二阶段：相同大小列表>1的，计算部分哈希
+    for PairSize in SizeMap do
+    begin
+      if PairSize.Value.Count <= 1 then Continue;
+      for I := 0 to PairSize.Value.Count - 1 do
+      begin
+        F := PairSize.Value[I];
+        Part := PartialHashOfFile(F, 65536);
+        if Part = '' then Continue;
+        if not PartialMap.TryGetValue(Part, L) then
+        begin
+          L := TStringList.Create;
+          PartialMap.Add(Part, L);
+        end;
+        L.Add(F);
+      end;
+    end;
+
+    // 第三阶段：同部分哈希列表>1，计算全量哈希并分组
+    for PairPart in PartialMap do
+    begin
+      if PairPart.Value.Count <= 1 then Continue;
+      for I := 0 to PairPart.Value.Count - 1 do
+      begin
+        F := PairPart.Value[I];
+        Part := FullHashOfFile(F);
+        if Part = '' then Continue;
+        if not FullMap.TryGetValue(Part, L) then
+        begin
+          L := TStringList.Create;
+          FullMap.Add(Part, L);
+        end;
+        L.Add(F);
+      end;
+    end;
+
+    // 汇总
+    for PairFull in FullMap do
+    begin
+      if PairFull.Value.Count > 1 then
+      begin
+        SetLength(newGroup.Files, PairFull.Value.Count);
+        for I := 0 to PairFull.Value.Count - 1 do
+          newGroup.Files[I] := PairFull.Value[I];
+        if PairFull.Value.Count > 0 then
+          newGroup.Size := TFile.GetSize(PairFull.Value[0]);
+        Groups.Add(newGroup);
+      end;
+    end;
+
+    Result := Groups.ToArray;
+  finally
+    for PairSize in SizeMap do PairSize.Value.Free;
+    for PairPart in PartialMap do PairPart.Value.Free;
+    for PairFull in FullMap do PairFull.Value.Free;
+    SizeMap.Free;
+    PartialMap.Free;
+    FullMap.Free;
+    Groups.Free;
+  end;
+end;
+
+procedure TfrmSmartDuplicateCleanup.OpenInExplorer(const FilePath: string);
+var
+  Info: TShellExecuteInfo;
+begin
+  FillChar(Info, SizeOf(Info), 0);
+  Info.cbSize := SizeOf(Info);
+  Info.fMask := SEE_MASK_DEFAULT;
+  Info.lpVerb := 'open';
+  Info.lpFile := PChar(FilePath);
+  Info.nShow := SW_SHOWNORMAL;
+  ShellExecuteEx(@Info);
+end;
   // 清理统计类型
   TCleanupStats = record
     Count: Integer;
@@ -93,6 +335,7 @@ type
     FTotalDuplicates: Integer;
     FTotalSavings: Int64;
     FIsScanning: Boolean;
+    FGroups: TArray<TDuplicateGroup>;
 
     procedure InitializeUI;
     procedure UpdateButtonStates;
@@ -109,11 +352,22 @@ type
     function FormatFileSize(Size: Int64): string;
     function CalculateCleanupStats(const Groups: TArray<TDuplicateGroup>): TCleanupStats;
     procedure PerformQuickCleanup;
+    procedure RealPerformCleanup(const Groups: TArray<TDuplicateGroup>);
     function CleanupTempFiles: TCleanupResult;
     function CleanupRecycleBin: TCleanupResult;
     function CleanupBrowserCache: TCleanupResult;
     function CleanupSystemLogs: TCleanupResult;
     function CleanupDirectory(const DirPath, FilePattern: string): TCleanupResult;
+
+    // 扫描与哈希/文件操作
+    function EnumerateAllFiles(const Root: string): TArray<string>;
+    function PartialHashOfFile(const FilePath: string; MaxBytes: Integer = 65536): string;
+    function FullHashOfFile(const FilePath: string): string;
+    function ScanDuplicateGroups(const Paths: TArray<string>): TArray<TDuplicateGroup>;
+    function DeleteFileToRecycleBin(const FilePath: string): Boolean;
+    function SameVolume(const A, B: string): Boolean;
+    function CreateHardLinkSafeReplace(const ExistingPath, TargetPath: string): Boolean;
+    procedure OpenInExplorer(const FilePath: string);
 
   public
     procedure StartQuickScan;
@@ -125,7 +379,8 @@ var
 implementation
 
 uses
-  System.IOUtils, Vcl.FileCtrl;
+  System.IOUtils, Vcl.FileCtrl, System.Hash, Winapi.ShellAPI,
+  System.Generics.Defaults, System.SyncObjs, System.Threading;
 
 {$R *.dfm}
 
@@ -305,9 +560,39 @@ end;
 
 
 function TfrmSmartDuplicateCleanup.GetScanPaths: TArray<string>;
+var
+  L: TList<string>;
+  I: Integer;
+  Arr: TArray<string>;
+  S: string;
 begin
-  // 简化版本 - 返回空数组
-  SetLength(Result, 0);
+  L := TList<string>.Create;
+  try
+    if chkIncludeDownloads.Checked then
+    begin
+      S := TPath.Combine(TPath.GetHomePath, 'Downloads');
+      L.Add(S);
+    end;
+    if chkIncludeDesktop.Checked then
+    begin
+      S := TPath.Combine(TPath.GetHomePath, 'Desktop');
+      L.Add(S);
+    end;
+    if chkIncludeDocuments.Checked then
+    begin
+      S := TPath.GetDocumentsPath;
+      L.Add(S);
+    end;
+    if Trim(edtCustomPath.Text) <> '' then
+      L.Add(Trim(edtCustomPath.Text));
+
+    SetLength(Arr, L.Count);
+    for I := 0 to L.Count - 1 do
+      Arr[I] := L[I];
+    Result := Arr;
+  finally
+    L.Free;
+  end;
 end;
 
 function TfrmSmartDuplicateCleanup.GetSelectedMode: TDecisionMode;
@@ -353,6 +638,8 @@ procedure TfrmSmartDuplicateCleanup.PerformQuickCleanup;
 var
   TotalCleaned: Int64;
   FilesDeleted: Integer;
+  TempResult, RecycleResult, BrowserResult: TCleanupResult;
+  ResultMsg: string;
 begin
   TotalCleaned := 0;
   FilesDeleted := 0;
@@ -369,7 +656,7 @@ begin
     lblStatus.Caption := '正在清理临时文件...';
     Application.ProcessMessages;
 
-    var TempResult := CleanupTempFiles;
+    TempResult := CleanupTempFiles;
     TotalCleaned := TotalCleaned + TempResult.Size;
     FilesDeleted := FilesDeleted + TempResult.Count;
 
@@ -378,7 +665,7 @@ begin
     lblStatus.Caption := '正在清理回收站...';
     Application.ProcessMessages;
 
-    var RecycleResult := CleanupRecycleBin;
+    RecycleResult := CleanupRecycleBin;
     TotalCleaned := TotalCleaned + RecycleResult.Size;
     FilesDeleted := FilesDeleted + RecycleResult.Count;
 
@@ -387,7 +674,7 @@ begin
     lblStatus.Caption := '正在清理浏览器缓存...';
     Application.ProcessMessages;
 
-    var BrowserResult := CleanupBrowserCache;
+    BrowserResult := CleanupBrowserCache;
     TotalCleaned := TotalCleaned + BrowserResult.Size;
     FilesDeleted := FilesDeleted + BrowserResult.Count;
 
@@ -397,11 +684,11 @@ begin
       [FilesDeleted, TotalCleaned / (1024*1024)]);
 
     // 显示结果
-    var ResultMsg := Format('🎉 一键智能清理完成！' + sLineBreak + sLineBreak +
-                           '📊 清理统计:' + sLineBreak +
-                           '• 清理文件数量: %d 个' + sLineBreak +
-                           '• 释放磁盘空间: %.2f MB' + sLineBreak,
-                           [FilesDeleted, TotalCleaned / (1024*1024)]);
+    ResultMsg := Format('一键智能清理完成！' + sLineBreak + sLineBreak +
+                        '清理统计:' + sLineBreak +
+                        '• 清理文件数量: %d 个' + sLineBreak +
+                        '• 释放磁盘空间: %.2f MB' + sLineBreak,
+                        [FilesDeleted, TotalCleaned / (1024*1024)]);
 
     ShowMessage(ResultMsg);
 
@@ -410,7 +697,7 @@ begin
     lblResults.Caption := Format('清理完成：释放了 %.2f MB 空间', [TotalCleaned / (1024*1024)]);
     lblFilesFound.Caption := Format('清理文件数量：%d 个', [FilesDeleted]);
     lblSpaceSaved.Caption := Format('节省空间：%.2f MB', [TotalCleaned / (1024*1024)]);
-    lblSafetyLevel.Caption := '🎉 清理完成，系统运行更流畅';
+    lblSafetyLevel.Caption := '清理完成，系统运行更流畅';
 
   finally
     ProgressBar.Visible := False;

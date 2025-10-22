@@ -1,0 +1,19 @@
+  
+Embarcadero Delphi for Win32 compiler version 36.0
+Copyright (c) 1983,2024 Embarcadero Technologies, Inc.
+C≈Ã ›…Ì.dpr(3) Error: E2029 ';' expected but 'USES' found
+C≈Ã ›…Ì.dpr(19) Error: E2003 Undeclared identifier: 'Application'
+C≈Ã ›…Ì.dpr(19) Error: E2066 Missing operator or semicolon
+C≈Ã ›…Ì.dpr(19) Hint: H2243 Expression needs no Initialize/Finalize
+C≈Ã ›…Ì.dpr(20) Error: E2066 Missing operator or semicolon
+C≈Ã ›…Ì.dpr(21) Error: E2066 Missing operator or semicolon
+C≈Ã ›…Ì.dpr(24) Error: E2003 Undeclared identifier: 'frmSplash'
+C≈Ã ›…Ì.dpr(24) Error: E2003 Undeclared identifier: 'TfrmSplash'
+C≈Ã ›…Ì.dpr(24) Error: E2066 Missing operator or semicolon
+C≈Ã ›…Ì.dpr(25) Error: E2066 Missing operator or semicolon
+C≈Ã ›…Ì.dpr(26) Error: E2066 Missing operator or semicolon
+C≈Ã ›…Ì.dpr(29) Error: E2003 Undeclared identifier: 'Sleep'
+C≈Ã ›…Ì.dpr(32) Error: E2066 Missing operator or semicolon
+C≈Ã ›…Ì.dpr(32) Error: E2003 Undeclared identifier: 'TfrmMain'
+C≈Ã ›…Ì.dpr(33) Error: E2066 Missing operator or semicolon
+C≈Ã ›…Ì.dpr(36) Error: E2066 Missing operator or semicolon
