@@ -1,4 +1,4 @@
-unit uAntiTamperPackage;
+﻿unit uAntiTamperPackage;
 
 {
   防篡改机制打包模块

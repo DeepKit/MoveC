@@ -1,4 +1,4 @@
-unit uMain;
+﻿unit uMain;
 
 interface
 
@@ -41,12 +41,6 @@ type
     btnTargetUp: TBitBtn;
     tvTarget: TTreeView;
     
-    // 状态面板
-    pnlStatus: TPanel;
-    lblStatus: TLabel;
-    ProgressBar1: TProgressBar;
-    memoStatus: TMemo;
-    
     // 底部状态栏
     StatusBar1: TStatusBar;
     
@@ -88,19 +82,30 @@ type
     miTgtSetRoot: TMenuItem;
     miTgtSetAsTargetPath: TMenuItem;
     miTgtRefresh: TMenuItem;
+    miSrcDelete: TMenuItem;
+    miSrcProperties: TMenuItem;
+    miTgtDelete: TMenuItem;
+    miTgtProperties: TMenuItem;
+    lvFiles: TListView;
     pnlBottom: TPanel;
-    pnlToolbar: TPanel;
+    pnlAboutMe: TPanel;
+    pnlTop: TPanel;
     btnCleanRecycleBin: TBitBtn;
     btnCleanTemp: TBitBtn;
     btnCleanBackup: TBitBtn;
     btnCleanUpdate: TBitBtn;
     btnSmartClean: TBitBtn;
     btnSmartMigration: TBitBtn;
-    btnExecute: TBitBtn;
     btnAnalyze: TBitBtn;
     btnCalculateSize: TBitBtn;
+    btnExecute: TBitBtn;
     btnExit: TBitBtn;
-    pnlAboutMe: TPanel;
+    pnlStatus: TPanel;
+    lblStatus: TLabel;
+    ProgressBar1: TProgressBar;
+    memoStatus: TMemo;
+    pnlFileList: TPanel;
+    Splitter1: TSplitter;
     
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -163,6 +168,10 @@ type
     procedure miTgtSetRootClick(Sender: TObject);
     procedure miTgtSetAsTargetPathClick(Sender: TObject);
     procedure miTgtRefreshClick(Sender: TObject);
+    procedure miSrcDeleteClick(Sender: TObject);
+    procedure miSrcPropertiesClick(Sender: TObject);
+    procedure miTgtDeleteClick(Sender: TObject);
+    procedure miTgtPropertiesClick(Sender: TObject);
     
   private
     FSourcePath: string;
@@ -225,6 +234,12 @@ type
     // 迁移完成对话框
     procedure ShowMigrationCompleteDialog(TotalFiles, VerifiedCount, FailedCount: Integer;
       const BackupDir: string; BackupSize: Int64);
+    
+    // 文件列表管理
+    procedure InitializeFileList;
+    procedure LoadFileList(const APath: string);
+    procedure ShowDirectoryProperties(const APath: string);
+    procedure DeleteDirectory(const APath: string; ATreeView: TTreeView);
     
   public
     { Public declarations }
@@ -291,6 +306,7 @@ begin
 
   InitializeInterface;
   InitializeTreeViews;
+  InitializeFileList;
 end;
 
 procedure TfrmMain.FormDestroy(Sender: TObject);
@@ -373,7 +389,8 @@ begin
       end;
 
       FFrameAboutMe.Parent := pnlAboutMe; // pnlAboutMe是pnlBottom的子面板
-      FFrameAboutMe.Align := alClient;
+      FFrameAboutMe.Align := alRight; // 在右侧显示，左侧留给memoStatus
+      FFrameAboutMe.Width := 640; // 设置合适宽度
       FFrameAboutMe.Visible := True;
 
       try
@@ -450,26 +467,6 @@ begin
   begin
     FStyleManager.StyleForm(Self);
     FStyleManager.StylePanel(pnlMain);
-    FStyleManager.StylePanel(pnlToolbar);
-    // FStyleManager.StylePanel(pnlLeft);
-    // FStyleManager.StylePanel(pnlRight);
-    // FStyleManager.StylePanel(pnlStatus);
-
-    // 应用按钮样式 - TBitBtn有自己的样式，暂时注释掉
-    // FStyleManager.StyleButton(btnCleanRecycleBin);
-    // FStyleManager.StyleButton(btnCleanTemp);
-    // FStyleManager.StyleButton(btnCleanBackup);
-    // FStyleManager.StyleButton(btnCleanUpdate);
-    // FStyleManager.StyleButton(btnSmartClean);
-    // FStyleManager.StyleButton(btnSmartMigration);
-    // FStyleManager.StyleButton(btnExecute);
-    // FStyleManager.StyleButton(btnAnalyze);
-    // FStyleManager.StyleButton(btnCalculateSize);
-    // FStyleManager.StyleButton(btnExit);
-    // FStyleManager.StyleButton(btnBrowseSource);
-    // FStyleManager.StyleButton(btnBrowseTarget);
-    // FStyleManager.StyleButton(btnSourceUp);
-    // FStyleManager.StyleButton(btnTargetUp);
 
     // 应用编辑框样式
     FStyleManager.StyleEdit(edtSourceDir);
@@ -488,7 +485,7 @@ begin
   // 初始化目录树
   tvSource.ReadOnly := True;
   tvTarget.ReadOnly := True;
-  
+
   // 设置图标
   tvSource.ShowButtons := True;
   tvSource.ShowLines := True;
@@ -640,8 +637,9 @@ end;
 
 procedure TfrmMain.btnSmartMigrationClick(Sender: TObject);
 begin
-  UpdateStatus('智能迁移功能暂时不可用');
-  ShowChineseMessage('智能迁移功能正在开发中，敬请期待！');
+  UpdateStatus('迁移向导功能暂时不可用');
+  ShowChineseMessage('迁移向导功能正在开发中！' + sLineBreak + sLineBreak +
+    '当前请使用“开始迁移”按钮执行迁移操作。');
 end;
 
 procedure TfrmMain.btnExecuteClick(Sender: TObject);
@@ -653,13 +651,14 @@ begin
     Exit;
   end;
 
-  if ShowChineseConfirm('确定要执行目录迁移操作吗？' + sLineBreak +
-                        '源目录: ' + FSourcePath + sLineBreak +
-                        '目标目录: ' + FTargetPath + sLineBreak + sLineBreak +
-                        '此操作将：' + sLineBreak +
-                        '1. 复制文件到目标位置' + sLineBreak +
-                        '2. 备份原目录' + sLineBreak +
-                        '3. 创建符号链接') then
+  if ShowChineseConfirm('确定要开始目录迁移操作吗？' + sLineBreak + sLineBreak +
+                        '📁 源目录: ' + FSourcePath + sLineBreak +
+                        '📂 目标目录: ' + FTargetPath + sLineBreak + sLineBreak +
+                        '✅ 迁移步骤：' + sLineBreak +
+                        '1️⃣ 复制全部文件到目标位置' + sLineBreak +
+                        '2️⃣ 自动备份原目录' + sLineBreak +
+                        '3️⃣ 创建Junction链接保证兼容' + sLineBreak + sLineBreak +
+                        '⚠️ 重要提示：迁移前请确保关闭正在使用该目录的程序！') then
   begin
     ExecuteOperation;
   end;
@@ -773,6 +772,8 @@ begin
     FSourcePath := StrPas(PChar(Node.Data));
     edtSourceDir.Text := FSourcePath;
     UpdateStatus('选择源目录: ' + FSourcePath);
+    // 更新文件列表
+    LoadFileList(FSourcePath);
   end;
 end;
 
@@ -783,6 +784,8 @@ begin
     FTargetPath := StrPas(PChar(Node.Data));
     edtTargetDir.Text := FTargetPath;
     UpdateStatus('选择目标目录: ' + FTargetPath);
+    // 更新文件列表
+    LoadFileList(FTargetPath);
   end;
 end;
 
@@ -1849,6 +1852,8 @@ begin
   miSrcSetRoot.Enabled := miSrcOpen.Enabled;
   miSrcScanHere.Enabled := miSrcOpen.Enabled;
   miSrcAnalyzeHere.Enabled := miSrcOpen.Enabled;
+  miSrcDelete.Enabled := miSrcOpen.Enabled;
+  miSrcProperties.Enabled := miSrcOpen.Enabled;
 end;
 
 procedure TfrmMain.pmTargetPopup(Sender: TObject);
@@ -1859,6 +1864,8 @@ begin
   miTgtCopyPath.Enabled := miTgtOpen.Enabled;
   miTgtSetRoot.Enabled := miTgtOpen.Enabled;
   miTgtSetAsTargetPath.Enabled := miTgtOpen.Enabled;
+  miTgtDelete.Enabled := miTgtOpen.Enabled;
+  miTgtProperties.Enabled := miTgtOpen.Enabled;
 end;
 
 procedure TfrmMain.ApplyModernColors;
@@ -1910,8 +1917,8 @@ begin
   btnCleanBackup.Caption := '清理备份';
   btnCleanUpdate.Caption := '清理更新缓存';
   btnSmartClean.Caption := '智能清理';
-  btnSmartMigration.Caption := '智能迁移';
-  btnExecute.Caption := '执行迁移';
+  btnSmartMigration.Caption := '迁移向导';
+  btnExecute.Caption := '开始迁移';
   btnAnalyze.Caption := '分析目录';
   btnCalculateSize.Caption := '计算大小';
   btnExit.Caption := '退出';
@@ -2388,6 +2395,243 @@ begin
       Result := False;
     end;
   end;
+end;
+
+// ===== 文件列表管理 =====
+
+// 初始化文件列表控件
+procedure TfrmMain.InitializeFileList;
+begin
+  // lvFiles已在设计时创建，无需额外初始化
+end;
+
+// 加载文件列表
+procedure TfrmMain.LoadFileList(const APath: string);
+var
+  Files: TArray<string>;
+  Dirs: TArray<string>;
+  Item: TListItem;
+  FileInfo: TSearchRec;
+  I: Integer;
+  FileSize: Int64;
+  FileTime: TDateTime;
+begin
+  if not Assigned(lvFiles) then
+    Exit;
+    
+  lvFiles.Items.BeginUpdate;
+  try
+    lvFiles.Clear;
+    
+    if not TDirectory.Exists(APath) then
+    begin
+      UpdateStatus('目录不存在: ' + APath);
+      Exit;
+    end;
+    
+    try
+      // 先显示子目录
+      Dirs := TDirectory.GetDirectories(APath);
+      for I := 0 to High(Dirs) do
+      begin
+        Item := lvFiles.Items.Add;
+        Item.Caption := TPath.GetFileName(Dirs[I]);
+        Item.SubItems.Add('<DIR>');
+        
+        if FindFirst(Dirs[I], faDirectory, FileInfo) = 0 then
+        begin
+          FileTime := FileDateToDateTime(FileInfo.Time);
+          Item.SubItems.Add(DateTimeToStr(FileTime));
+          FindClose(FileInfo);
+        end
+        else
+          Item.SubItems.Add('');
+          
+        Item.SubItems.Add('文件夹');
+        Item.ImageIndex := 0; // 文件夹图标
+      end;
+      
+      // 再显示文件
+      Files := TDirectory.GetFiles(APath);
+      for I := 0 to High(Files) do
+      begin
+        Item := lvFiles.Items.Add;
+        Item.Caption := TPath.GetFileName(Files[I]);
+        
+        try
+          FileSize := TFile.GetSize(Files[I]);
+          Item.SubItems.Add(TSystemCheck.FormatBytes(FileSize));
+        except
+          Item.SubItems.Add('');
+        end;
+        
+        if FindFirst(Files[I], faAnyFile, FileInfo) = 0 then
+        begin
+          FileTime := FileDateToDateTime(FileInfo.Time);
+          Item.SubItems.Add(DateTimeToStr(FileTime));
+          FindClose(FileInfo);
+        end
+        else
+          Item.SubItems.Add('');
+          
+        Item.SubItems.Add(ExtractFileExt(Files[I]));
+        Item.ImageIndex := 1; // 文件图标
+      end;
+      
+      UpdateStatus(Format('已加载 %d 个目录和 %d 个文件', [Length(Dirs), Length(Files)]));
+      
+    except
+      on E: Exception do
+        UpdateStatus('加载文件列表失败: ' + E.Message);
+    end;
+    
+  finally
+    lvFiles.Items.EndUpdate;
+  end;
+end;
+
+// 显示目录属性
+procedure TfrmMain.ShowDirectoryProperties(const APath: string);
+var
+  FileCount: Integer;
+  TotalSize: Int64;
+  Msg: string;
+begin
+  if not TDirectory.Exists(APath) then
+  begin
+    ShowChineseMessage('目录不存在!');
+    Exit;
+  end;
+  
+  FileCount := 0;
+  TotalSize := 0;
+  
+  UpdateStatus('正在计算目录属性...');
+  ProgressBar1.Visible := True;
+  ProgressBar1.Style := pbstMarquee;
+  
+  try
+    ComputeDirStats(APath, FileCount, TotalSize);
+    
+    Msg := Format(
+      '目录属性' + sLineBreak + sLineBreak +
+      '路径: %s' + sLineBreak + sLineBreak +
+      '文件数量: %d' + sLineBreak +
+      '总大小: %s' + sLineBreak +
+      '(%d 字节)',
+      [APath, FileCount, TSystemCheck.FormatBytes(TotalSize), TotalSize]);
+    
+    ShowChineseMessage(Msg);
+    UpdateStatus('属性计算完成');
+    
+  finally
+    ProgressBar1.Visible := False;
+    ProgressBar1.Style := pbstNormal;
+  end;
+end;
+
+// 删除目录
+procedure TfrmMain.DeleteDirectory(const APath: string; ATreeView: TTreeView);
+var
+  FileCount: Integer;
+  TotalSize: Int64;
+  Msg: string;
+begin
+  if not TDirectory.Exists(APath) then
+  begin
+    ShowChineseMessage('目录不存在!');
+    Exit;
+  end;
+  
+  // 计算目录信息
+  FileCount := 0;
+  TotalSize := 0;
+  ComputeDirStats(APath, FileCount, TotalSize);
+  
+  Msg := Format(
+    '确认删除该目录吗?' + sLineBreak + sLineBreak +
+    '路径: %s' + sLineBreak +
+    '文件数量: %d' + sLineBreak +
+    '总大小: %s' + sLineBreak + sLineBreak +
+    '警告: 该操作不可恢复!',
+    [APath, FileCount, TSystemCheck.FormatBytes(TotalSize)]);
+  
+  if not ShowChineseConfirm(Msg) then
+    Exit;
+  
+  // 二次确认
+  if not ShowChineseConfirm('再次确认: 确定要删除此目录吗?' + sLineBreak + APath) then
+    Exit;
+  
+  UpdateStatus('正在删除目录: ' + APath);
+  ProgressBar1.Visible := True;
+  ProgressBar1.Style := pbstMarquee;
+  
+  try
+    TDirectory.Delete(APath, True);
+    UpdateStatus('已成功删除目录: ' + APath);
+    ShowChineseMessage('目录已成功删除!');
+    
+    // 刷新目录树
+    if ATreeView = tvSource then
+    begin
+      LoadDirectoryTree(tvSource, TPath.GetDirectoryName(APath));
+      FSourcePath := TPath.GetDirectoryName(APath);
+    end
+    else if ATreeView = tvTarget then
+    begin
+      LoadDirectoryTree(tvTarget, TPath.GetDirectoryName(APath));
+      FTargetPath := TPath.GetDirectoryName(APath);
+    end;
+    
+    // 清空文件列表
+    if Assigned(lvFiles) then
+      lvFiles.Clear;
+    
+  except
+    on E: Exception do
+    begin
+      UpdateStatus('删除目录失败: ' + E.Message);
+      ShowChineseMessage('删除目录失败:' + sLineBreak + E.Message);
+    end;
+  end;
+  
+  ProgressBar1.Visible := False;
+  ProgressBar1.Style := pbstNormal;
+end;
+
+// 新增菜单事件处理
+
+procedure TfrmMain.miSrcDeleteClick(Sender: TObject);
+begin
+  if FSourcePath <> '' then
+    DeleteDirectory(FSourcePath, tvSource)
+  else
+    ShowChineseMessage('请先选择源目录!');
+end;
+
+procedure TfrmMain.miSrcPropertiesClick(Sender: TObject);
+begin
+  if FSourcePath <> '' then
+    ShowDirectoryProperties(FSourcePath)
+  else
+    ShowChineseMessage('请先选择源目录!');
+end;
+
+procedure TfrmMain.miTgtDeleteClick(Sender: TObject);
+begin
+  if FTargetPath <> '' then
+    DeleteDirectory(FTargetPath, tvTarget)
+  else
+    ShowChineseMessage('请先选择目标目录!');
+end;
+
+procedure TfrmMain.miTgtPropertiesClick(Sender: TObject);
+begin
+  if FTargetPath <> '' then
+    ShowDirectoryProperties(FTargetPath)
+  else
+    ShowChineseMessage('请先选择目标目录!');
 end;
 
 end.

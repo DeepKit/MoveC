@@ -7,60 +7,57 @@ object frmMain: TfrmMain
   Color = 15790320
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
-  Font.Height = -10
+  Font.Height = -9
   Font.Name = 'Segoe UI'
-  Font.Size = 7
   Font.Style = []
   Menu = MainMenu1
   Position = poScreenCenter
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   OnShow = FormShow
-  TextHeight = 17
+  TextHeight = 12
   object pnlMain: TPanel
     Left = 0
-    Top = 0
+    Top = 48
     Width = 984
-    Height = 642
+    Height = 594
     Align = alClient
     BevelOuter = bvNone
     Color = 16053754
     TabOrder = 0
-    ExplicitHeight = 633
+    ExplicitTop = 57
+    ExplicitHeight = 585
     object pnlLeft: TPanel
       Left = 0
       Top = 0
       Width = 320
-      Height = 642
+      Height = 594
       Align = alLeft
       BevelOuter = bvNone
-      BorderStyle = bsSingle
       BorderWidth = 1
+      BorderStyle = bsSingle
       Caption = #28304#30446#24405
       Color = clWhite
       TabOrder = 0
-      ExplicitTop = 89
-      ExplicitHeight = 592
+      ExplicitHeight = 585
       object lblSourceDir: TLabel
         Left = 10
         Top = 10
-        Width = 48
-        Height = 17
+        Width = 52
+        Height = 19
         Caption = #28304#30446#24405#65306
         Font.Charset = DEFAULT_CHARSET
         Font.Color = 1668818
         Font.Height = -13
         Font.Name = 'Microsoft YaHei UI'
-        Font.Size = 10
         Font.Style = [fsBold]
         ParentFont = False
       end
       object edtSourceDir: TEdit
-        Left = 12
-        Top = 49
+        Left = 9
+        Top = 33
         Width = 300
         Height = 25
-        BorderStyle = bsSingle
         Color = clWhite
         Font.Charset = DEFAULT_CHARSET
         Font.Color = 2171169
@@ -71,43 +68,28 @@ object frmMain: TfrmMain
         TabOrder = 0
       end
       object btnBrowseSource: TBitBtn
-        Left = 234
-        Top = 14
-        Width = 104
+        Left = 208
+        Top = 4
+        Width = 99
         Height = 26
         Caption = #27983#35272'...'
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clBlack
-        Font.Height = -12
-        Font.Name = 'Segoe UI'
-        Font.Size = 8
-        Font.Style = []
-        ParentFont = True
         TabOrder = 1
         OnClick = btnBrowseSourceClick
       end
       object btnSourceUp: TBitBtn
-        Left = 157
-        Top = 14
+        Left = 115
+        Top = 4
         Width = 90
         Height = 26
         Caption = #19978#32423
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clBlack
-        Font.Height = -12
-        Font.Name = 'Segoe UI'
-        Font.Size = 8
-        Font.Style = []
-        ParentFont = True
         TabOrder = 3
         OnClick = btnSourceUpClick
       end
       object tvSource: TTreeView
-        Left = 14
-        Top = 80
+        Left = 9
+        Top = 64
         Width = 300
-        Height = 545
-        BorderStyle = bsSingle
+        Height = 522
         Color = clWhite
         Font.Charset = DEFAULT_CHARSET
         Font.Color = 4342338
@@ -128,36 +110,33 @@ object frmMain: TfrmMain
       Left = 320
       Top = 0
       Width = 320
-      Height = 642
+      Height = 594
       Align = alLeft
       BevelOuter = bvNone
-      BorderStyle = bsSingle
       BorderWidth = 1
+      BorderStyle = bsSingle
       Caption = #30446#26631#30446#24405
       Color = clWhite
       TabOrder = 1
-      ExplicitTop = 89
-      ExplicitHeight = 592
+      ExplicitHeight = 585
       object lblTargetDir: TLabel
         Left = 10
         Top = 10
-        Width = 60
-        Height = 17
+        Width = 65
+        Height = 19
         Caption = #30446#26631#30446#24405#65306
         Font.Charset = DEFAULT_CHARSET
         Font.Color = 1668818
         Font.Height = -13
         Font.Name = 'Microsoft YaHei UI'
-        Font.Size = 10
         Font.Style = [fsBold]
         ParentFont = False
       end
       object edtTargetDir: TEdit
-        Left = 11
-        Top = 49
-        Width = 295
+        Left = 7
+        Top = 35
+        Width = 300
         Height = 25
-        BorderStyle = bsSingle
         Color = clWhite
         Font.Charset = DEFAULT_CHARSET
         Font.Color = 2171169
@@ -168,43 +147,28 @@ object frmMain: TfrmMain
         TabOrder = 0
       end
       object btnBrowseTarget: TBitBtn
-        Left = 234
-        Top = 14
-        Width = 104
+        Left = 209
+        Top = 4
+        Width = 96
         Height = 26
         Caption = #27983#35272'...'
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clBlack
-        Font.Height = -12
-        Font.Name = 'Segoe UI'
-        Font.Size = 8
-        Font.Style = []
-        ParentFont = True
         TabOrder = 1
         OnClick = btnBrowseTargetClick
       end
       object btnTargetUp: TBitBtn
-        Left = 157
-        Top = 14
+        Left = 117
+        Top = 4
         Width = 90
         Height = 26
         Caption = #19978#32423
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clBlack
-        Font.Height = -12
-        Font.Name = 'Segoe UI'
-        Font.Size = 8
-        Font.Style = []
-        ParentFont = True
         TabOrder = 3
         OnClick = btnTargetUpClick
       end
       object tvTarget: TTreeView
-        Left = 10
-        Top = 80
+        Left = 8
+        Top = 64
         Width = 300
-        Height = 545
-        BorderStyle = bsSingle
+        Height = 522
         Color = clWhite
         Font.Charset = DEFAULT_CHARSET
         Font.Color = 4342338
@@ -221,60 +185,50 @@ object frmMain: TfrmMain
         OnKeyDown = tvTargetKeyDown
       end
     end
-    object pnlStatus: TPanel
+    object pnlFileList: TPanel
       Left = 640
       Top = 0
       Width = 344
-      Height = 642
+      Height = 594
       Align = alClient
-      BevelOuter = bvNone
-      Caption = #29366#24577#20449#24687
-      Color = 16449532
       TabOrder = 2
-      ExplicitTop = 89
-      ExplicitHeight = 592
-      object lblStatus: TLabel
-        Left = 10
-        Top = 10
-        Width = 36
-        Height = 17
-        Caption = #36827#24230#65306
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = 3830863
-        Font.Height = -13
-        Font.Name = 'Microsoft YaHei UI'
-        Font.Size = 10
-        Font.Style = [fsBold]
-        ParentFont = False
-      end
-      object ProgressBar1: TProgressBar
-        Left = 10
-        Top = 30
-        Width = 740
-        Height = 17
-        TabOrder = 0
-        Visible = False
-      end
-      object memoStatus: TMemo
-        AlignWithMargins = True
-        Left = 11
-        Top = 9
-        Width = 322
-        Height = 627
-        Margins.Left = 10
-        Margins.Top = 8
-        Margins.Right = 10
-        Margins.Bottom = 5
+      ExplicitHeight = 585
+      object lvFiles: TListView
+        Left = 1
+        Top = 1
+        Width = 342
+        Height = 592
         Align = alClient
-        BorderStyle = bsSingle
-        Color = 16449532
-        Font.Charset = GB2312_CHARSET
-        Font.Name = 'Microsoft YaHei UI'
-        Font.Size = 9
+        Columns = <
+          item
+            Caption = #25991#20214#21517
+            Width = 300
+          end
+          item
+            Alignment = taRightJustify
+            Caption = #22823#23567
+            Width = 100
+          end
+          item
+            Caption = #20462#25913#26085#26399
+            Width = 150
+          end
+          item
+            Caption = #31867#22411
+            Width = 100
+          end>
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clWindowText
+        Font.Height = -12
+        Font.Name = #24494#36719#38597#40657
+        Font.Style = []
+        GridLines = True
+        ReadOnly = True
+        RowSelect = True
         ParentFont = False
-        ScrollBars = ssVertical
-        TabOrder = 1
-        ExplicitHeight = 577
+        TabOrder = 0
+        ViewStyle = vsReport
+        ExplicitHeight = 583
       end
     end
   end
@@ -297,7 +251,6 @@ object frmMain: TfrmMain
       item
         Width = 50
       end>
-    ExplicitTop = 681
   end
   object pnlBottom: TPanel
     Left = 0
@@ -306,195 +259,180 @@ object frmMain: TfrmMain
     Height = 214
     Align = alBottom
     TabOrder = 2
-    ExplicitTop = 644
-    object pnlToolbar: TPanel
-      Left = 624
-      Top = 1
-      Width = 359
-      Height = 212
-      Align = alRight
-      BevelOuter = bvNone
-      Color = 1713790
-      ParentBackground = False
-      TabOrder = 0
-      object btnCleanRecycleBin: TBitBtn
-        Left = 10
-        Top = 10
-        Width = 90
-        Height = 42
-        Caption = #28165#31354#22238#25910#31449
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clBlack
-        Font.Height = -12
-        Font.Name = 'Segoe UI'
-        Font.Size = 8
-        Font.Style = []
-        ParentFont = True
-        TabOrder = 0
-        OnClick = btnCleanRecycleBinClick
-      end
-      object btnCleanTemp: TBitBtn
-        Left = 105
-        Top = 10
-        Width = 90
-        Height = 42
-        Caption = #28165#29702#20020#26102#25991#20214
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clBlack
-        Font.Height = -12
-        Font.Name = 'Segoe UI'
-        Font.Size = 8
-        Font.Style = []
-        ParentFont = True
-        TabOrder = 1
-        OnClick = btnCleanTempClick
-      end
-      object btnCleanBackup: TBitBtn
-        Left = 200
-        Top = 10
-        Width = 90
-        Height = 42
-        Caption = #28165#29702#22791#20221
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clBlack
-        Font.Height = -12
-        Font.Name = 'Segoe UI'
-        Font.Size = 8
-        Font.Style = []
-        ParentFont = True
-        TabOrder = 2
-        OnClick = btnCleanBackupClick
-      end
-      object btnCleanUpdate: TBitBtn
-        Left = 10
-        Top = 54
-        Width = 90
-        Height = 42
-        Caption = #28165#29702#26356#26032#32531#23384
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clBlack
-        Font.Height = -12
-        Font.Name = 'Segoe UI'
-        Font.Size = 8
-        Font.Style = []
-        ParentFont = True
-        TabOrder = 3
-        OnClick = btnCleanUpdateClick
-      end
-      object btnSmartClean: TBitBtn
-        Left = 105
-        Top = 54
-        Width = 90
-        Height = 42
-        Caption = #26234#33021#28165#29702
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clBlack
-        Font.Height = -12
-        Font.Name = 'Segoe UI'
-        Font.Size = 8
-        Font.Style = []
-        ParentFont = True
-        TabOrder = 4
-        OnClick = btnSmartCleanClick
-      end
-      object btnSmartMigration: TBitBtn
-        Left = 200
-        Top = 54
-        Width = 90
-        Height = 42
-        Caption = #26234#33021#36801#31227
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clBlack
-        Font.Height = -12
-        Font.Name = 'Segoe UI'
-        Font.Size = 8
-        Font.Style = []
-        ParentFont = True
-        TabOrder = 5
-        OnClick = btnSmartMigrationClick
-      end
-      object btnExecute: TBitBtn
-        Left = 200
-        Top = 98
-        Width = 90
-        Height = 42
-        Caption = #25191#34892#36801#31227
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clBlack
-        Font.Height = -12
-        Font.Name = 'Segoe UI'
-        Font.Size = 8
-        Font.Style = []
-        ParentFont = True
-        TabOrder = 6
-        OnClick = btnExecuteClick
-      end
-      object btnAnalyze: TBitBtn
-        Left = 10
-        Top = 98
-        Width = 90
-        Height = 42
-        Caption = #20998#26512#30446#24405
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clBlack
-        Font.Height = -12
-        Font.Name = 'Segoe UI'
-        Font.Size = 8
-        Font.Style = []
-        ParentFont = True
-        TabOrder = 7
-        OnClick = btnAnalyzeClick
-      end
-      object btnCalculateSize: TBitBtn
-        Left = 105
-        Top = 98
-        Width = 90
-        Height = 42
-        Caption = #35745#31639#22823#23567
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clBlack
-        Font.Height = -12
-        Font.Name = 'Segoe UI'
-        Font.Size = 8
-        Font.Style = []
-        ParentFont = True
-        TabOrder = 8
-        OnClick = btnCalculateSizeClick
-      end
-      object btnExit: TBitBtn
-        Left = 200
-        Top = 162
-        Width = 90
-        Height = 42
-        Caption = #36864#20986
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clBlack
-        Font.Height = -12
-        Font.Name = 'Segoe UI'
-        Font.Size = 8
-        Font.Style = []
-        ParentFont = True
-        TabOrder = 9
-        OnClick = btnExitClick
-      end
-    end
     object pnlAboutMe: TPanel
       Left = 1
       Top = 1
-      Width = 623
+      Width = 982
       Height = 212
       Align = alClient
       BevelInner = bvLowered
+      TabOrder = 0
+      object Splitter1: TSplitter
+        Left = 977
+        Top = 2
+        Height = 208
+        Align = alRight
+        ExplicitLeft = 496
+        ExplicitTop = 56
+        ExplicitHeight = 100
+      end
+      object pnlStatus: TPanel
+        Left = 2
+        Top = 2
+        Width = 975
+        Height = 208
+        Align = alClient
+        BevelOuter = bvNone
+        Caption = #29366#24577#20449#24687
+        Color = 16449532
+        TabOrder = 0
+        object lblStatus: TLabel
+          Left = 10
+          Top = 10
+          Width = 39
+          Height = 19
+          Caption = #36827#24230#65306
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = 3830863
+          Font.Height = -13
+          Font.Name = 'Microsoft YaHei UI'
+          Font.Style = [fsBold]
+          ParentFont = False
+        end
+        object ProgressBar1: TProgressBar
+          Left = 10
+          Top = 30
+          Width = 740
+          Height = 17
+          TabOrder = 0
+          Visible = False
+        end
+        object memoStatus: TMemo
+          AlignWithMargins = True
+          Left = 10
+          Top = 8
+          Width = 955
+          Height = 195
+          Margins.Left = 10
+          Margins.Top = 8
+          Margins.Right = 10
+          Margins.Bottom = 5
+          Align = alClient
+          Color = 16449532
+          Font.Charset = GB2312_CHARSET
+          Font.Color = clWindowText
+          Font.Height = -12
+          Font.Name = 'Microsoft YaHei UI'
+          Font.Style = []
+          ParentFont = False
+          ScrollBars = ssVertical
+          TabOrder = 1
+        end
+      end
+    end
+  end
+  object pnlTop: TPanel
+    Left = 0
+    Top = 0
+    Width = 984
+    Height = 48
+    Align = alTop
+    BevelOuter = bvLowered
+    TabOrder = 3
+    object btnCleanRecycleBin: TBitBtn
+      Left = 9
+      Top = 6
+      Width = 96
+      Height = 46
+      Caption = #28165#31354#22238#25910#31449
+      TabOrder = 0
+      OnClick = btnCleanRecycleBinClick
+    end
+    object btnCleanTemp: TBitBtn
+      Left = 111
+      Top = 6
+      Width = 96
+      Height = 46
+      Caption = #28165#29702#20020#26102#25991#20214
       TabOrder = 1
-      ExplicitLeft = 136
-      ExplicitTop = 40
-      ExplicitWidth = 185
-      ExplicitHeight = 41
+      OnClick = btnCleanTempClick
+    end
+    object btnCleanBackup: TBitBtn
+      Left = 213
+      Top = 6
+      Width = 96
+      Height = 46
+      Caption = #28165#29702#22791#20221
+      TabOrder = 2
+      OnClick = btnCleanBackupClick
+    end
+    object btnCleanUpdate: TBitBtn
+      Left = 315
+      Top = 6
+      Width = 96
+      Height = 46
+      Caption = #28165#29702#26356#26032#32531#23384
+      TabOrder = 3
+      OnClick = btnCleanUpdateClick
+    end
+    object btnSmartClean: TBitBtn
+      Left = 417
+      Top = 6
+      Width = 96
+      Height = 46
+      Caption = #26234#33021#28165#29702
+      TabOrder = 4
+      OnClick = btnSmartCleanClick
+    end
+    object btnSmartMigration: TBitBtn
+      Left = 825
+      Top = 6
+      Width = 96
+      Height = 46
+      Caption = #26234#33021#36801#31227
+      TabOrder = 5
+      OnClick = btnSmartMigrationClick
+    end
+    object btnAnalyze: TBitBtn
+      Left = 519
+      Top = 6
+      Width = 96
+      Height = 46
+      Caption = #20998#26512#30446#24405
+      TabOrder = 6
+      OnClick = btnAnalyzeClick
+    end
+    object btnCalculateSize: TBitBtn
+      Left = 621
+      Top = 6
+      Width = 96
+      Height = 46
+      Caption = #35745#31639#22823#23567
+      TabOrder = 7
+      OnClick = btnCalculateSizeClick
+    end
+    object btnExecute: TBitBtn
+      Left = 723
+      Top = 6
+      Width = 96
+      Height = 46
+      Caption = #25191#34892#36801#31227
+      TabOrder = 8
+      OnClick = btnExecuteClick
+    end
+    object btnExit: TBitBtn
+      Left = 927
+      Top = 6
+      Width = 96
+      Height = 46
+      Caption = #36864#20986
+      TabOrder = 9
+      OnClick = btnExitClick
     end
   end
   object MainMenu1: TMainMenu
-    Left = 40
-    Top = 80
+    Left = 496
+    Top = 232
     object MenuFile: TMenuItem
       Caption = #25991#20214'(&F)'
       object MenuFileExit: TMenuItem
@@ -566,8 +504,8 @@ object frmMain: TfrmMain
   end
   object pmSource: TPopupMenu
     OnPopup = pmSourcePopup
-    Left = 400
-    Top = 80
+    Left = 736
+    Top = 176
     object miSrcOpen: TMenuItem
       Caption = #25171#24320'(&O)'
       OnClick = miSrcOpenClick
@@ -596,11 +534,19 @@ object frmMain: TfrmMain
       Caption = #21047#26032'(&F)'
       OnClick = miSrcRefreshClick
     end
+    object miSrcDelete: TMenuItem
+      Caption = #21024#38500#24403#21069#30446#24405'(&D)'
+      OnClick = miSrcDeleteClick
+    end
+    object miSrcProperties: TMenuItem
+      Caption = #23646#24615'(&P)'
+      OnClick = miSrcPropertiesClick
+    end
   end
   object pmTarget: TPopupMenu
     OnPopup = pmTargetPopup
-    Left = 560
-    Top = 80
+    Left = 656
+    Top = 272
     object miTgtOpen: TMenuItem
       Caption = #25171#24320'(&O)'
       OnClick = miTgtOpenClick
@@ -624,6 +570,14 @@ object frmMain: TfrmMain
     object miTgtRefresh: TMenuItem
       Caption = #21047#26032'(&F)'
       OnClick = miTgtRefreshClick
+    end
+    object miTgtDelete: TMenuItem
+      Caption = #21024#38500#24403#21069#30446#24405'(&D)'
+      OnClick = miTgtDeleteClick
+    end
+    object miTgtProperties: TMenuItem
+      Caption = #23646#24615'(&P)'
+      OnClick = miTgtPropertiesClick
     end
   end
 end

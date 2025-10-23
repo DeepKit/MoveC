@@ -1,4 +1,4 @@
-unit uSimpleSecureManager;
+﻿unit uSimpleSecureManager;
 
 interface
 
