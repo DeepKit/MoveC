@@ -299,6 +299,33 @@ object frmMain: TfrmMain
           Font.Style = [fsBold]
           ParentFont = False
         end
+        object lblCurrentFile: TLabel
+          Left = 10
+          Top = 50
+          Width = 700
+          Height = 15
+          Caption = #24403#21069#25991#20214#65306
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = 5263440
+          Font.Height = -12
+          Font.Name = 'Microsoft YaHei UI'
+          Font.Style = []
+          ParentFont = False
+        end
+        object lblTimeRemaining: TLabel
+          Left = 760
+          Top = 10
+          Width = 200
+          Height = 19
+          Alignment = taRightJustify
+          Caption = #21097#20313#26102#38388#65306
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = 5263440
+          Font.Height = -13
+          Font.Name = 'Microsoft YaHei UI'
+          Font.Style = []
+          ParentFont = False
+        end
         object ProgressBar1: TProgressBar
           Left = 10
           Top = 30
@@ -306,6 +333,16 @@ object frmMain: TfrmMain
           Height = 17
           TabOrder = 0
           Visible = False
+        end
+        object btnCancelOperation: TBitBtn
+          Left = 760
+          Top = 30
+          Width = 100
+          Height = 30
+          Caption = #21462#28040
+          TabOrder = 2
+          Visible = False
+          OnClick = btnCancelOperationClick
         end
         object memoStatus: TMemo
           AlignWithMargins = True
@@ -335,96 +372,96 @@ object frmMain: TfrmMain
     Left = 0
     Top = 0
     Width = 984
-    Height = 48
+    Height = 60
     Align = alTop
     BevelOuter = bvLowered
     TabOrder = 3
     object btnCleanRecycleBin: TBitBtn
-      Left = 9
-      Top = 6
-      Width = 96
-      Height = 46
+      Left = 8
+      Top = 5
+      Width = 90
+      Height = 50
       Caption = #28165#31354#22238#25910#31449
       TabOrder = 0
       OnClick = btnCleanRecycleBinClick
     end
     object btnCleanTemp: TBitBtn
-      Left = 111
-      Top = 6
-      Width = 96
-      Height = 46
+      Left = 103
+      Top = 5
+      Width = 90
+      Height = 50
       Caption = #28165#29702#20020#26102#25991#20214
       TabOrder = 1
       OnClick = btnCleanTempClick
     end
     object btnCleanBackup: TBitBtn
-      Left = 213
-      Top = 6
-      Width = 96
-      Height = 46
+      Left = 198
+      Top = 5
+      Width = 90
+      Height = 50
       Caption = #28165#29702#22791#20221
       TabOrder = 2
       OnClick = btnCleanBackupClick
     end
     object btnCleanUpdate: TBitBtn
-      Left = 315
-      Top = 6
-      Width = 96
-      Height = 46
+      Left = 293
+      Top = 5
+      Width = 90
+      Height = 50
       Caption = #28165#29702#26356#26032#32531#23384
       TabOrder = 3
       OnClick = btnCleanUpdateClick
     end
     object btnSmartClean: TBitBtn
-      Left = 417
-      Top = 6
-      Width = 96
-      Height = 46
-      Caption = #26234#33021#28165#29702
+      Left = 388
+      Top = 5
+      Width = 90
+      Height = 50
+      Caption = #19968#38190#28165#29702
       TabOrder = 4
       OnClick = btnSmartCleanClick
     end
     object btnSmartMigration: TBitBtn
-      Left = 825
-      Top = 6
-      Width = 96
-      Height = 46
-      Caption = #26234#33021#36801#31227
+      Left = 768
+      Top = 5
+      Width = 90
+      Height = 50
+      Caption = #19968#38190#36801#31227
       TabOrder = 5
       OnClick = btnSmartMigrationClick
     end
     object btnAnalyze: TBitBtn
-      Left = 519
-      Top = 6
-      Width = 96
-      Height = 46
+      Left = 483
+      Top = 5
+      Width = 90
+      Height = 50
       Caption = #20998#26512#30446#24405
       TabOrder = 6
       OnClick = btnAnalyzeClick
     end
     object btnCalculateSize: TBitBtn
-      Left = 621
-      Top = 6
-      Width = 96
-      Height = 46
+      Left = 578
+      Top = 5
+      Width = 90
+      Height = 50
       Caption = #35745#31639#22823#23567
       TabOrder = 7
       OnClick = btnCalculateSizeClick
     end
     object btnExecute: TBitBtn
-      Left = 723
-      Top = 6
-      Width = 96
-      Height = 46
+      Left = 673
+      Top = 5
+      Width = 90
+      Height = 50
       Caption = #25191#34892#36801#31227
       TabOrder = 8
       OnClick = btnExecuteClick
     end
     object btnExit: TBitBtn
-      Left = 927
-      Top = 6
-      Width = 96
-      Height = 46
+      Left = 863
+      Top = 5
+      Width = 90
+      Height = 50
       Caption = #36864#20986
       TabOrder = 9
       OnClick = btnExitClick
@@ -474,6 +511,12 @@ object frmMain: TfrmMain
     end
     object MenuTools: TMenuItem
       Caption = #24037#20855'(&T)'
+      object miSimpleMode: TMenuItem
+        Caption = #31616#27905#27169#24335
+        AutoCheck = True
+        Checked = True
+        OnClick = miSimpleModeClick
+      end
       object miConfigManager: TMenuItem
         Caption = #37197#32622#31649#29702'(&C)'
         OnClick = miConfigManagerClick

@@ -58,6 +58,7 @@ type
     MenuCleanupSeparator2: TMenuItem;
     MenuCleanupDuplicateFiles: TMenuItem;
     MenuTools: TMenuItem;
+    miSimpleMode: TMenuItem;
     miConfigManager: TMenuItem;
     miSeparatorTools1: TMenuItem;
     miLogManager: TMenuItem;
@@ -102,7 +103,10 @@ type
     btnExit: TBitBtn;
     pnlStatus: TPanel;
     lblStatus: TLabel;
+    lblCurrentFile: TLabel;
+    lblTimeRemaining: TLabel;
     ProgressBar1: TProgressBar;
+    btnCancelOperation: TBitBtn;
     memoStatus: TMemo;
     pnlFileList: TPanel;
     Splitter1: TSplitter;
@@ -122,6 +126,7 @@ type
     procedure btnAnalyzeClick(Sender: TObject);
     procedure btnCalculateSizeClick(Sender: TObject);
     procedure btnExitClick(Sender: TObject);
+    procedure btnCancelOperationClick(Sender: TObject);
     
     // 浏览按钮事件
     procedure btnBrowseSourceClick(Sender: TObject);
@@ -149,6 +154,7 @@ type
     procedure miConfigManagerClick(Sender: TObject);
     procedure miLogManagerClick(Sender: TObject);
     procedure miAdvancedOptionsClick(Sender: TObject);
+    procedure miSimpleModeClick(Sender: TObject);
     procedure MenuThemeClick(Sender: TObject);
     procedure MenuHelpAboutClick(Sender: TObject);
 
@@ -188,6 +194,12 @@ type
     FCleanupManager: TCleanupManager;
     // 迁移事务管理器
     FMigrationTransaction: TMigrationTransaction;
+    // 进度跟踪
+    FStartTime: TDateTime;
+    FProcessedFilesCount: Integer;
+    FTotalFilesCount: Integer;
+    FIsAdmin: Boolean;
+    FSimpleMode: Boolean;
 
     procedure InitializeInterface;
     procedure InitializeTreeViews;
@@ -241,6 +253,16 @@ type
     procedure ShowDirectoryProperties(const APath: string);
     procedure DeleteDirectory(const APath: string; ATreeView: TTreeView);
     
+    // 进度管理
+    procedure UpdateCurrentFile(const AFileName: string);
+    procedure UpdateTimeRemaining;
+    procedure ShowCancelButton(AShow: Boolean);
+    
+    // 简洁模式和权限管理
+    procedure CheckAndRequestAdminPrivileges;
+    procedure UpdateButtonStates;
+    procedure SetSimpleMode(ASimple: Boolean);
+    
   public
     { Public declarations }
   end;
@@ -281,6 +303,10 @@ begin
   FSourcePath := '';
   FTargetPath := '';
   
+  // 初始化简洁模式和权限
+  FSimpleMode := True;  // 默认启用简洁模式
+  FIsAdmin := False;
+  
   // 初始化清理管理器
   FCleanupManager := TCleanupManager.Create;
   FCleanupManager.OnProgress := OnCleanupProgress;
@@ -307,6 +333,9 @@ begin
   InitializeInterface;
   InitializeTreeViews;
   InitializeFileList;
+  
+  // 检查管理员权限
+  CheckAndRequestAdminPrivileges;
 end;
 
 procedure TfrmMain.FormDestroy(Sender: TObject);
@@ -1095,6 +1124,12 @@ var
   SpaceCheck: TDiskSpaceCheckResult;
   ErrorMsg: string;
 begin
+  // 初始化取消标志和统计变量
+  FCancelRequested := False;
+  FStartTime := Now;
+  FProcessedFilesCount := 0;
+  FTotalFilesCount := 0;
+  
   Src := Trim(FSourcePath);
   DstRoot := Trim(FTargetPath);
 
@@ -1153,6 +1188,7 @@ begin
     // 阶段1: 统计文件
     UpdateStatus('正在统计文件...');
     ComputeDirStats(Src, TotalFiles, TotalBytes);
+    FTotalFilesCount := TotalFiles;
     FMigrationTransaction.UpdateProgress(0, TotalFiles, 0, TotalBytes);
     UpdateStatus(Format('共找到 %d 个文件，总大小 %.2f MB', 
       [TotalFiles, TotalBytes / (1024*1024)]));
@@ -1200,6 +1236,15 @@ begin
     UpdateStatus('开始复制并校验文件...');
     ProgressBar1.Visible := True;
     ProgressBar1.Position := 0;
+    ShowCancelButton(True);  // 显示取消按钮
+
+    if FCancelRequested then
+    begin
+      UpdateStatus('操作已被用户取消');
+      FMigrationTransaction.FailTransaction('用户取消操作');
+      ShowCancelButton(False);
+      Exit;
+    end;
 
     if not CopyDirRecursiveWithVerify(Src, Dst, FMigrationTransaction) then
     begin
@@ -1218,10 +1263,46 @@ begin
         end;
       end;
       
+      ShowCancelButton(False);  // 隐藏取消按钮
+      Exit;
+    end;
+
+    // 检查是否被取消
+    if FCancelRequested then
+    begin
+      UpdateStatus('操作已被用户取消');
+      FMigrationTransaction.FailTransaction('用户取消操作');
+      // 清理已拷贝的文件
+      if TDirectory.Exists(Dst) then
+      begin
+        try
+          TDirectory.Delete(Dst, True);
+          UpdateStatus('已清理目标目录');
+        except
+          on E: Exception do
+            UpdateStatus('清理目标目录失败: ' + E.Message);
+        end;
+      end;
+      ShowCancelButton(False);
       Exit;
     end;
 
     // 阶段3: 备份原目录
+    if FCancelRequested then
+    begin
+      UpdateStatus('操作已被用户取消');
+      FMigrationTransaction.FailTransaction('用户取消操作');
+      if TDirectory.Exists(Dst) then
+      begin
+        try
+          TDirectory.Delete(Dst, True);
+        except
+        end;
+      end;
+      ShowCancelButton(False);
+      Exit;
+    end;
+    
     UpdateStatus('备份原目录...');
     if not TSystemCheck.TryRenameDirectory(Src, FMigrationTransaction.BackupDir, ErrorMsg) then
     begin
@@ -1235,9 +1316,22 @@ begin
                           ErrorMsg + sLineBreak + sLineBreak +
                           '请关闭占用文件的程序后重试。');
       end;
+      ShowCancelButton(False);
       Exit;
     end;
     UpdateStatus('已备份原目录到: ' + FMigrationTransaction.BackupDir);
+
+    // 检查是否被取消
+    if FCancelRequested then
+    begin
+      UpdateStatus('操作已被用户取消');
+      FMigrationTransaction.FailTransaction('用户取消操作');
+      // 恢复原目录
+      if not RenameFile(FMigrationTransaction.BackupDir, Src) then
+        UpdateStatus('回滚失败，请手动还原: ' + FMigrationTransaction.BackupDir);
+      ShowCancelButton(False);
+      Exit;
+    end;
 
     // 阶段4: 创建Junction并验证
     UpdateStatus('创建目录联接...');
@@ -1251,6 +1345,7 @@ begin
         UpdateStatus('回滚失败，请手动将备份目录还原: ' + FMigrationTransaction.BackupDir)
       else
         UpdateStatus('已回滚到迁移前状态');
+      ShowCancelButton(False);
       Exit;
     end;
 
@@ -1303,6 +1398,7 @@ begin
 
   finally
     ProgressBar1.Visible := False;
+    ShowCancelButton(False);  // 隐藏取消按钮
     FCancelRequested := False;
   end;
 end;
@@ -1540,6 +1636,9 @@ begin
     SrcFile := Files[I];
     DstFile := TPath.Combine(ADst, System.SysUtils.ExtractFileName(SrcFile));
 
+    // 更新当前文件名
+    UpdateCurrentFile(SrcFile);
+    
     try
       // 复制文件
       TFile.Copy(SrcFile, DstFile, True);
@@ -1587,10 +1686,17 @@ begin
       if TotalBytes > 0 then
         ProgressBar1.Position := Round((ProcessedBytes * 100) / TotalBytes);
 
-      // 每10个文件更新一次状态
+      // 更新进度跟踪
+      FProcessedFilesCount := ProcessedFiles;
+      FTotalFilesCount := TotalFiles;
+      
+      // 每10个文件更新一次状态和剩余时间
       if (ProcessedFiles mod 10) = 0 then
+      begin
         UpdateStatus(Format('已处理 %d/%d 个文件 (%.1f%%)', 
           [ProcessedFiles, TotalFiles, (ProcessedBytes * 100.0) / TotalBytes]));
+        UpdateTimeRemaining;
+      end;
 
       Application.ProcessMessages;
     except
@@ -2632,6 +2738,178 @@ begin
     ShowDirectoryProperties(FTargetPath)
   else
     ShowChineseMessage('请先选择目标目录!');
+end;
+
+// ===== 进度管理 =====
+
+// 更新当前正在处理的文件名
+procedure TfrmMain.UpdateCurrentFile(const AFileName: string);
+var
+  DisplayName: string;
+begin
+  // 截取文件名，避免过长
+  DisplayName := AFileName;
+  if Length(DisplayName) > 80 then
+    DisplayName := '...' + Copy(DisplayName, Length(DisplayName) - 76, 77);
+  
+  lblCurrentFile.Caption := '当前文件: ' + DisplayName;
+  Application.ProcessMessages;
+end;
+
+// 更新剩余时间估算
+procedure TfrmMain.UpdateTimeRemaining;
+var
+  ElapsedSeconds: Double;
+  AvgSecondsPerFile: Double;
+  RemainingFiles: Integer;
+  EstimatedSeconds: Integer;
+  Hours, Minutes, Seconds: Integer;
+  TimeStr: string;
+begin
+  if (FProcessedFilesCount = 0) or (FTotalFilesCount = 0) then
+  begin
+    lblTimeRemaining.Caption := '剩余时间: 计算中...';
+    Exit;
+  end;
+  
+  ElapsedSeconds := (Now - FStartTime) * 86400; // 转换为秒
+  
+  if ElapsedSeconds < 1 then
+    Exit;
+  
+  AvgSecondsPerFile := ElapsedSeconds / FProcessedFilesCount;
+  RemainingFiles := FTotalFilesCount - FProcessedFilesCount;
+  EstimatedSeconds := Round(RemainingFiles * AvgSecondsPerFile);
+  
+  Hours := EstimatedSeconds div 3600;
+  Minutes := (EstimatedSeconds mod 3600) div 60;
+  Seconds := EstimatedSeconds mod 60;
+  
+  if Hours > 0 then
+    TimeStr := Format('剩余时间: %d 小时 %d 分钟', [Hours, Minutes])
+  else if Minutes > 0 then
+    TimeStr := Format('剩余时间: %d 分钟 %d 秒', [Minutes, Seconds])
+  else
+    TimeStr := Format('剩余时间: %d 秒', [Seconds]);
+  
+  lblTimeRemaining.Caption := TimeStr;
+end;
+
+// 显示/隐藏取消按钮
+procedure TfrmMain.ShowCancelButton(AShow: Boolean);
+begin
+  btnCancelOperation.Visible := AShow;
+  if not AShow then
+  begin
+    lblCurrentFile.Caption := '当前文件: ';
+    lblTimeRemaining.Caption := '剩余时间: ';
+  end;
+end;
+
+// 取消按钮点击事件
+procedure TfrmMain.btnCancelOperationClick(Sender: TObject);
+begin
+  if ShowChineseConfirm('确定要取消当前操作吗？' + sLineBreak + sLineBreak +
+                        '取消后将停止当前进度，已处理的数据不会丢失。') then
+  begin
+    FCancelRequested := True;
+    btnCancelOperation.Enabled := False;
+    UpdateStatus('用户请求取消操作...');
+  end;
+end;
+
+// ===== 简洁模式和权限管理 =====
+
+// 检查并请求管理员权限
+procedure TfrmMain.CheckAndRequestAdminPrivileges;
+var
+  PrivCheck: TPrivilegeCheckResult;
+begin
+  PrivCheck := TSystemCheck.CheckAdminPrivileges;
+  FIsAdmin := PrivCheck.IsAdmin and PrivCheck.IsElevated;
+  
+  if FIsAdmin then
+  begin
+    UpdateStatus('✅ 已获取管理员权限');
+    StatusBar1.Panels[0].Text := '管理员模式';
+  end
+  else
+  begin
+    UpdateStatus('⚠️ 警告：未以管理员身份运行，部分功能将受限');
+    StatusBar1.Panels[0].Text := '普通模式（功能受限）';
+    
+    ShowChineseMessage(
+      '提示：' + sLineBreak + sLineBreak +
+      '程序未以管理员身份运行！' + sLineBreak + sLineBreak +
+      '以下功能将受限：' + sLineBreak +
+      '• 目录迁移（创建Junction需要管理员权限）' + sLineBreak +
+      '• 系统目录清理' + sLineBreak +
+      '• Windows更新缓存清理' + sLineBreak + sLineBreak +
+      '建议：右键程序图标，选择"以管理员身份运行"');
+  end;
+  
+  // 更新按钮状态
+  UpdateButtonStates;
+end;
+
+// 更新按钮状态（根据权限和简洁模式）
+procedure TfrmMain.UpdateButtonStates;
+begin
+  // 需要管理员权限的按钮
+  btnExecute.Enabled := FIsAdmin;
+  btnSmartMigration.Enabled := FIsAdmin;
+  btnCleanUpdate.Enabled := FIsAdmin;
+  
+  // 在简洁模式下隐藏高级按钮
+  if FSimpleMode then
+  begin
+    // 简洁模式：只显示一键按钮
+    btnSmartClean.Visible := True;
+    btnSmartMigration.Visible := True;
+    btnExit.Visible := True;
+    
+    // 隐藏高级按钮
+    btnCleanRecycleBin.Visible := False;
+    btnCleanTemp.Visible := False;
+    btnCleanBackup.Visible := False;
+    btnCleanUpdate.Visible := False;
+    btnAnalyze.Visible := False;
+    btnCalculateSize.Visible := False;
+    btnExecute.Visible := False;
+  end
+  else
+  begin
+    // 专家模式：显示所有按钮
+    btnCleanRecycleBin.Visible := True;
+    btnCleanTemp.Visible := True;
+    btnCleanBackup.Visible := True;
+    btnCleanUpdate.Visible := True;
+    btnSmartClean.Visible := True;
+    btnSmartMigration.Visible := True;
+    btnAnalyze.Visible := True;
+    btnCalculateSize.Visible := True;
+    btnExecute.Visible := True;
+    btnExit.Visible := True;
+  end;
+end;
+
+// 设置简洁模式
+procedure TfrmMain.SetSimpleMode(ASimple: Boolean);
+begin
+  FSimpleMode := ASimple;
+  miSimpleMode.Checked := ASimple;
+  UpdateButtonStates;
+  
+  if ASimple then
+    UpdateStatus('已切换到简洁模式，适合新手使用')
+  else
+    UpdateStatus('已切换到专家模式，显示所有功能');
+end;
+
+// 简洁模式菜单点击事件
+procedure TfrmMain.miSimpleModeClick(Sender: TObject);
+begin
+  SetSimpleMode(miSimpleMode.Checked);
 end;
 
 end.
