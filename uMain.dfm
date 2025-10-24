@@ -18,20 +18,20 @@ object frmMain: TfrmMain
   TextHeight = 12
   object pnlMain: TPanel
     Left = 0
-    Top = 48
+    Top = 43
     Width = 984
-    Height = 594
+    Height = 599
     Align = alClient
     BevelOuter = bvNone
     Color = 16053754
     TabOrder = 0
-    ExplicitTop = 57
-    ExplicitHeight = 585
+    ExplicitTop = 60
+    ExplicitHeight = 582
     object pnlLeft: TPanel
       Left = 0
       Top = 0
       Width = 320
-      Height = 594
+      Height = 599
       Align = alLeft
       BevelOuter = bvNone
       BorderWidth = 1
@@ -39,7 +39,7 @@ object frmMain: TfrmMain
       Caption = #28304#30446#24405
       Color = clWhite
       TabOrder = 0
-      ExplicitHeight = 585
+      ExplicitHeight = 582
       object lblSourceDir: TLabel
         Left = 10
         Top = 10
@@ -110,7 +110,7 @@ object frmMain: TfrmMain
       Left = 320
       Top = 0
       Width = 320
-      Height = 594
+      Height = 599
       Align = alLeft
       BevelOuter = bvNone
       BorderWidth = 1
@@ -118,7 +118,7 @@ object frmMain: TfrmMain
       Caption = #30446#26631#30446#24405
       Color = clWhite
       TabOrder = 1
-      ExplicitHeight = 585
+      ExplicitHeight = 582
       object lblTargetDir: TLabel
         Left = 10
         Top = 10
@@ -189,33 +189,33 @@ object frmMain: TfrmMain
       Left = 640
       Top = 0
       Width = 344
-      Height = 594
+      Height = 599
       Align = alClient
       TabOrder = 2
-      ExplicitHeight = 585
+      ExplicitHeight = 582
       object lvFiles: TListView
         Left = 1
         Top = 1
         Width = 342
-        Height = 592
+        Height = 597
         Align = alClient
         Columns = <
           item
             Caption = #25991#20214#21517
-            Width = 300
+            Width = 280
           end
           item
             Alignment = taRightJustify
             Caption = #22823#23567
-            Width = 100
+            Width = 60
           end
           item
             Caption = #20462#25913#26085#26399
-            Width = 150
+            Width = 100
           end
           item
             Caption = #31867#22411
-            Width = 100
+            Width = 58
           end>
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clWindowText
@@ -228,7 +228,8 @@ object frmMain: TfrmMain
         ParentFont = False
         TabOrder = 0
         ViewStyle = vsReport
-        ExplicitHeight = 583
+        ExplicitWidth = 536
+        ExplicitHeight = 580
       end
     end
   end
@@ -302,8 +303,8 @@ object frmMain: TfrmMain
         object lblCurrentFile: TLabel
           Left = 10
           Top = 50
-          Width = 700
-          Height = 15
+          Width = 60
+          Height = 17
           Caption = #24403#21069#25991#20214#65306
           Font.Charset = DEFAULT_CHARSET
           Font.Color = 5263440
@@ -313,9 +314,9 @@ object frmMain: TfrmMain
           ParentFont = False
         end
         object lblTimeRemaining: TLabel
-          Left = 760
+          Left = 895
           Top = 10
-          Width = 200
+          Width = 65
           Height = 19
           Alignment = taRightJustify
           Caption = #21097#20313#26102#38388#65306
@@ -364,6 +365,7 @@ object frmMain: TfrmMain
           ParentFont = False
           ScrollBars = ssVertical
           TabOrder = 1
+          ExplicitWidth = 1149
         end
       end
     end
@@ -372,116 +374,89 @@ object frmMain: TfrmMain
     Left = 0
     Top = 0
     Width = 984
-    Height = 60
+    Height = 43
     Align = alTop
     BevelOuter = bvLowered
     TabOrder = 3
-    object btnCleanRecycleBin: TBitBtn
-      Left = 8
+    object btnCleanBackup: TBitBtn
+      Left = 679
       Top = 5
       Width = 90
-      Height = 50
-      Caption = #28165#31354#22238#25910#31449
+      Height = 32
+      Caption = #28165#29702#22791#20221
       TabOrder = 0
-      OnClick = btnCleanRecycleBinClick
+      OnClick = btnCleanBackupClick
     end
-    object btnCleanTemp: TBitBtn
+    object btnSmartClean: TBitBtn
       Left = 103
       Top = 5
       Width = 90
-      Height = 50
-      Caption = #28165#29702#20020#26102#25991#20214
-      TabOrder = 1
-      OnClick = btnCleanTempClick
-    end
-    object btnCleanBackup: TBitBtn
-      Left = 198
-      Top = 5
-      Width = 90
-      Height = 50
-      Caption = #28165#29702#22791#20221
-      TabOrder = 2
-      OnClick = btnCleanBackupClick
-    end
-    object btnCleanUpdate: TBitBtn
-      Left = 293
-      Top = 5
-      Width = 90
-      Height = 50
-      Caption = #28165#29702#26356#26032#32531#23384
-      TabOrder = 3
-      OnClick = btnCleanUpdateClick
-    end
-    object btnSmartClean: TBitBtn
-      Left = 388
-      Top = 5
-      Width = 90
-      Height = 50
+      Height = 32
       Caption = #19968#38190#28165#29702
-      TabOrder = 4
+      TabOrder = 1
       OnClick = btnSmartCleanClick
     end
     object btnSmartMigration: TBitBtn
-      Left = 103
+      Left = 199
       Top = 5
       Width = 90
-      Height = 50
+      Height = 32
       Caption = #19968#38190#36801#31227
-      TabOrder = 5
+      TabOrder = 2
       OnClick = btnSmartMigrationClick
     end
     object btnAnalyze: TBitBtn
-      Left = 483
+      Left = 391
       Top = 5
       Width = 90
-      Height = 50
+      Height = 32
       Caption = #20998#26512#30446#24405
-      TabOrder = 6
+      TabOrder = 3
       OnClick = btnAnalyzeClick
     end
     object btnCalculateSize: TBitBtn
-      Left = 578
+      Left = 487
       Top = 5
       Width = 90
-      Height = 50
+      Height = 32
       Caption = #35745#31639#22823#23567
-      TabOrder = 7
+      TabOrder = 4
       OnClick = btnCalculateSizeClick
     end
     object btnExecute: TBitBtn
-      Left = 673
+      Left = 583
       Top = 5
       Width = 90
-      Height = 50
+      Height = 32
       Caption = #25191#34892#36801#31227
-      TabOrder = 8
+      TabOrder = 5
       OnClick = btnExecuteClick
     end
     object btnRollback: TBitBtn
-      Left = 768
+      Left = 295
       Top = 5
       Width = 90
-      Height = 50
+      Height = 32
       Caption = #19968#38190#22238#36864
-      TabOrder = 9
+      TabOrder = 6
       OnClick = btnRollbackClick
     end
     object btnOneKeyDiagnose: TBitBtn
-      Left = 8
+      Left = 7
       Top = 5
       Width = 90
-      Height = 50
+      Height = 32
       Caption = #19968#38190#35786#26029
-      TabOrder = 10
+      TabOrder = 7
       OnClick = btnOneKeyDiagnoseClick
     end
     object btnExit: TBitBtn
-      Left = 863
+      Left = 878
       Top = 5
       Width = 90
-      Height = 50
+      Height = 32
       Caption = #36864#20986
-      TabOrder = 11
+      TabOrder = 8
       OnClick = btnExitClick
     end
   end
@@ -530,8 +505,8 @@ object frmMain: TfrmMain
     object MenuTools: TMenuItem
       Caption = #24037#20855'(&T)'
       object miSimpleMode: TMenuItem
-        Caption = #31616#27905#27169#24335
         AutoCheck = True
+        Caption = #31616#27905#27169#24335
         Checked = True
         OnClick = miSimpleModeClick
       end

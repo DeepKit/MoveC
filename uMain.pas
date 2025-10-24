@@ -93,9 +93,9 @@ type
     pnlBottom: TPanel;
     pnlAboutMe: TPanel;
     pnlTop: TPanel;
+    btnCleanBackup: TBitBtn;
     btnCleanRecycleBin: TBitBtn;
     btnCleanTemp: TBitBtn;
-    btnCleanBackup: TBitBtn;
     btnCleanUpdate: TBitBtn;
     btnSmartClean: TBitBtn;
     btnSmartMigration: TBitBtn;
@@ -207,17 +207,17 @@ type
     FIsAdmin: Boolean;
     FSimpleMode: Boolean;
     FAppDetector: TAppAssociationDetector;
+    // 动态文件列表控件
+    FFileListView: TListView;
 
     procedure InitializeInterface;
     procedure InitializeTreeViews;
-    procedure UpdateTreeViewPath(ATreeView: TTreeView; const APath: string);
-    procedure UpdateStatus(const AMessage: string);
+    function UpdateStatus(const AMessage: string): Boolean;
     procedure LoadDirectoryTree(ATreeView: TTreeView; const APath: string);
     procedure ExpandTreeNode(ATreeView: TTreeView; ANode: TTreeNode);
     procedure FreeTreeViewData(ATreeView: TTreeView);
     procedure ApplyModernColors;
     procedure SetButtonStyle(AButton: TBitBtn; ABackColor, AFontColor: TColor);
-    procedure SetInterfaceTexts;
     procedure LoadButtonIcons;
 
     // 自定义消息显示函数
@@ -257,8 +257,8 @@ type
     // 文件列表管理
     procedure InitializeFileList;
     procedure LoadFileList(const APath: string);
-    procedure ShowDirectoryProperties(const APath: string);
-    procedure DeleteDirectory(const APath: string; ATreeView: TTreeView);
+    function ShowDirectoryProperties(const APath: string): Boolean;
+    function DeleteDirectory(const APath: string; ATreeView: TTreeView): Boolean;
     
     // 进度管理
     procedure UpdateCurrentFile(const AFileName: string);
@@ -275,6 +275,10 @@ type
     procedure PerformOneKeyDiagnose;
     procedure PerformOneKeyOptimize;
     
+    // 安全检查
+    function IsSystemCriticalDirectory(const APath: string): Boolean;
+    function CheckDirectorySafety(const ASourcePath, ATargetPath: string): Boolean;
+    
   public
     { Public declarations }
   end;
@@ -289,7 +293,7 @@ implementation
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 var
-  LogFile: TextFile;
+  Config: TAntiTamperConfig;
 begin
   // FormCreate开始执行
   
@@ -304,8 +308,6 @@ begin
   {$ENDIF}
   
   // 初始化防篡改包
-  var
-    Config: TAntiTamperConfig;
   Config := TAntiTamperPackage.GetDefaultConfig;
   Config.EncryptionKey := 'MoveC_AntiTamper_Key_2025';
   Config.DownloadURL := 'http://www.goodmem.cn';
@@ -350,6 +352,9 @@ begin
   InitializeInterface;
   InitializeTreeViews;
   InitializeFileList;
+  
+  // 专家模式通过菜单控制，默认为简洁模式
+  // chkExpertMode控件已移除，通过菜单项miSimpleMode控制
   
   // 检查管理员权限
   CheckAndRequestAdminPrivileges;
@@ -524,10 +529,32 @@ begin
 
     // 应用其他控件样式
     FStyleManager.StyleProgressBar(ProgressBar1);
-    // memo样式已在DFM中设置
+    // memo样式已在dfm中设置
     FStyleManager.StyleTreeView(tvSource);
     FStyleManager.StyleTreeView(tvTarget);
   end;
+  
+  // 为右键菜单添加彩色emoji图标
+  // 源目录菜单
+  miSrcOpen.Caption := '📂 打开';
+  miSrcOpenInExplorer.Caption := '📁 在资源管理器中打开';
+  miSrcCopyPath.Caption := '📋 复制路径';
+  miSrcSetRoot.Caption := '🏠 设为根目录';
+  miSrcScanHere.Caption := '📊 扫描这里';
+  miSrcAnalyzeHere.Caption := '🔍 分析这里';
+  miSrcProperties.Caption := '⚙️ 属性';
+  miSrcDelete.Caption := '🗑️ 删除当前目录';
+  miSrcRefresh.Caption := '🔄 刷新';
+  
+  // 目标目录菜单
+  miTgtOpen.Caption := '📂 打开';
+  miTgtOpenInExplorer.Caption := '📁 在资源管理器中打开';
+  miTgtCopyPath.Caption := '📋 复制路径';
+  miTgtSetRoot.Caption := '🏠 设为根目录';
+  miTgtSetAsTargetPath.Caption := '🎯 设为目标路径';
+  miTgtProperties.Caption := '⚙️ 属性';
+  miTgtDelete.Caption := '🗑️ 删除当前目录';
+  miTgtRefresh.Caption := '🔄 刷新';
 end;
 
 procedure TfrmMain.InitializeTreeViews;
@@ -553,6 +580,8 @@ var
   I: Integer;
   DirName: string;
   SubNode: TTreeNode;
+  SubDirs: TArray<string>;
+  PlaceholderNode: TTreeNode;
 begin
   if not TDirectory.Exists(APath) then Exit;
 
@@ -581,9 +610,6 @@ begin
 
           // 检查是否有子目录，如果有则添加占位符
           try
-            var
-              SubDirs: TArray<string>;
-              PlaceholderNode: TTreeNode;
             SubDirs := TDirectory.GetDirectories(Directories[I]);
             if Length(SubDirs) > 0 then
             begin
@@ -605,16 +631,16 @@ begin
   end;
 end;
 
-procedure TfrmMain.UpdateTreeViewPath(ATreeView: TTreeView; const APath: string);
-begin
-  LoadDirectoryTree(ATreeView, APath);
-end;
 
-procedure TfrmMain.UpdateStatus(const AMessage: string);
+function TfrmMain.UpdateStatus(const AMessage: string): Boolean;
 begin
-  lblStatus.Caption := AMessage;
-  memoStatus.Lines.Add(FormatDateTime('hh:nn:ss', Now) + ' - ' + AMessage);
+  // 更新状态显示
+  if Assigned(lblStatus) then
+    lblStatus.Caption := AMessage;
+  if Assigned(memoStatus) then
+    memoStatus.Lines.Add(FormatDateTime('hh:nn:ss', Now) + ' - ' + AMessage);
   Application.ProcessMessages;
+  Result := True;
 end;
 
 // 工具栏按钮事件实现
@@ -696,6 +722,9 @@ begin
 end;
 
 procedure TfrmMain.btnExecuteClick(Sender: TObject);
+var
+  TotalFiles: Integer;
+  TotalSize: Int64;
 begin
   if (FSourcePath = '') or (FTargetPath = '') then
   begin
@@ -704,13 +733,25 @@ begin
     Exit;
   end;
 
+  // 安全检查
+  if not CheckDirectorySafety(FSourcePath, FTargetPath) then
+  begin
+    UpdateStatus('安全检查失败，操作已取消');
+    Exit;
+  end;
+  
+  // 计算目录信息用于确认对话框
+  ComputeDirStats(FSourcePath, TotalFiles, TotalSize);
+  
   if ShowChineseConfirm('确定要开始目录迁移操作吗？' + sLineBreak + sLineBreak +
                         '📁 源目录: ' + FSourcePath + sLineBreak +
-                        '📂 目标目录: ' + FTargetPath + sLineBreak + sLineBreak +
+                        '📂 目标目录: ' + FTargetPath + sLineBreak +
+                        Format('📄 文件数量: %d 个', [TotalFiles]) + sLineBreak +
+                        Format('💾 总大小: %s', [TSystemCheck.FormatBytes(TotalSize)]) + sLineBreak + sLineBreak +
                         '✅ 迁移步骤：' + sLineBreak +
                         '1️⃣ 复制全部文件到目标位置' + sLineBreak +
                         '2️⃣ 自动备份原目录' + sLineBreak +
-                        '3️⃣ 创建Junction链接保证兼容' + sLineBreak + sLineBreak +
+                        '3️⃣ 创建 Junction链接保证兼容' + sLineBreak + sLineBreak +
                         '⚠️ 重要提示：迁移前请确保关闭正在使用该目录的程序！') then
   begin
     ExecuteOperation;
@@ -888,10 +929,12 @@ procedure TfrmMain.ExpandTreeNode(ATreeView: TTreeView; ANode: TTreeNode);
 var
   NodePath: string;
   Directories: TArray<string>;
+  SubDirs: TArray<string>;
   I: Integer;
   DirName: string;
   SubNode: TTreeNode;
   PlaceholderNode: TTreeNode;
+  MaxDirs: Integer;
 begin
   if not Assigned(ANode) or not Assigned(ANode.Data) then Exit;
 
@@ -907,10 +950,11 @@ begin
     if (ANode.Count > 0) and not Assigned(ANode.Item[0].Data) then
       ANode.Item[0].Delete;
 
-    // 加载子目录
+    // 加载子目录（限制数量以提高性能）
     try
       Directories := TDirectory.GetDirectories(NodePath);
-      for I := 0 to High(Directories) do
+      MaxDirs := Min(Length(Directories), 500); // 最多显示500个目录
+      for I := 0 to MaxDirs - 1 do
       begin
         DirName := System.SysUtils.ExtractFileName(Directories[I]);
         if (DirName <> '') and (DirName[1] <> '.') then  // 跳过隐藏目录
@@ -920,8 +964,6 @@ begin
 
           // 检查是否有子目录，如果有则添加占位符
           try
-            var
-              SubDirs: TArray<string>;
             SubDirs := TDirectory.GetDirectories(Directories[I]);
             if Length(SubDirs) > 0 then
             begin
@@ -1149,6 +1191,8 @@ var
   PrivCheck: TPrivilegeCheckResult;
   SpaceCheck: TDiskSpaceCheckResult;
   ErrorMsg: string;
+  BackupSize: Int64;
+  BackupFileCount: Integer;
 begin
   // 初始化取消标志和统计变量
   FCancelRequested := False;
@@ -1165,6 +1209,7 @@ begin
     UpdateStatus('源目录不存在: ' + Src);
     Exit;
   end;
+  
   if (DstRoot = '') or not TDirectory.Exists(DstRoot) then
   begin
     UpdateStatus('目标根目录不存在: ' + DstRoot);
@@ -1194,7 +1239,7 @@ begin
   end;
 
   // 目标目录 = 目标根目录 + 源目录名
-  Dst := TPath.Combine(DstRoot, System.SysUtils.ExtractFileName(TPath.GetDirectoryName(Src + '\\')));
+  Dst := TPath.Combine(DstRoot, System.SysUtils.ExtractFileName(TPath.GetDirectoryName(Src + '\\\\')));
   if TDirectory.Exists(Dst) then
   begin
     if not ShowChineseConfirm('目标目录已存在：' + Dst + sLineBreak + '是否覆盖（将合并内容）？') then
@@ -1207,235 +1252,252 @@ begin
   FMigrationTransaction := TMigrationTransaction.Create;
 
   try
-    // 启动事务
-    FMigrationTransaction.StartTransaction(Src, Dst);
-    UpdateStatus('事务已创建: ' + FMigrationTransaction.TransactionID);
+    try
+      // 启动事务
+      FMigrationTransaction.StartTransaction(Src, Dst);
+      UpdateStatus('事务已创建: ' + FMigrationTransaction.TransactionID);
+      FMigrationTransaction.LogInfo('迁移操作开始');
+      FMigrationTransaction.LogInfo(Format('源目录: %s', [Src]));
+      FMigrationTransaction.LogInfo(Format('目标目录: %s', [Dst]));
 
-    // 阶段1: 统计文件
-    UpdateStatus('正在统计文件...');
-    ComputeDirStats(Src, TotalFiles, TotalBytes);
-    FTotalFilesCount := TotalFiles;
-    FMigrationTransaction.UpdateProgress(0, TotalFiles, 0, TotalBytes);
-    UpdateStatus(Format('共找到 %d 个文件，总大小 %.2f MB', 
-      [TotalFiles, TotalBytes / (1024*1024)]));
+      // 阶段1: 统计文件
+      UpdateStatus('正在统计文件...');
+      ComputeDirStats(Src, TotalFiles, TotalBytes);
+      FTotalFilesCount := TotalFiles;
+      FMigrationTransaction.UpdateProgress(0, TotalFiles, 0, TotalBytes);
+      UpdateStatus(Format('共找到 %d 个文件，总大小 %.2f MB', 
+        [TotalFiles, TotalBytes / (1024*1024)]));
 
-    // 2. 磁盘空间检查
-    SpaceCheck := TSystemCheck.CheckDiskSpace(DstRoot, TotalBytes);
-    UpdateStatus(SpaceCheck.Message);
-    
-    if not SpaceCheck.HasEnoughSpace then
-    begin
-      if not ShowChineseConfirm('警告：磁盘空间不足！' + sLineBreak + sLineBreak +
-                               SpaceCheck.Message + sLineBreak + sLineBreak +
-                               '是否强制继续（可能失败）？') then
+      // 2. 磁盘空间检查
+      SpaceCheck := TSystemCheck.CheckDiskSpace(DstRoot, TotalBytes);
+      UpdateStatus(SpaceCheck.Message);
+      
+      if not SpaceCheck.HasEnoughSpace then
       begin
-        UpdateStatus('用户取消：磁盘空间不足');
-        FMigrationTransaction.FailTransaction('磁盘空间不足');
-        Exit;
+        if not ShowChineseConfirm('警告：磁盘空间不足！' + sLineBreak + sLineBreak +
+                                 SpaceCheck.Message + sLineBreak + sLineBreak +
+                                 '是否强制继续（可能失败）？') then
+        begin
+          UpdateStatus('用户取消：磁盘空间不足');
+          FMigrationTransaction.FailTransaction('磁盘空间不足');
+          Exit;
+        end;
       end;
-    end;
 
-    // 3. 目录占用检查
-    UpdateStatus('检查源目录占用情况...');
-    if TSystemCheck.IsDirectoryInUse(Src) then
-    begin
-      if not ShowChineseConfirm('警告：源目录中有文件被占用！' + sLineBreak + sLineBreak +
-                               '这可能导致拷贝或备份失败。' + sLineBreak +
-                               '建议关闭相关程序后再试。' + sLineBreak + sLineBreak +
-                               '是否强制继续？') then
+      // 3. 目录占用检查
+      UpdateStatus('检查源目录占用情况...');
+      if TSystemCheck.IsDirectoryInUse(Src) then
       begin
-        UpdateStatus('用户取消：文件被占用');
-        FMigrationTransaction.FailTransaction('源目录文件被占用');
-        Exit;
+        if not ShowChineseConfirm('警告：源目录中有文件被占用！' + sLineBreak + sLineBreak +
+                                 '这可能导致拷贝或备份失败。' + sLineBreak +
+                                 '建议关闭相关程序后再试。' + sLineBreak + sLineBreak +
+                                 '是否强制继续？') then
+        begin
+          UpdateStatus('用户取消：文件被占用');
+          FMigrationTransaction.FailTransaction('源目录文件被占用');
+          raise Exception.Create('源目录文件被占用');
+        end
+        else
+        begin
+          UpdateStatus('用户选择强制继续，可能遇到错误');
+        end;
       end
       else
       begin
-        UpdateStatus('用户选择强制继续，可能遇到错误');
+        UpdateStatus('源目录未被占用，可以安全迁移');
       end;
-    end
-    else
-    begin
-      UpdateStatus('源目录未被占用，可以安全迁移');
-    end;
 
-    // 阶段2: 复制并校验文件
-    UpdateStatus('开始复制并校验文件...');
-    ProgressBar1.Visible := True;
-    ProgressBar1.Position := 0;
-    ShowCancelButton(True);  // 显示取消按钮
+      // 阶段2: 复制并校验文件
+      UpdateStatus('开始复制并校验文件...');
+      ProgressBar1.Visible := True;
+      ProgressBar1.Position := 0;
+      ShowCancelButton(True);  // 显示取消按钮
 
-    if FCancelRequested then
-    begin
-      UpdateStatus('操作已被用户取消');
-      FMigrationTransaction.FailTransaction('用户取消操作');
-      ShowCancelButton(False);
-      Exit;
-    end;
-
-    if not CopyDirRecursiveWithVerify(Src, Dst, FMigrationTransaction) then
-    begin
-      UpdateStatus('拷贝或校验失败，开始回滚...');
-      FMigrationTransaction.FailTransaction('文件拷贝或校验失败');
-      
-      // 清理已拷贝的文件
-      if TDirectory.Exists(Dst) then
+      if FCancelRequested then
       begin
-        try
-          TDirectory.Delete(Dst, True);
-          UpdateStatus('已清理目标目录');
-        except
-          on E: Exception do
-            UpdateStatus('清理目标目录失败: ' + E.Message);
+        UpdateStatus('操作已被用户取消');
+        FMigrationTransaction.FailTransaction('用户取消操作');
+        raise Exception.Create('操作被用户取消');
+      end;
+
+      if not CopyDirRecursiveWithVerify(Src, Dst, FMigrationTransaction) then
+      begin
+        UpdateStatus('拷贝或校验失败，开始回滚...');
+        FMigrationTransaction.FailTransaction('文件拷贝或校验失败');
+        FMigrationTransaction.LogError('文件复制阶段失败');
+        
+        // 清理已拷贝的文件
+        if TDirectory.Exists(Dst) then
+        begin
+          try
+            TDirectory.Delete(Dst, True);
+            UpdateStatus('已清理目标目录');
+            FMigrationTransaction.LogInfo('已清理目标目录');
+          except
+            on E: Exception do
+            begin
+              UpdateStatus('清理目标目录失败: ' + E.Message);
+              FMigrationTransaction.LogError('清理目标目录失败: ' + E.Message);
+            end;
+          end;
         end;
+        
+        raise Exception.Create('文件拷贝或校验失败');
       end;
-      
-      ShowCancelButton(False);  // 隐藏取消按钮
-      Exit;
-    end;
 
-    // 检查是否被取消
-    if FCancelRequested then
-    begin
-      UpdateStatus('操作已被用户取消');
-      FMigrationTransaction.FailTransaction('用户取消操作');
-      // 清理已拷贝的文件
-      if TDirectory.Exists(Dst) then
+      // 检查是否被取消
+      if FCancelRequested then
       begin
-        try
-          TDirectory.Delete(Dst, True);
-          UpdateStatus('已清理目标目录');
-        except
-          on E: Exception do
-            UpdateStatus('清理目标目录失败: ' + E.Message);
+        UpdateStatus('操作已被用户取消');
+        FMigrationTransaction.FailTransaction('用户取消操作');
+        // 清理已拷贝的文件
+        if TDirectory.Exists(Dst) then
+        begin
+          try
+            TDirectory.Delete(Dst, True);
+            UpdateStatus('已清理目标目录');
+          except
+            on E: Exception do
+              UpdateStatus('清理目标目录失败: ' + E.Message);
+          end;
         end;
+        raise Exception.Create('操作被用户取消');
       end;
-      ShowCancelButton(False);
-      Exit;
-    end;
 
-    // 阶段3: 备份原目录
-    if FCancelRequested then
-    begin
-      UpdateStatus('操作已被用户取消');
-      FMigrationTransaction.FailTransaction('用户取消操作');
-      if TDirectory.Exists(Dst) then
+      // 阶段3: 备份原目录
+      if FCancelRequested then
       begin
-        try
-          TDirectory.Delete(Dst, True);
-        except
+        UpdateStatus('操作已被用户取消');
+        FMigrationTransaction.FailTransaction('用户取消操作');
+        if TDirectory.Exists(Dst) then
+        begin
+          try
+            TDirectory.Delete(Dst, True);
+          except
+          end;
         end;
+        raise Exception.Create('操作被用户取消');
       end;
-      ShowCancelButton(False);
-      Exit;
-    end;
-    
-    UpdateStatus('备份原目录...');
-    if not TSystemCheck.TryRenameDirectory(Src, FMigrationTransaction.BackupDir, ErrorMsg) then
-    begin
-      UpdateStatus('无法备份原目录: ' + ErrorMsg);
-      FMigrationTransaction.FailTransaction('无法备份原目录: ' + ErrorMsg);
       
-      // 如果是占用问题，给出提示
-      if Pos('占用', ErrorMsg) > 0 then
+      UpdateStatus('备份原目录...');
+      if not TSystemCheck.TryRenameDirectory(Src, FMigrationTransaction.BackupDir, ErrorMsg) then
       begin
-        ShowChineseMessage('备份原目录失败！' + sLineBreak + sLineBreak +
-                          ErrorMsg + sLineBreak + sLineBreak +
-                          '请关闭占用文件的程序后重试。');
+        UpdateStatus('无法备份原目录: ' + ErrorMsg);
+        FMigrationTransaction.FailTransaction('无法备份原目录: ' + ErrorMsg);
+        
+        // 如果是占用问题，给出提示
+        if Pos('占用', ErrorMsg) > 0 then
+        begin
+          ShowChineseMessage('备份原目录失败！' + sLineBreak + sLineBreak +
+                            ErrorMsg + sLineBreak + sLineBreak +
+                            '请关闭占用文件的程序后重试。');
+        end;
+        raise Exception.Create('备份原目录失败: ' + ErrorMsg);
       end;
-      ShowCancelButton(False);
-      Exit;
-    end;
-    UpdateStatus('已备份原目录到: ' + FMigrationTransaction.BackupDir);
+      UpdateStatus('已备份原目录到: ' + FMigrationTransaction.BackupDir);
 
-    // 检查是否被取消
-    if FCancelRequested then
-    begin
-      UpdateStatus('操作已被用户取消');
-      FMigrationTransaction.FailTransaction('用户取消操作');
-      // 恢复原目录
-      if not RenameFile(FMigrationTransaction.BackupDir, Src) then
-        UpdateStatus('回滚失败，请手动还原: ' + FMigrationTransaction.BackupDir);
-      ShowCancelButton(False);
-      Exit;
-    end;
+      // 检查是否被取消
+      if FCancelRequested then
+      begin
+        UpdateStatus('操作已被用户取消');
+        FMigrationTransaction.FailTransaction('用户取消操作');
+        // 恢复原目录
+        if not RenameFile(FMigrationTransaction.BackupDir, Src) then
+          UpdateStatus('回滚失败，请手动还原: ' + FMigrationTransaction.BackupDir);
+        raise Exception.Create('操作被用户取消');
+      end;
 
-    // 阶段4: 创建Junction并验证
-    UpdateStatus('创建目录联接...');
-    if not CreateDirectoryLink(Src, Dst) then
-    begin
-      UpdateStatus('创建链接失败，开始回滚...');
-      FMigrationTransaction.FailTransaction('创建链接失败');
-      
-      // 回滚：恢复原目录
-      if not RenameFile(FMigrationTransaction.BackupDir, Src) then
-        UpdateStatus('回滚失败，请手动将备份目录还原: ' + FMigrationTransaction.BackupDir)
+      // 阶段4: 创建Junction并验证
+      UpdateStatus('创建目录联接...');
+      if not CreateDirectoryLink(Src, Dst) then
+      begin
+        UpdateStatus('创建链接失败，开始回滚...');
+        FMigrationTransaction.FailTransaction('创建链接失败');
+        
+        // 回滚：恢复原目录
+        if not RenameFile(FMigrationTransaction.BackupDir, Src) then
+          UpdateStatus('回滚失败，请手动将备份目录还原: ' + FMigrationTransaction.BackupDir)
+        else
+          UpdateStatus('已回滚到迁移前状态');
+        raise Exception.Create('创建链接失败');
+      end;
+
+      // 阶段5: 验证Junction
+      UpdateStatus('验证目录联接...');
+      if not VerifyJunction(Src, Dst) then
+      begin
+        UpdateStatus('联接验证失败，可能存在问题');
+        FMigrationTransaction.LogWarning('Junction验证失败');
+      end
       else
-        UpdateStatus('已回滚到迁移前状态');
-      ShowCancelButton(False);
-      Exit;
+      begin
+        UpdateStatus('联接验证成功');
+      end;
+
+      // 完成事务
+      FMigrationTransaction.CompleteTransaction;
+      FLastBackupPath := FMigrationTransaction.BackupDir;
+      
+      // 显示完成信息
+      VerifiedCount := Length(FMigrationTransaction.GetProcessedFiles);
+      FailedFiles := FMigrationTransaction.GetFailedFiles;
+      
+      UpdateStatus(Format('✅ 迁移完成！已验证 %d/%d 个文件', [VerifiedCount, TotalFiles]));
+      UpdateStatus(Format('📁 备份目录: %s', [FMigrationTransaction.BackupDir]));
+      UpdateStatus(Format('🔗 Junction链接: %s -> %s', [Src, Dst]));
+      
+      if Length(FailedFiles) > 0 then
+      begin
+        UpdateStatus(Format('警告：%d 个文件验证失败', [Length(FailedFiles)]));
+        for I := 0 to Min(4, Length(FailedFiles) - 1) do
+          UpdateStatus('  - ' + FailedFiles[I].SourcePath);
+      end;
+
+      // 计算备份目录大小
+      BackupSize := 0;
+      BackupFileCount := 0;
+      if TDirectory.Exists(FMigrationTransaction.BackupDir) then
+      begin
+        ComputeDirStats(FMigrationTransaction.BackupDir, BackupFileCount, BackupSize);
+      end;
+
+      UpdateStatus(Format('已保留备份目录: %s (占用 %.2f MB)', 
+        [FMigrationTransaction.BackupDir, BackupSize / (1024*1024)]));
+      UpdateStatus('重要: 请测试依赖此目录的程序是否正常运行');
+      UpdateStatus('测试无误后，可删除备份目录以释放 ' + 
+        TSystemCheck.FormatBytes(BackupSize) + ' 空间');
+
+      // 显示带删除选项的对话框
+      ShowMigrationCompleteDialog(TotalFiles, VerifiedCount, Length(FailedFiles),
+        FMigrationTransaction.BackupDir, BackupSize);
+
+    except
+      on E: Exception do
+      begin
+        UpdateStatus('迁移操作发生错误: ' + E.Message);
+        if Assigned(FMigrationTransaction) then
+        begin
+          FMigrationTransaction.FailTransaction('异常: ' + E.Message);
+          FMigrationTransaction.LogError('异常: ' + E.Message);
+        end;
+        
+        ShowChineseMessage('迁移操作失败：' + sLineBreak + E.Message);
+      end;
     end;
-
-    // 阶段5: 验证Junction
-    UpdateStatus('验证目录联接...');
-    if not VerifyJunction(Src, Dst) then
-    begin
-      UpdateStatus('联接验证失败，可能存在问题');
-      FMigrationTransaction.LogWarning('Junction验证失败');
-    end
-    else
-    begin
-      UpdateStatus('联接验证成功');
-    end;
-
-    // 完成事务
-    FMigrationTransaction.CompleteTransaction;
-    FLastBackupPath := FMigrationTransaction.BackupDir;
-    
-    // 显示完成信息
-    VerifiedCount := Length(FMigrationTransaction.GetProcessedFiles);
-    FailedFiles := FMigrationTransaction.GetFailedFiles;
-    
-    UpdateStatus(Format('迁移完成！已验证 %d/%d 个文件', [VerifiedCount, TotalFiles]));
-    
-    if Length(FailedFiles) > 0 then
-    begin
-      UpdateStatus(Format('警告：%d 个文件验证失败', [Length(FailedFiles)]));
-      for I := 0 to Min(4, Length(FailedFiles) - 1) do
-        UpdateStatus('  - ' + FailedFiles[I].SourcePath);
-    end;
-
-    // 计算备份目录大小
-    var
-      BackupSize: Int64;
-      BackupFileCount: Integer;
-    BackupSize := 0;
-    BackupFileCount := 0;
-    if TDirectory.Exists(FMigrationTransaction.BackupDir) then
-    begin
-      ComputeDirStats(FMigrationTransaction.BackupDir, BackupFileCount, BackupSize);
-    end;
-
-    UpdateStatus(Format('已保留备份目录: %s (占用 %.2f MB)', 
-      [FMigrationTransaction.BackupDir, BackupSize / (1024*1024)]));
-    UpdateStatus('重要: 请测试依赖此目录的程序是否正常运行');
-    UpdateStatus('测试无误后，可删除备份目录以释放 ' + 
-      TSystemCheck.FormatBytes(BackupSize) + ' 空间');
-
-    // 显示带删除选项的对话框
-    ShowMigrationCompleteDialog(TotalFiles, VerifiedCount, Length(FailedFiles),
-      FMigrationTransaction.BackupDir, BackupSize);
-
   finally
-    ProgressBar1.Visible := False;
-    ShowCancelButton(False);  // 隐藏取消按钮
+    if Assigned(ProgressBar1) then
+      ProgressBar1.Visible := False;
+    ShowCancelButton(False);
     FCancelRequested := False;
+    
+    if Assigned(FMigrationTransaction) then
+      FMigrationTransaction.LogInfo('迁移操作结束');
   end;
 end;
 
 function TfrmMain.CreateDirectoryLink(const ASource, ATarget: string): Boolean;
 var
   Command: string;
-  ExitCode: DWORD;
 begin
   Result := False;
 
@@ -1444,7 +1506,6 @@ begin
     Command := Format('mklink /J "%s" "%s"', [ASource, ATarget]);
     UpdateStatus('🔗 创建目录联接: ' + Command);
 
-    ExitCode := 0;
     if WinExec(PAnsiChar(AnsiString('cmd /c ' + Command)), SW_HIDE) > 31 then
     begin
       Sleep(1000); // 等待命令执行
@@ -1484,11 +1545,17 @@ var
   Dirs: TArray<string>;
   I: Integer;
   SrcFile, DstFile: string;
+  SubDir: string;
   FileSize: Int64;
+  LastUpdateTime: TDateTime;
+  ProcessedFiles: Integer;
 begin
   // 确保目标目录存在
   if not TDirectory.Exists(ADst) then
     TDirectory.CreateDirectory(ADst);
+
+  LastUpdateTime := Now;
+  ProcessedFiles := 0;
 
   // 复制文件
   Files := TDirectory.GetFiles(ASrc);
@@ -1503,15 +1570,24 @@ begin
       TFile.Copy(SrcFile, DstFile, True);
       FileSize := TFile.GetSize(SrcFile);
       ACopied := ACopied + FileSize;
+      Inc(ProcessedFiles);
 
-      // 更新进度
-      if FTotalBytesToCopy > 0 then
+      // 优化：只每500毫秒更新一次UI，提高性能
+      if (Now - LastUpdateTime) > (500 / (24 * 60 * 60 * 1000)) then
       begin
-        FCopiedBytesSoFar := ACopied;
-        ProgressBar1.Position := Round((FCopiedBytesSoFar * 100) / FTotalBytesToCopy);
+        if FTotalBytesToCopy > 0 then
+        begin
+          FCopiedBytesSoFar := ACopied;
+          ProgressBar1.Position := Round((FCopiedBytesSoFar * 100) / FTotalBytesToCopy);
+        end;
+        
+        UpdateCurrentFile(SrcFile);
+        if ProcessedFiles mod 10 = 0 then // 每10个文件更新一次时间估算
+          UpdateTimeRemaining;
+          
+        Application.ProcessMessages;
+        LastUpdateTime := Now;
       end;
-
-      Application.ProcessMessages;
     except
       on E: Exception do
         UpdateStatus('⚠️ 复制文件失败: ' + SrcFile + ' - ' + E.Message);
@@ -1524,8 +1600,6 @@ begin
   begin
     if FCancelRequested then Break;
 
-    var
-      SubDir: string;
     SubDir := System.SysUtils.ExtractFileName(Dirs[I]);
     CopyDirRecursive(Dirs[I], TPath.Combine(ADst, SubDir), ACopied);
   end;
@@ -1537,6 +1611,7 @@ var
   TotalSize: Int64;
   SizeMB, SizeGB: Double;
   Recommendation, RiskLevel: string;
+  PathLower: string;
 begin
   UpdateStatus('🔍 正在分析目录: ' + APath);
   ProgressBar1.Visible := True;
@@ -1571,8 +1646,6 @@ begin
     end;
 
     // 根据路径特征判断风险
-    var
-      PathLower: string;
     PathLower := LowerCase(APath);
     if Pos('system', PathLower) > 0 then
     begin
@@ -1645,6 +1718,7 @@ var
   Dirs: TArray<string>;
   I: Integer;
   SrcFile, DstFile: string;
+  SubDir: string;
   FileSize: Int64;
   SrcHash, DstHash: string;
   ProcessedFiles, TotalFiles: Integer;
@@ -1752,8 +1826,6 @@ begin
       Break;
     end;
 
-    var
-      SubDir: string;
     SubDir := System.SysUtils.ExtractFileName(Dirs[I]);
     if not CopyDirRecursiveWithVerify(Dirs[I], TPath.Combine(ADst, SubDir),
       ATransaction) then
@@ -1766,6 +1838,9 @@ function TfrmMain.VerifyJunction(const AJunctionPath, ATargetPath: string): Bool
 var
   TestFile: string;
   TestContent: string;
+  Files: TArray<string>;
+  TargetTestFile: string;
+  ReadContent: string;
 begin
   Result := False;
 
@@ -1779,8 +1854,6 @@ begin
 
     // 2. 尝试列举目录内容
     try
-      var
-        Files: TArray<string>;
       Files := TDirectory.GetFiles(AJunctionPath);
       UpdateStatus(Format('联接目录可访问，包含 %d 个文件', [Length(Files)]));
     except
@@ -1799,9 +1872,6 @@ begin
       TFile.WriteAllText(TestFile, TestContent);
 
       // 4. 验证文件是否在目标目录中
-      var
-        TargetTestFile: string;
-        ReadContent: string;
       TargetTestFile := TPath.Combine(ATargetPath, '_verify_test.tmp');
       if TFile.Exists(TargetTestFile) then
       begin
@@ -2016,27 +2086,40 @@ end;
 
 procedure TfrmMain.ApplyModernColors;
 begin
-  // 基本颜色设置已移动到DFM，只保留动态颜色设置
+  // 为界面添加丰富的Material Design配色
+  
+  // 面板背景色
+  pnlTop.Color := $ECEFF1;  // Material Blue Grey 50
+  pnlLeft.Color := $FAFAFA;  // Material Grey 50
+  pnlRight.Color := $FAFAFA;  // Material Grey 50
+  pnlStatus.Color := $E3F2FD;  // Material Blue 50
+  pnlBottom.Color := $F5F5F5;  // Material Grey 100
+  
+  // 状态栏颜色
+  StatusBar1.Color := $263238;  // Material Blue Grey 900
+  StatusBar1.Font.Color := clWhite;
+  
+  // 按钮背景色设置 (保留动态颜色功能) - 添加存在性检查
+  if Assigned(btnExecute) then SetButtonStyle(btnExecute, $4CAF50, clBlack);
+  if Assigned(btnAnalyze) then SetButtonStyle(btnAnalyze, $2196F3, clBlack);
+  if Assigned(btnCalculateSize) then SetButtonStyle(btnCalculateSize, $FF9800, clBlack);
+  if Assigned(btnCleanRecycleBin) then SetButtonStyle(btnCleanRecycleBin, $9C27B0, clBlack);
+  if Assigned(btnCleanTemp) then SetButtonStyle(btnCleanTemp, $673AB7, clBlack);
+  if Assigned(btnCleanBackup) then SetButtonStyle(btnCleanBackup, $3F51B5, clBlack);
+  if Assigned(btnCleanUpdate) then SetButtonStyle(btnCleanUpdate, $2196F3, clBlack);
+  if Assigned(btnSmartClean) then SetButtonStyle(btnSmartClean, $009688, clBlack);
+  if Assigned(btnSmartMigration) then SetButtonStyle(btnSmartMigration, $00BCD4, clBlack);
+  if Assigned(btnBrowseSource) then SetButtonStyle(btnBrowseSource, $607D8B, clBlack);
+  if Assigned(btnBrowseTarget) then SetButtonStyle(btnBrowseTarget, $607D8B, clBlack);
+  if Assigned(btnSourceUp) then SetButtonStyle(btnSourceUp, $795548, clBlack);
+  if Assigned(btnTargetUp) then SetButtonStyle(btnTargetUp, $795548, clBlack);
+  if Assigned(btnExit) then SetButtonStyle(btnExit, $F44336, clBlack);
+  if Assigned(btnOneKeyDiagnose) then SetButtonStyle(btnOneKeyDiagnose, $3F51B5, clBlack);
+  if Assigned(btnRollback) then SetButtonStyle(btnRollback, $FF5722, clBlack);
 
-  // 按钮背景色设置 (保留动态颜色功能)
-  SetButtonStyle(btnExecute, $4CAF50, clBlack);      // Material Green
-  SetButtonStyle(btnAnalyze, $2196F3, clBlack);      // Material Blue
-  SetButtonStyle(btnCalculateSize, $FF9800, clBlack); // Material Orange
-  SetButtonStyle(btnCleanRecycleBin, $9C27B0, clBlack); // Material Purple
-  SetButtonStyle(btnCleanTemp, $673AB7, clBlack);       // Material Deep Purple
-  SetButtonStyle(btnCleanBackup, $3F51B5, clBlack);     // Material Indigo
-  SetButtonStyle(btnCleanUpdate, $2196F3, clBlack);     // Material Blue
-  SetButtonStyle(btnSmartClean, $009688, clBlack);      // Material Teal
-  SetButtonStyle(btnSmartMigration, $00BCD4, clBlack);  // Material Cyan
-  SetButtonStyle(btnBrowseSource, $607D8B, clBlack);    // Material Blue Grey
-  SetButtonStyle(btnBrowseTarget, $607D8B, clBlack);    // Material Blue Grey
-  SetButtonStyle(btnSourceUp, $795548, clBlack);        // Material Brown
-  SetButtonStyle(btnTargetUp, $795548, clBlack);        // Material Brown
-  SetButtonStyle(btnExit, $F44336, clBlack);            // Material Red
-
-  // 编辑框、树视图、状态信息和标签的样式已移动到DFM
-  // 进度条和状态栏颜色已移动到DFM
-  // 按钮字体已移动到DFM
+  // 编辑框、树视图、状态信息和标签的样式已移动到dfm
+  // 进度条和状态栏颜色已移动到dfm
+  // 按钮字体已移动到dfm
 end;
 
 // SetButtonFonts 方法已被移除，字体设置已移动到DFM
@@ -2055,60 +2138,33 @@ end;
 
 // ApplyLabelStyles 方法已被移除，标签样式已移动到DFM
 
-procedure TfrmMain.SetInterfaceTexts;
-begin
-  // 设置按钮文本
-  btnCleanRecycleBin.Caption := '清空回收站';
-  btnCleanTemp.Caption := '清理临时文件';
-  btnCleanBackup.Caption := '清理备份';
-  btnCleanUpdate.Caption := '清理更新缓存';
-  btnSmartClean.Caption := '智能清理';
-  btnSmartMigration.Caption := '迁移向导';
-  btnExecute.Caption := '开始迁移';
-  btnAnalyze.Caption := '分析目录';
-  btnCalculateSize.Caption := '计算大小';
-  btnExit.Caption := '退出';
-
-  // 设置浏览和导航按钮
-  btnBrowseSource.Caption := '浏览...';
-  btnBrowseTarget.Caption := '浏览...';
-  btnSourceUp.Caption := '上级';
-  btnTargetUp.Caption := '上级';
-
-  // 设置标签文本
-  lblSourceDir.Caption := '源目录：';
-  lblTargetDir.Caption := '目标目录：';
-  lblStatus.Caption := '状态信息';
-
-  // 设置面板标题
-  // pnlLeft.Caption := '源目录';
-  // pnlRight.Caption := '目标目录';
-  // pnlStatus.Caption := '状态信息';
-
-  // 菜单文本已在DFM中设置，不需要在代码中重复设置
-end;
+// SetInterfaceTexts 方法已被移除，所有文本设置在DFM中
 
 procedure TfrmMain.LoadButtonIcons;
 begin
-  // 为清理功能按钮加载图标
-  IconManager.ApplyIconToButton(btnCleanRecycleBin, IconManager.ICON_RECYCLE_BIN);
-  IconManager.ApplyIconToButton(btnCleanTemp, IconManager.ICON_CLEAN_TEMP);
-  IconManager.ApplyIconToButton(btnCleanBackup, IconManager.ICON_CLEAN_BACKUP);
-  IconManager.ApplyIconToButton(btnCleanUpdate, IconManager.ICON_CLEAN_UPDATE);
-  IconManager.ApplyIconToButton(btnSmartClean, IconManager.ICON_SMART_CLEAN);
-  IconManager.ApplyIconToButton(btnSmartMigration, IconManager.ICON_SMART_MIGRATION);
+  // 为清理功能按钮加载图标 - 添加存在性检查
+  if Assigned(btnCleanRecycleBin) then IconManager.ApplyIconToButton(btnCleanRecycleBin, IconManager.ICON_RECYCLE_BIN);
+  if Assigned(btnCleanTemp) then IconManager.ApplyIconToButton(btnCleanTemp, IconManager.ICON_CLEAN_TEMP);
+  if Assigned(btnCleanBackup) then IconManager.ApplyIconToButton(btnCleanBackup, IconManager.ICON_CLEAN_BACKUP);
+  if Assigned(btnCleanUpdate) then IconManager.ApplyIconToButton(btnCleanUpdate, IconManager.ICON_CLEAN_UPDATE);
+  if Assigned(btnSmartClean) then IconManager.ApplyIconToButton(btnSmartClean, IconManager.ICON_SMART_CLEAN);
+  if Assigned(btnSmartMigration) then IconManager.ApplyIconToButton(btnSmartMigration, IconManager.ICON_SMART_MIGRATION);
 
   // 为主要功能按钮加载图标
-  IconManager.ApplyIconToButton(btnExecute, IconManager.ICON_EXECUTE);
-  IconManager.ApplyIconToButton(btnAnalyze, IconManager.ICON_ANALYZE);
-  IconManager.ApplyIconToButton(btnCalculateSize, IconManager.ICON_CALCULATE);
-  IconManager.ApplyIconToButton(btnExit, IconManager.ICON_EXIT);
+  if Assigned(btnExecute) then IconManager.ApplyIconToButton(btnExecute, IconManager.ICON_EXECUTE);
+  if Assigned(btnAnalyze) then IconManager.ApplyIconToButton(btnAnalyze, IconManager.ICON_ANALYZE);
+  if Assigned(btnCalculateSize) then IconManager.ApplyIconToButton(btnCalculateSize, IconManager.ICON_CALCULATE);
+  if Assigned(btnExit) then IconManager.ApplyIconToButton(btnExit, IconManager.ICON_EXIT);
 
   // 为浏览和导航按钮加载图标
-  IconManager.ApplyIconToButton(btnBrowseSource, IconManager.ICON_BROWSE);
-  IconManager.ApplyIconToButton(btnBrowseTarget, IconManager.ICON_BROWSE);
-  IconManager.ApplyIconToButton(btnSourceUp, IconManager.ICON_UP);
-  IconManager.ApplyIconToButton(btnTargetUp, IconManager.ICON_UP);
+  if Assigned(btnBrowseSource) then IconManager.ApplyIconToButton(btnBrowseSource, IconManager.ICON_BROWSE);
+  if Assigned(btnBrowseTarget) then IconManager.ApplyIconToButton(btnBrowseTarget, IconManager.ICON_BROWSE);
+  if Assigned(btnSourceUp) then IconManager.ApplyIconToButton(btnSourceUp, IconManager.ICON_UP);
+  if Assigned(btnTargetUp) then IconManager.ApplyIconToButton(btnTargetUp, IconManager.ICON_UP);
+  
+  // 为一键功能按钮加载图标
+  if Assigned(btnOneKeyDiagnose) then IconManager.ApplyIconToButton(btnOneKeyDiagnose, IconManager.ICON_DIAGNOSE);
+  if Assigned(btnRollback) then IconManager.ApplyIconToButton(btnRollback, IconManager.ICON_ROLLBACK);
 end;
 
 function TfrmMain.ShowChineseMessage(const AMessage: string): Integer;
@@ -2367,8 +2423,6 @@ function TfrmMain.ResumeMigration(ATransaction: TMigrationTransaction): Boolean;
 var
   TotalFiles: Integer;
   ProcessedFiles: Integer;
-  TotalBytes: Int64;
-  ProcessedBytes: Int64;
 begin
   Result := False;
   
@@ -2384,8 +2438,6 @@ begin
     
     TotalFiles := ATransaction.TotalFiles;
     ProcessedFiles := ATransaction.ProcessedFiles;
-    TotalBytes := ATransaction.TotalBytes;
-    ProcessedBytes := ATransaction.ProcessedBytes;
     
     UpdateStatus(Format('已处理 %d/%d 个文件，正在继续...', 
       [ProcessedFiles, TotalFiles]));
@@ -2543,12 +2595,120 @@ begin
   end;
 end;
 
+// ===== 安全检查方法 =====
+// 检查是否为系统关键目录
+function TfrmMain.IsSystemCriticalDirectory(const APath: string): Boolean;
+var
+  UpperPath: string;
+  WindowsDir, SystemDir, ProgramFilesDir: string;
+begin
+  Result := False;
+  UpperPath := UpperCase(APath);
+  
+  // 获取系统目录
+  WindowsDir := UpperCase(GetEnvironmentVariable('WINDIR'));
+  SystemDir := UpperCase(WindowsDir + '\\System32');
+  ProgramFilesDir := UpperCase(GetEnvironmentVariable('PROGRAMFILES'));
+  
+  // 检查危险目录
+  if (Pos(WindowsDir, UpperPath) = 1) or
+     (Pos(SystemDir, UpperPath) = 1) or
+     (Pos(ProgramFilesDir, UpperPath) = 1) or
+     (Pos('C:\\PROGRAM FILES (X86)', UpperPath) = 1) or
+     (Pos('C:\\WINDOWS', UpperPath) = 1) or
+     (Pos('C:\\SYSTEM VOLUME INFORMATION', UpperPath) = 1) or
+     (Pos('C:\\PAGEFILE.SYS', UpperPath) = 1) or
+     (Pos('C:\\HIBERFIL.SYS', UpperPath) = 1) or
+     (Pos('C:\\BOOT', UpperPath) = 1) or
+     (Pos('C:\\EFI', UpperPath) = 1) then
+  begin
+    Result := True;
+  end;
+end;
+
+// 检查目录迁移安全性
+function TfrmMain.CheckDirectorySafety(const ASourcePath, ATargetPath: string): Boolean;
+var
+  SourceUpper, TargetUpper: string;
+begin
+  Result := True;
+  
+  SourceUpper := UpperCase(ASourcePath);
+  TargetUpper := UpperCase(ATargetPath);
+  
+  // 1. 检查是否为系统关键目录
+  if IsSystemCriticalDirectory(ASourcePath) then
+  begin
+    ShowChineseMessage('警告：无法迁移系统关键目录！' + sLineBreak + sLineBreak +
+                       '源目录: ' + ASourcePath + sLineBreak + sLineBreak +
+                       '迁移系统目录可能导致系统无法正常启动。');
+    Result := False;
+    Exit;
+  end;
+  
+  // 2. 检查源目录和目标目录是否在同一磁盘
+  if (Length(SourceUpper) > 0) and (Length(TargetUpper) > 0) and 
+     (SourceUpper[1] = TargetUpper[1]) then
+  begin
+    if not ShowChineseConfirm('注意：源目录和目标目录在同一磁盘上。' + sLineBreak + sLineBreak +
+                              '这将不会节省C盘空间，仅仅是移动位置。' + sLineBreak +
+                              '是否继续？') then
+    begin
+      Result := False;
+      Exit;
+    end;
+  end;
+  
+  // 3. 检查目标目录是否在源目录内部
+  if (Pos(SourceUpper, TargetUpper) = 1) then
+  begin
+    ShowChineseMessage('错误：目标目录不能是源目录的子目录！' + sLineBreak + sLineBreak +
+                       '源目录: ' + ASourcePath + sLineBreak +
+                       '目标目录: ' + ATargetPath + sLineBreak + sLineBreak +
+                       '这将导致循环引用，请选择其他目标位置。');
+    Result := False;
+    Exit;
+  end;
+  
+  // 4. 检查是否试图迁移到系统目录
+  if IsSystemCriticalDirectory(ATargetPath) then
+  begin
+    ShowChineseMessage('警告：不建议迁移到系统目录！' + sLineBreak + sLineBreak +
+                       '目标目录: ' + ATargetPath + sLineBreak + sLineBreak +
+                       '迁移到系统目录可能影响系统稳定性。');
+    
+    if not ShowChineseConfirm('是否强制继续？（不推荐）') then
+    begin
+      Result := False;
+      Exit;
+    end;
+  end;
+end;
+
 // ===== 文件列表管理 =====
 
 // 初始化文件列表控件
 procedure TfrmMain.InitializeFileList;
 begin
-  // lvFiles已在设计时创建，无需额外初始化
+  // 使用设计时的lvFiles控件
+  FFileListView := lvFiles;
+  if Assigned(FFileListView) then
+  begin
+    FFileListView.ViewStyle := vsReport;
+    FFileListView.GridLines := True;
+    FFileListView.RowSelect := True;
+    FFileListView.ReadOnly := True;
+    
+    // 设置列标题
+    with FFileListView.Columns do
+    begin
+      Clear;
+      Add.Caption := '文件名';
+      Add.Caption := '大小';
+      Add.Caption := '修改日期';
+      Add.Caption := '类型';
+    end;
+  end;
 end;
 
 // 加载文件列表
@@ -2562,12 +2722,12 @@ var
   FileSize: Int64;
   FileTime: TDateTime;
 begin
-  if not Assigned(lvFiles) then
+  if not Assigned(FFileListView) then
     Exit;
     
-  lvFiles.Items.BeginUpdate;
+  FFileListView.Items.BeginUpdate;
   try
-    lvFiles.Clear;
+    FFileListView.Clear;
     
     if not TDirectory.Exists(APath) then
     begin
@@ -2580,13 +2740,13 @@ begin
       Dirs := TDirectory.GetDirectories(APath);
       for I := 0 to High(Dirs) do
       begin
-        Item := lvFiles.Items.Add;
+        Item := FFileListView.Items.Add;
         Item.Caption := TPath.GetFileName(Dirs[I]);
         Item.SubItems.Add('<DIR>');
         
         if FindFirst(Dirs[I], faDirectory, FileInfo) = 0 then
         begin
-          FileTime := FileDateToDateTime(FileInfo.Time);
+          FileTime := FileInfo.TimeStamp;
           Item.SubItems.Add(DateTimeToStr(FileTime));
           FindClose(FileInfo);
         end
@@ -2601,7 +2761,7 @@ begin
       Files := TDirectory.GetFiles(APath);
       for I := 0 to High(Files) do
       begin
-        Item := lvFiles.Items.Add;
+        Item := FFileListView.Items.Add;
         Item.Caption := TPath.GetFileName(Files[I]);
         
         try
@@ -2613,7 +2773,7 @@ begin
         
         if FindFirst(Files[I], faAnyFile, FileInfo) = 0 then
         begin
-          FileTime := FileDateToDateTime(FileInfo.Time);
+          FileTime := FileInfo.TimeStamp;
           Item.SubItems.Add(DateTimeToStr(FileTime));
           FindClose(FileInfo);
         end
@@ -2632,119 +2792,11 @@ begin
     end;
     
   finally
-    lvFiles.Items.EndUpdate;
+    FFileListView.Items.EndUpdate;
   end;
 end;
 
-// 显示目录属性
-procedure TfrmMain.ShowDirectoryProperties(const APath: string);
-var
-  FileCount: Integer;
-  TotalSize: Int64;
-  Msg: string;
-begin
-  if not TDirectory.Exists(APath) then
-  begin
-    ShowChineseMessage('目录不存在!');
-    Exit;
-  end;
-  
-  FileCount := 0;
-  TotalSize := 0;
-  
-  UpdateStatus('正在计算目录属性...');
-  ProgressBar1.Visible := True;
-  ProgressBar1.Style := pbstMarquee;
-  
-  try
-    ComputeDirStats(APath, FileCount, TotalSize);
-    
-    Msg := Format(
-      '目录属性' + sLineBreak + sLineBreak +
-      '路径: %s' + sLineBreak + sLineBreak +
-      '文件数量: %d' + sLineBreak +
-      '总大小: %s' + sLineBreak +
-      '(%d 字节)',
-      [APath, FileCount, TSystemCheck.FormatBytes(TotalSize), TotalSize]);
-    
-    ShowChineseMessage(Msg);
-    UpdateStatus('属性计算完成');
-    
-  finally
-    ProgressBar1.Visible := False;
-    ProgressBar1.Style := pbstNormal;
-  end;
-end;
-
-// 删除目录
-procedure TfrmMain.DeleteDirectory(const APath: string; ATreeView: TTreeView);
-var
-  FileCount: Integer;
-  TotalSize: Int64;
-  Msg: string;
-begin
-  if not TDirectory.Exists(APath) then
-  begin
-    ShowChineseMessage('目录不存在!');
-    Exit;
-  end;
-  
-  // 计算目录信息
-  FileCount := 0;
-  TotalSize := 0;
-  ComputeDirStats(APath, FileCount, TotalSize);
-  
-  Msg := Format(
-    '确认删除该目录吗?' + sLineBreak + sLineBreak +
-    '路径: %s' + sLineBreak +
-    '文件数量: %d' + sLineBreak +
-    '总大小: %s' + sLineBreak + sLineBreak +
-    '警告: 该操作不可恢复!',
-    [APath, FileCount, TSystemCheck.FormatBytes(TotalSize)]);
-  
-  if not ShowChineseConfirm(Msg) then
-    Exit;
-  
-  // 二次确认
-  if not ShowChineseConfirm('再次确认: 确定要删除此目录吗?' + sLineBreak + APath) then
-    Exit;
-  
-  UpdateStatus('正在删除目录: ' + APath);
-  ProgressBar1.Visible := True;
-  ProgressBar1.Style := pbstMarquee;
-  
-  try
-    TDirectory.Delete(APath, True);
-    UpdateStatus('已成功删除目录: ' + APath);
-    ShowChineseMessage('目录已成功删除!');
-    
-    // 刷新目录树
-    if ATreeView = tvSource then
-    begin
-      LoadDirectoryTree(tvSource, TPath.GetDirectoryName(APath));
-      FSourcePath := TPath.GetDirectoryName(APath);
-    end
-    else if ATreeView = tvTarget then
-    begin
-      LoadDirectoryTree(tvTarget, TPath.GetDirectoryName(APath));
-      FTargetPath := TPath.GetDirectoryName(APath);
-    end;
-    
-    // 清空文件列表
-    if Assigned(lvFiles) then
-      lvFiles.Clear;
-    
-  except
-    on E: Exception do
-    begin
-      UpdateStatus('删除目录失败: ' + E.Message);
-      ShowChineseMessage('删除目录失败:' + sLineBreak + E.Message);
-    end;
-  end;
-  
-  ProgressBar1.Visible := False;
-  ProgressBar1.Style := pbstNormal;
-end;
+// 重复的方法定义已在类声明中定义，这里移除重复定义
 
 // 新增菜单事件处理
 
@@ -2786,13 +2838,17 @@ end;
 procedure TfrmMain.UpdateCurrentFile(const AFileName: string);
 var
   DisplayName: string;
+  FileName: string;
 begin
-  // 截取文件名，避免过长
-  DisplayName := AFileName;
-  if Length(DisplayName) > 80 then
-    DisplayName := '...' + Copy(DisplayName, Length(DisplayName) - 76, 77);
+  // 只显示文件名，不显示完整路径
+  FileName := ExtractFileName(AFileName);
+  DisplayName := FileName;
   
-  lblCurrentFile.Caption := '当前文件: ' + DisplayName;
+  // 截取文件名，避免过长
+  if Length(DisplayName) > 50 then
+    DisplayName := '...' + Copy(DisplayName, Length(DisplayName) - 46, 47);
+  
+  lblCurrentFile.Caption := '📄 正在处理: ' + DisplayName;
   Application.ProcessMessages;
 end;
 
@@ -2805,6 +2861,8 @@ var
   EstimatedSeconds: Integer;
   Hours, Minutes, Seconds: Integer;
   TimeStr: string;
+  RemainingBytes: Int64;
+  SpeedStr: string;
 begin
   if (FProcessedFilesCount = 0) or (FTotalFilesCount = 0) then
   begin
@@ -2821,6 +2879,15 @@ begin
   RemainingFiles := FTotalFilesCount - FProcessedFilesCount;
   EstimatedSeconds := Round(RemainingFiles * AvgSecondsPerFile);
   
+  // 计算复制速度
+  if (FTotalBytesToCopy > 0) and (FCopiedBytesSoFar > 0) then
+  begin
+    RemainingBytes := FTotalBytesToCopy - FCopiedBytesSoFar;
+    SpeedStr := Format(' | 速度: %s/s', [TSystemCheck.FormatBytes(Round(FCopiedBytesSoFar / ElapsedSeconds))]);
+  end
+  else
+    SpeedStr := '';
+  
   Hours := EstimatedSeconds div 3600;
   Minutes := (EstimatedSeconds mod 3600) div 60;
   Seconds := EstimatedSeconds mod 60;
@@ -2832,17 +2899,25 @@ begin
   else
     TimeStr := Format('剩余时间: %d 秒', [Seconds]);
   
-  lblTimeRemaining.Caption := TimeStr;
+  lblTimeRemaining.Caption := TimeStr + SpeedStr;
 end;
 
 // 显示/隐藏取消按钮
 procedure TfrmMain.ShowCancelButton(AShow: Boolean);
 begin
   btnCancelOperation.Visible := AShow;
-  if not AShow then
+  btnCancelOperation.Enabled := AShow;
+  
+  if AShow then
   begin
-    lblCurrentFile.Caption := '当前文件: ';
-    lblTimeRemaining.Caption := '剩余时间: ';
+    btnCancelOperation.Caption := '取消操作';
+    UpdateStatus('操作进行中，点击“取消操作”可中止');
+  end
+  else
+  begin
+    lblCurrentFile.Caption := '📄 当前文件: 已完成';
+    lblTimeRemaining.Caption := '剩余时间: 0 秒';
+    FCancelRequested := False;
   end;
 end;
 
@@ -2857,6 +2932,8 @@ begin
     UpdateStatus('用户请求取消操作...');
   end;
 end;
+
+// 专家模式通过菜单项miSimpleMode控制，chkExpertMode已移除
 
 // ===== 简洁模式和权限管理 =====
 
@@ -2895,46 +2972,46 @@ end;
 // 更新按钮状态（根据权限和简洁模式）
 procedure TfrmMain.UpdateButtonStates;
 begin
-  // 需要管理员权限的按钮
-  btnExecute.Enabled := FIsAdmin;
-  btnSmartMigration.Enabled := FIsAdmin;
-  btnRollback.Enabled := FIsAdmin;
-  btnCleanUpdate.Enabled := FIsAdmin;
+  // 需要管理员权限的按钮 - 添加存在性检查
+  if Assigned(btnExecute) then btnExecute.Enabled := FIsAdmin;
+  if Assigned(btnSmartMigration) then btnSmartMigration.Enabled := FIsAdmin;
+  if Assigned(btnRollback) then btnRollback.Enabled := FIsAdmin;
+  if Assigned(btnCleanUpdate) then btnCleanUpdate.Enabled := FIsAdmin;
   
   // 在简洁模式下隐藏高级按钮
   if FSimpleMode then
   begin
     // 简洁模式：只显示一键按钮
-    btnOneKeyDiagnose.Visible := True;
-    btnSmartClean.Visible := True;
-    btnSmartMigration.Visible := True;
-    btnRollback.Visible := True;
-    btnExit.Visible := True;
+    if Assigned(btnOneKeyDiagnose) then btnOneKeyDiagnose.Visible := True;
+    if Assigned(btnSmartClean) then btnSmartClean.Visible := True;
+    if Assigned(btnSmartMigration) then btnSmartMigration.Visible := True;
+    if Assigned(btnRollback) then btnRollback.Visible := True;
+    if Assigned(btnExit) then btnExit.Visible := True;
     
     // 隐藏高级按钮
-    btnCleanRecycleBin.Visible := False;
-    btnCleanTemp.Visible := False;
-    btnCleanBackup.Visible := False;
-    btnCleanUpdate.Visible := False;
-    btnAnalyze.Visible := False;
-    btnCalculateSize.Visible := False;
-    btnExecute.Visible := False;
+    if Assigned(btnCleanRecycleBin) then btnCleanRecycleBin.Visible := False;
+    if Assigned(btnCleanTemp) then btnCleanTemp.Visible := False;
+    if Assigned(btnCleanBackup) then btnCleanBackup.Visible := False;
+    if Assigned(btnCleanUpdate) then btnCleanUpdate.Visible := False;
+    if Assigned(btnAnalyze) then btnAnalyze.Visible := False;
+    if Assigned(btnCalculateSize) then btnCalculateSize.Visible := False;
+    if Assigned(btnExecute) then btnExecute.Visible := False;
   end
   else
   begin
     // 专家模式：显示所有按钮
-    btnOneKeyDiagnose.Visible := True;
-    btnCleanRecycleBin.Visible := True;
-    btnCleanTemp.Visible := True;
-    btnCleanBackup.Visible := True;
-    btnCleanUpdate.Visible := True;
-    btnSmartClean.Visible := True;
-    btnSmartMigration.Visible := True;
-    btnRollback.Visible := True;
-    btnAnalyze.Visible := True;
-    btnCalculateSize.Visible := True;
-    btnExecute.Visible := True;
-    btnExit.Visible := True;
+    if Assigned(btnOneKeyDiagnose) then btnOneKeyDiagnose.Visible := True;
+    if Assigned(btnCleanRecycleBin) then btnCleanRecycleBin.Visible := True;
+    if Assigned(btnCleanTemp) then btnCleanTemp.Visible := True;
+    if Assigned(btnCleanBackup) then btnCleanBackup.Visible := True;
+    if Assigned(btnCleanUpdate) then btnCleanUpdate.Visible := True;
+    if Assigned(btnSmartClean) then btnSmartClean.Visible := True;
+    if Assigned(btnSmartMigration) then btnSmartMigration.Visible := True;
+    if Assigned(btnRollback) then btnRollback.Visible := True;
+    if Assigned(btnAnalyze) then btnAnalyze.Visible := True;
+    if Assigned(btnCalculateSize) then btnCalculateSize.Visible := True;
+    if Assigned(btnExecute) then btnExecute.Visible := True;
+    if Assigned(btnExit) then btnExit.Visible := True;
   end;
 end;
 
@@ -2943,6 +3020,7 @@ procedure TfrmMain.SetSimpleMode(ASimple: Boolean);
 begin
   FSimpleMode := ASimple;
   miSimpleMode.Checked := ASimple;
+  // chkExpertMode已移除，不需同步
   UpdateButtonStates;
   
   if ASimple then
@@ -3087,15 +3165,16 @@ end;
 procedure TfrmMain.PerformOneKeyDiagnose;
 var
   CDrive: string;
-  Drives: TArray<string>;
   I: Integer;
   FreeSpace, TotalSpace, UsedSpace: Int64;
   UsagePercent: Double;
   Msg: TStringList;
+  UserProfile: string;
 begin
-  UpdateStatus('正在诊断C盘...');
+  UpdateStatus('正在诊断c盘...');
   
-  CDrive := 'C:\';
+  CDrive := 'C:\\';
+  UserProfile := GetEnvironmentVariable('USERPROFILE');
   
   if not TDirectory.Exists(CDrive) then
   begin
@@ -3138,11 +3217,36 @@ begin
     Msg.Add('3. 定期执行清理维护');
     Msg.Add('');
     Msg.Add('常见可迁移目录：');
-    Msg.Add('  - C:\Users\[user]\Documents (我的文档)');
-    Msg.Add('  - C:\Users\[user]\Downloads (下载)');
-    Msg.Add('  - C:\Users\[user]\Desktop (桌面)');
-    Msg.Add('  - C:\Users\[user]\Pictures (图片)');
-    Msg.Add('  - C:\Users\[user]\Videos (视频)');
+    // 支持中英文目录名
+    if TDirectory.Exists(TPath.Combine(UserProfile, 'Documents')) then
+      Msg.Add('  - ' + TPath.Combine(UserProfile, 'Documents'))
+    else if TDirectory.Exists(TPath.Combine(UserProfile, '文档')) then
+      Msg.Add('  - ' + TPath.Combine(UserProfile, '文档'));
+    
+    if TDirectory.Exists(TPath.Combine(UserProfile, 'Downloads')) then
+      Msg.Add('  - ' + TPath.Combine(UserProfile, 'Downloads'))
+    else if TDirectory.Exists(TPath.Combine(UserProfile, '下载')) then
+      Msg.Add('  - ' + TPath.Combine(UserProfile, '下载'));
+    
+    if TDirectory.Exists(TPath.Combine(UserProfile, 'Desktop')) then
+      Msg.Add('  - ' + TPath.Combine(UserProfile, 'Desktop'))
+    else if TDirectory.Exists(TPath.Combine(UserProfile, '桌面')) then
+      Msg.Add('  - ' + TPath.Combine(UserProfile, '桌面'));
+    
+    if TDirectory.Exists(TPath.Combine(UserProfile, 'Pictures')) then
+      Msg.Add('  - ' + TPath.Combine(UserProfile, 'Pictures'))
+    else if TDirectory.Exists(TPath.Combine(UserProfile, '图片')) then
+      Msg.Add('  - ' + TPath.Combine(UserProfile, '图片'));
+    
+    if TDirectory.Exists(TPath.Combine(UserProfile, 'Videos')) then
+      Msg.Add('  - ' + TPath.Combine(UserProfile, 'Videos'))
+    else if TDirectory.Exists(TPath.Combine(UserProfile, '视频')) then
+      Msg.Add('  - ' + TPath.Combine(UserProfile, '视频'));
+    
+    if TDirectory.Exists(TPath.Combine(UserProfile, 'Music')) then
+      Msg.Add('  - ' + TPath.Combine(UserProfile, 'Music'))
+    else if TDirectory.Exists(TPath.Combine(UserProfile, '音乐')) then
+      Msg.Add('  - ' + TPath.Combine(UserProfile, '音乐'));
     
     memoStatus.Lines.Assign(Msg);
     UpdateStatus('C盘诊断完成');
@@ -3175,7 +3279,7 @@ begin
   try
     // 1. 清空回收站
     UpdateStatus('正在清空回收站...');
-    Result := FCleanupManager.CleanRecycleBin;
+    Result := FCleanupManager.EmptyRecycleBin;
     if Result.Success then
       TotalFreed := TotalFreed + Result.SpaceFreed;
     
@@ -3206,6 +3310,118 @@ begin
   finally
     ProgressBar1.Visible := False;
     ProgressBar1.Style := pbstNormal;
+  end;
+end;
+
+// ===== 其他辅助方法 =====
+
+// 添加缺失的方法实现
+
+function TfrmMain.ShowDirectoryProperties(const APath: string): Boolean;
+var
+  FileCount: Integer;
+  TotalSize: Int64;
+  Msg: string;
+begin
+  Result := True;
+  if not TDirectory.Exists(APath) then
+  begin
+    ShowChineseMessage('目录不存在!');
+    Result := False;
+    Exit;
+  end;
+  
+  FileCount := 0;
+  TotalSize := 0;
+  
+  UpdateStatus('正在计算目录属性...');
+  
+  try
+    ComputeDirStats(APath, FileCount, TotalSize);
+    
+    Msg := Format(
+      '目录属性' + sLineBreak + sLineBreak +
+      '路径: %s' + sLineBreak + sLineBreak +
+      '文件数量: %d' + sLineBreak +
+      '总大小: %s' + sLineBreak +
+      '(%d 字节)',
+      [APath, FileCount, TSystemCheck.FormatBytes(TotalSize), TotalSize]);
+    
+    ShowChineseMessage(Msg);
+    UpdateStatus('属性计算完成');
+  except
+    on E: Exception do
+    begin
+      ShowChineseMessage('计算属性失败: ' + E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TfrmMain.DeleteDirectory(const APath: string; ATreeView: TTreeView): Boolean;
+var
+  FileCount: Integer;
+  TotalSize: Int64;
+  Msg: string;
+begin
+  Result := False;
+  if not TDirectory.Exists(APath) then
+  begin
+    ShowChineseMessage('目录不存在!');
+    Exit;
+  end;
+  
+  // 计算目录信息
+  FileCount := 0;
+  TotalSize := 0;
+  ComputeDirStats(APath, FileCount, TotalSize);
+  
+  Msg := Format(
+    '确认删除该目录吗?' + sLineBreak + sLineBreak +
+    '路径: %s' + sLineBreak +
+    '文件数量: %d' + sLineBreak +
+    '总大小: %s' + sLineBreak + sLineBreak +
+    '警告: 该操作不可恢复!',
+    [APath, FileCount, TSystemCheck.FormatBytes(TotalSize)]);
+  
+  if not ShowChineseConfirm(Msg) then
+    Exit;
+  
+  // 二次确认
+  if not ShowChineseConfirm('再次确认: 确定要删除此目录吗?' + sLineBreak + APath) then
+    Exit;
+  
+  UpdateStatus('正在删除目录: ' + APath);
+  
+  try
+    TDirectory.Delete(APath, True);
+    UpdateStatus('已成功删除目录: ' + APath);
+    ShowChineseMessage('目录已成功删除!');
+    
+    // 刷新目录树
+    if ATreeView = tvSource then
+    begin
+      LoadDirectoryTree(tvSource, TPath.GetDirectoryName(APath));
+      FSourcePath := TPath.GetDirectoryName(APath);
+    end
+    else if ATreeView = tvTarget then
+    begin
+      LoadDirectoryTree(tvTarget, TPath.GetDirectoryName(APath));
+      FTargetPath := TPath.GetDirectoryName(APath);
+    end;
+    
+    // 清空文件列表
+    if Assigned(FFileListView) then
+      FFileListView.Clear;
+      
+    Result := True;
+    
+  except
+    on E: Exception do
+    begin
+      UpdateStatus('删除目录失败: ' + E.Message);
+      ShowChineseMessage('删除目录失败:' + sLineBreak + E.Message);
+    end;
   end;
 end;
 
