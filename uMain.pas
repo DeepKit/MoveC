@@ -20,7 +20,9 @@ uses
   // System check utilities
   uSystemCheck,
   // App association detector
-  uAppAssociation;
+  uAppAssociation,
+  // System monitoring and performance modules
+  uSystemMonitor, uPerformanceAnalyzer, uSystemOptimizer;
 
 type
   TfrmMain = class(TForm)
@@ -209,6 +211,11 @@ type
     FAppDetector: TAppAssociationDetector;
     // 动态文件列表控件
     FFileListView: TListView;
+    // 系统监控和性能分析
+    FSystemMonitor: TSystemMonitor;
+    FPerformanceAnalyzer: TPerformanceAnalyzer;
+    FSystemOptimizer: TSystemOptimizer;
+    FMonitoringActive: Boolean;
 
     procedure InitializeInterface;
     procedure InitializeTreeViews;
@@ -275,6 +282,15 @@ type
     procedure PerformOneKeyDiagnose;
     procedure PerformOneKeyOptimize;
     
+    // 系统监控和性能分析
+    procedure StartSystemMonitoring;
+    procedure StopSystemMonitoring;
+    procedure ShowSystemMonitorDialog;
+    procedure ShowPerformanceAnalysisDialog;
+    procedure PerformSystemOptimization;
+    procedure OnSystemInfoUpdate(const Info: TSystemInfo);
+    procedure OnMonitorEventAlert(const Event: TMonitorEvent);
+    
     // 安全检查
     function IsSystemCriticalDirectory(const APath: string): Boolean;
     function CheckDirectorySafety(const ASourcePath, ATargetPath: string): Boolean;
@@ -333,6 +349,16 @@ begin
   // 初始化应用程序关联检测器
   FAppDetector := TAppAssociationDetector.Create;
   
+  // 初始化系统监控和性能分析模块
+  FSystemMonitor := TSystemMonitor.Create;
+  FSystemMonitor.OnSystemInfo := OnSystemInfoUpdate;
+  FSystemMonitor.OnMonitorEvent := OnMonitorEventAlert;
+  
+  FPerformanceAnalyzer := TPerformanceAnalyzer.Create;
+  
+  FSystemOptimizer := TSystemOptimizer.Create;
+  FMonitoringActive := False;
+  
   // 设置窗体标题和界面文本 - 让DFM文件中的Unicode编码生效
   // Caption := 'C盘瘦身神器 - 智能目录迁移专家';
 
@@ -383,6 +409,17 @@ begin
   // 清理应用程序关联检测器
   if Assigned(FAppDetector) then
     FAppDetector.Free;
+    
+  // 清理系统监控和性能分析模块
+  if FMonitoringActive then
+    StopSystemMonitoring;
+    
+  if Assigned(FSystemMonitor) then
+    FSystemMonitor.Free;
+  if Assigned(FPerformanceAnalyzer) then
+    FPerformanceAnalyzer.Free;
+  if Assigned(FSystemOptimizer) then
+    FSystemOptimizer.Free;
 
   FStyleManager.Free;
 end;
@@ -3422,6 +3459,196 @@ begin
       UpdateStatus('删除目录失败: ' + E.Message);
       ShowChineseMessage('删除目录失败:' + sLineBreak + E.Message);
     end;
+  end;
+end;
+
+// ===== 系统监控和性能分析方法实现 =====
+
+procedure TfrmMain.StartSystemMonitoring;
+begin
+  if not FMonitoringActive and Assigned(FSystemMonitor) then
+  begin
+  FSystemMonitor.Start;
+    FMonitoringActive := True;
+    UpdateStatus('系统监控已启动');
+  end;
+end;
+
+procedure TfrmMain.StopSystemMonitoring;
+begin
+  if FMonitoringActive then
+  begin
+    if Assigned(FSystemMonitor) then
+      FSystemMonitor.Stop;
+    FMonitoringActive := False;
+    UpdateStatus('系统监控已停止');
+  end;
+end;
+
+procedure TfrmMain.ShowSystemMonitorDialog;
+var
+  Info: TSystemInfo;
+  InfoText: string;
+  Uptime: Int64;
+begin
+  if not Assigned(FSystemMonitor) then
+  begin
+    ShowChineseMessage('系统监控器未初始化！');
+    Exit;
+  end;
+  
+  Info := FSystemMonitor.GetCurrentSystemInfo;
+  Uptime := FSystemMonitor.GetSystemUptime;
+  
+  InfoText := Format(
+    '系统资源状态' + sLineBreak + sLineBreak +
+    'CPU 使用率: %.1f%%' + sLineBreak +
+    '内存使用率: %.1f%% (%.2f GB / %.2f GB)' + sLineBreak +
+    '磁盘使用率: %.1f%%' + sLineBreak +
+    '网络传输: 上行 %.2f MB/s, 下行 %.2f MB/s' + sLineBreak +
+    '进程数量: %d' + sLineBreak +
+    '系统运行时间: %.0f 分钟',
+    [
+      Info.CPUUsage,
+      Info.MemoryUsage,
+      Info.MemoryUsed / (1024*1024*1024),
+      Info.MemoryTotal / (1024*1024*1024),
+      Info.DiskUsage,
+      Info.NetworkUpload / (1024*1024),
+      Info.NetworkDownload / (1024*1024),
+      Info.ProcessCount,
+      Uptime / 60.0
+    ]
+  );
+  
+  ShowChineseMessage(InfoText);
+end;
+
+procedure TfrmMain.ShowPerformanceAnalysisDialog;
+var
+  Info: TSystemInfo;
+  ReportText: string;
+begin
+  if not Assigned(FSystemMonitor) then
+  begin
+    ShowChineseMessage('性能分析器未初始化！');
+    Exit;
+  end;
+  
+  Info := FSystemMonitor.GetCurrentSystemInfo;
+  
+  ReportText := '性能分析报告' + sLineBreak + sLineBreak;
+  
+  // 系统健康状态基本判断
+  if (Info.CPUUsage < 50) and (Info.MemoryUsage < 70) and (Info.DiskUsage < 80) then
+    ReportText := ReportText + '系统状态: 优秅' + sLineBreak
+  else if (Info.CPUUsage < 70) and (Info.MemoryUsage < 80) and (Info.DiskUsage < 90) then
+    ReportText := ReportText + '系统状态: 良好' + sLineBreak
+  else if (Info.CPUUsage < 85) and (Info.MemoryUsage < 90) then
+    ReportText := ReportText + '系统状态: 一般' + sLineBreak
+  else
+    ReportText := ReportText + '系统状态: 需要优化' + sLineBreak;
+    
+  ReportText := ReportText + sLineBreak;
+  
+  // 简单的优化建议
+  ReportText := ReportText + '优化建议:' + sLineBreak;
+  
+  if Info.CPUUsage > 80 then
+    ReportText := ReportText + '  - CPU使用率过高，建议关闭不必要的程序' + sLineBreak;
+  
+  if Info.MemoryUsage > 80 then
+    ReportText := ReportText + '  - 内存使用率过高，建议清理内存' + sLineBreak;
+    
+  if Info.DiskUsage > 85 then
+    ReportText := ReportText + '  - 磁盘空间不足，建议清理临时文件' + sLineBreak;
+  
+  if Info.ProcessCount > 150 then
+    ReportText := ReportText + '  - 进程数量过多，建议结束不必要的进程' + sLineBreak;
+  
+  ShowChineseMessage(ReportText);
+end;
+
+procedure TfrmMain.PerformSystemOptimization;
+var
+  ResultText: string;
+begin
+  if not ShowChineseConfirm('确认要执行系统优化吗？' + sLineBreak + sLineBreak +
+                           '操作包括：' + sLineBreak +
+                           '- 释放内存' + sLineBreak +
+                           '- 清理临时文件' + sLineBreak +
+                           '- 系统优化操作') then
+    Exit;
+    
+  UpdateStatus('正在执行系统优化...');
+  ProgressBar1.Visible := True;
+  ProgressBar1.Style := pbstMarquee;
+  
+  try
+    // 调用现有的清理功能
+    UpdateStatus('正在清理临时文件...');
+    CleanTempFiles;
+    
+    UpdateStatus('正在清理系统缓存...');
+    CleanUpdateCache;
+    
+    // 释放工作集内存
+    UpdateStatus('正在释放内存...');
+    if SetProcessWorkingSetSize(GetCurrentProcess, SIZE_T(-1), SIZE_T(-1)) then
+      UpdateStatus('内存释放成功')
+    else
+      UpdateStatus('内存释放失败');
+      
+    UpdateStatus('系统优化完成');
+    ShowChineseMessage('系统优化完成！' + sLineBreak + sLineBreak +
+                       '已执行以下优化操作：' + sLineBreak +
+                       '- 清理临时文件' + sLineBreak +
+                       '- 清理系统缓存' + sLineBreak +
+                       '- 释放工作集内存');
+  except
+    on E: Exception do
+    begin
+      UpdateStatus('系统优化失败: ' + E.Message);
+      ShowChineseMessage('系统优化失败：' + sLineBreak + E.Message);
+    end;
+  end;
+  
+  try
+    ProgressBar1.Style := pbstNormal;
+    ProgressBar1.Visible := False;
+  except
+  end;
+end;
+
+procedure TfrmMain.OnSystemInfoUpdate(const Info: TSystemInfo);
+begin
+  // 在状态栏中显示系统资源信息
+  if StatusBar1.Panels.Count > 2 then
+  begin
+    StatusBar1.Panels[2].Text := Format('CPU: %.0f%% | 内存: %.0f%%', 
+      [Info.CPUUsage, Info.MemoryUsage]);
+  end;
+end;
+
+procedure TfrmMain.OnMonitorEventAlert(const Event: TMonitorEvent);
+var
+  AlertText: string;
+begin
+  case Event.EventType of
+    metWarning: AlertText := '警告: ' + Event.Message;
+    metError: AlertText := '错误: ' + Event.Message;
+    metCritical: AlertText := '严重: ' + Event.Message;
+  else
+    AlertText := '信息: ' + Event.Message;
+  end;
+  
+  // 在状态栏中显示警告
+  UpdateStatus('⚠️ ' + AlertText);
+  
+  // 如果是严重警告，弹出对话框
+  if Event.EventType = metCritical then
+  begin
+    ShowChineseMessage(AlertText + sLineBreak + sLineBreak + '建议立即进行系统优化！');
   end;
 end;
 
