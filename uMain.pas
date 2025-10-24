@@ -2736,15 +2736,8 @@ begin
     FFileListView.RowSelect := True;
     FFileListView.ReadOnly := True;
     
-    // 设置列标题
-    with FFileListView.Columns do
-    begin
-      Clear;
-      Add.Caption := '文件名';
-      Add.Caption := '大小';
-      Add.Caption := '修改日期';
-      Add.Caption := '类型';
-    end;
+    // 不修改列设置，保持设计时的列宽
+    // 列标题和宽度已在设计时设置好
   end;
 end;
 
