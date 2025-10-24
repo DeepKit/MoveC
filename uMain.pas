@@ -18,7 +18,9 @@ uses
   // Migration transaction and file hasher
   uMigrationTransaction, uFileHasher,
   // System check utilities
-  uSystemCheck;
+  uSystemCheck,
+  // App association detector
+  uAppAssociation;
 
 type
   TfrmMain = class(TForm)
@@ -100,6 +102,8 @@ type
     btnAnalyze: TBitBtn;
     btnCalculateSize: TBitBtn;
     btnExecute: TBitBtn;
+    btnRollback: TBitBtn;
+    btnOneKeyDiagnose: TBitBtn;
     btnExit: TBitBtn;
     pnlStatus: TPanel;
     lblStatus: TLabel;
@@ -125,6 +129,8 @@ type
     procedure btnExecuteClick(Sender: TObject);
     procedure btnAnalyzeClick(Sender: TObject);
     procedure btnCalculateSizeClick(Sender: TObject);
+    procedure btnRollbackClick(Sender: TObject);
+    procedure btnOneKeyDiagnoseClick(Sender: TObject);
     procedure btnExitClick(Sender: TObject);
     procedure btnCancelOperationClick(Sender: TObject);
     
@@ -200,6 +206,7 @@ type
     FTotalFilesCount: Integer;
     FIsAdmin: Boolean;
     FSimpleMode: Boolean;
+    FAppDetector: TAppAssociationDetector;
 
     procedure InitializeInterface;
     procedure InitializeTreeViews;
@@ -263,6 +270,11 @@ type
     procedure UpdateButtonStates;
     procedure SetSimpleMode(ASimple: Boolean);
     
+    // 一键功能
+    procedure PerformOneKeyRollback;
+    procedure PerformOneKeyDiagnose;
+    procedure PerformOneKeyOptimize;
+    
   public
     { Public declarations }
   end;
@@ -314,6 +326,9 @@ begin
   // 初始化迁移事务管理器
   FMigrationTransaction := nil;
   
+  // 初始化应用程序关联检测器
+  FAppDetector := TAppAssociationDetector.Create;
+  
   // 设置窗体标题和界面文本 - 让DFM文件中的Unicode编码生效
   // Caption := 'C盘瘦身神器 - 智能目录迁移专家';
 
@@ -357,6 +372,10 @@ begin
   // 清理迁移事务管理器
   if Assigned(FMigrationTransaction) then
     FMigrationTransaction.Free;
+  
+  // 清理应用程序关联检测器
+  if Assigned(FAppDetector) then
+    FAppDetector.Free;
 
   FStyleManager.Free;
 end;
@@ -2858,14 +2877,17 @@ begin
   // 需要管理员权限的按钮
   btnExecute.Enabled := FIsAdmin;
   btnSmartMigration.Enabled := FIsAdmin;
+  btnRollback.Enabled := FIsAdmin;
   btnCleanUpdate.Enabled := FIsAdmin;
   
   // 在简洁模式下隐藏高级按钮
   if FSimpleMode then
   begin
     // 简洁模式：只显示一键按钮
+    btnOneKeyDiagnose.Visible := True;
     btnSmartClean.Visible := True;
     btnSmartMigration.Visible := True;
+    btnRollback.Visible := True;
     btnExit.Visible := True;
     
     // 隐藏高级按钮
@@ -2880,12 +2902,14 @@ begin
   else
   begin
     // 专家模式：显示所有按钮
+    btnOneKeyDiagnose.Visible := True;
     btnCleanRecycleBin.Visible := True;
     btnCleanTemp.Visible := True;
     btnCleanBackup.Visible := True;
     btnCleanUpdate.Visible := True;
     btnSmartClean.Visible := True;
     btnSmartMigration.Visible := True;
+    btnRollback.Visible := True;
     btnAnalyze.Visible := True;
     btnCalculateSize.Visible := True;
     btnExecute.Visible := True;
@@ -2910,6 +2934,257 @@ end;
 procedure TfrmMain.miSimpleModeClick(Sender: TObject);
 begin
   SetSimpleMode(miSimpleMode.Checked);
+end;
+
+// ===== 一键功能 =====
+
+// 一键回退按钮点击事件
+procedure TfrmMain.btnRollbackClick(Sender: TObject);
+begin
+  PerformOneKeyRollback;
+end;
+
+// 一键诊断按钮点击事件
+procedure TfrmMain.btnOneKeyDiagnoseClick(Sender: TObject);
+begin
+  PerformOneKeyDiagnose;
+end;
+
+// 一键回退功能实现
+procedure TfrmMain.PerformOneKeyRollback;
+var
+  BackupDir: string;
+  OriginalDir: string;
+  JunctionPath: string;
+  FileCount: Integer;
+  TotalSize: Int64;
+begin
+  if not FIsAdmin then
+  begin
+    ShowChineseMessage('请以管理员身份运行程序后再进行回退操作！');
+    Exit;
+  end;
+  
+  UpdateStatus('正在检测最近的备份...');
+  
+  // 检查是否有最近的备份
+  if FLastBackupPath = '' then
+  begin
+    ShowChineseMessage('没有找到最近的备份目录！' + sLineBreak + sLineBreak +
+                       '如果你之前有迁移操作，请在专家模式下使用「清理备份」菜单手动处理。');
+    Exit;
+  end;
+  
+  BackupDir := FLastBackupPath;
+  
+  if not TDirectory.Exists(BackupDir) then
+  begin
+    ShowChineseMessage('备份目录不存在：' + BackupDir);
+    FLastBackupPath := '';
+    Exit;
+  end;
+  
+  // 从备份目录名推断原始目录
+  // 备份格式：原目录.backup_YYYYMMDD_HHNNSS
+  OriginalDir := BackupDir;
+  var Pos := System.Pos('.backup_', OriginalDir);
+  if Pos > 0 then
+    OriginalDir := Copy(OriginalDir, 1, Pos - 1)
+  else
+  begin
+    ShowChineseMessage('无法从备份目录名推断原始目录！');
+    Exit;
+  end;
+  
+  // 计算备份目录大小
+  ComputeDirStats(BackupDir, FileCount, TotalSize);
+  
+  // 确认回退
+  if not ShowChineseConfirm(
+    '确认要回退这次迁移吗？' + sLineBreak + sLineBreak +
+    '原始目录：' + OriginalDir + sLineBreak +
+    '备份目录：' + BackupDir + sLineBreak +
+    '备份大小：' + TSystemCheck.FormatBytes(TotalSize) + sLineBreak +
+    '文件数量：' + IntToStr(FileCount) + sLineBreak + sLineBreak +
+    '回退操作将：' + sLineBreak +
+    '1. 删除Junction链接' + sLineBreak +
+    '2. 恢复原始目录' + sLineBreak + sLineBreak +
+    '注意：目标位置的文件将保留，不会被删除。') then
+    Exit;
+  
+  UpdateStatus('开始回退操作...');
+  ProgressBar1.Visible := True;
+  ProgressBar1.Style := pbstMarquee;
+  
+  try
+    // 1. 删除Junction链接
+    JunctionPath := OriginalDir;
+    if TDirectory.Exists(JunctionPath) then
+    begin
+      UpdateStatus('正在删除Junction链接...');
+      try
+        // 删除Junction（使用RemoveDirectory，不会删除目标文件）
+        if not RemoveDirectory(PChar(JunctionPath)) then
+        begin
+          ShowChineseMessage('删除Junction失败！' + sLineBreak + '请手动删除：' + JunctionPath);
+          Exit;
+        end;
+        UpdateStatus('已删除Junction链接');
+      except
+        on E: Exception do
+        begin
+          ShowChineseMessage('删除Junction时发生错误：' + E.Message);
+          Exit;
+        end;
+      end;
+    end;
+    
+    // 2. 恢复原始目录
+    UpdateStatus('正在恢复原始目录...');
+    if not RenameFile(BackupDir, OriginalDir) then
+    begin
+      ShowChineseMessage('恢复原始目录失败！' + sLineBreak + sLineBreak +
+                         '请手动将：' + sLineBreak + BackupDir + sLineBreak +
+                         '重命名为：' + sLineBreak + OriginalDir);
+      Exit;
+    end;
+    
+    UpdateStatus('回退完成！');
+    FLastBackupPath := '';
+    
+    ShowChineseMessage('回退操作已成功完成！' + sLineBreak + sLineBreak +
+                       '原始目录已恢复到：' + OriginalDir);
+    
+  finally
+    ProgressBar1.Visible := False;
+    ProgressBar1.Style := pbstNormal;
+  end;
+end;
+
+// 一键诊断功能实现
+procedure TfrmMain.PerformOneKeyDiagnose;
+var
+  CDrive: string;
+  Drives: TArray<string>;
+  I: Integer;
+  FreeSpace, TotalSpace, UsedSpace: Int64;
+  UsagePercent: Double;
+  Msg: TStringList;
+begin
+  UpdateStatus('正在诊断C盘...');
+  
+  CDrive := 'C:\';
+  
+  if not TDirectory.Exists(CDrive) then
+  begin
+    ShowChineseMessage('C盘不存在！');
+    Exit;
+  end;
+  
+  Msg := TStringList.Create;
+  try
+    Msg.Add('===== C盘诊断报告 =====');
+    Msg.Add('');
+    
+    // 获取磁盘空间信息
+    if GetDiskFreeSpaceEx(PChar(CDrive), FreeSpace, TotalSpace, nil) then
+    begin
+      UsedSpace := TotalSpace - FreeSpace;
+      UsagePercent := (UsedSpace * 100.0) / TotalSpace;
+      
+      Msg.Add('磁盘空间信息：');
+      Msg.Add(Format('  总容量：%s', [TSystemCheck.FormatBytes(TotalSpace)]));
+      Msg.Add(Format('  已使用：%s (%.1f%%)', [TSystemCheck.FormatBytes(UsedSpace), UsagePercent]));
+      Msg.Add(Format('  可用空间：%s', [TSystemCheck.FormatBytes(FreeSpace)]));
+      Msg.Add('');
+      
+      if UsagePercent > 90 then
+        Msg.Add('⚠️ C盘空间严重不足！建议立即进行清理和迁移。')
+      else if UsagePercent > 80 then
+        Msg.Add('⚠️ C盘空间较紧张，建议进行清理。')
+      else if UsagePercent > 70 then
+        Msg.Add('ℹ️ C盘空间尚可，但建议定期清理。')
+      else
+        Msg.Add('✅ C盘空间充足。');
+        
+      Msg.Add('');
+    end;
+    
+    Msg.Add('建议操作：');
+    Msg.Add('1. 点击【一键清理】清除系统垃圾文件');
+    Msg.Add('2. 选择大目录后点击【一键迁移】');
+    Msg.Add('3. 定期执行清理维护');
+    Msg.Add('');
+    Msg.Add('常见可迁移目录：');
+    Msg.Add('  - C:\Users\[user]\Documents (我的文档)');
+    Msg.Add('  - C:\Users\[user]\Downloads (下载)');
+    Msg.Add('  - C:\Users\[user]\Desktop (桌面)');
+    Msg.Add('  - C:\Users\[user]\Pictures (图片)');
+    Msg.Add('  - C:\Users\[user]\Videos (视频)');
+    
+    memoStatus.Lines.Assign(Msg);
+    UpdateStatus('C盘诊断完成');
+    
+  finally
+    Msg.Free;
+  end;
+end;
+
+// 一键优化功能实现
+procedure TfrmMain.PerformOneKeyOptimize;
+var
+  TotalFreed: Int64;
+  Result: TCleanupResult;
+begin
+  if not ShowChineseConfirm(
+    '一键优化将执行以下操作：' + sLineBreak + sLineBreak +
+    '1. 清空回收站' + sLineBreak +
+    '2. 清理临时文件' + sLineBreak +
+    '3. 清理系统日志' + sLineBreak +
+    '4. 清理浏览器缓存' + sLineBreak + sLineBreak +
+    '是否继续？') then
+    Exit;
+  
+  TotalFreed := 0;
+  UpdateStatus('开始一键优化...');
+  ProgressBar1.Visible := True;
+  ProgressBar1.Style := pbstMarquee;
+  
+  try
+    // 1. 清空回收站
+    UpdateStatus('正在清空回收站...');
+    Result := FCleanupManager.CleanRecycleBin;
+    if Result.Success then
+      TotalFreed := TotalFreed + Result.SpaceFreed;
+    
+    // 2. 清理临时文件
+    UpdateStatus('正在清理临时文件...');
+    Result := FCleanupManager.CleanTempFiles;
+    if Result.Success then
+      TotalFreed := TotalFreed + Result.SpaceFreed;
+    
+    // 3. 清理系统日志
+    UpdateStatus('正在清理系统日志...');
+    Result := FCleanupManager.CleanSystemLogs;
+    if Result.Success then
+      TotalFreed := TotalFreed + Result.SpaceFreed;
+    
+    // 4. 清理浏览器缓存
+    UpdateStatus('正在清理浏览器缓存...');
+    Result := FCleanupManager.CleanBrowserCache;
+    if Result.Success then
+      TotalFreed := TotalFreed + Result.SpaceFreed;
+    
+    UpdateStatus('一键优化完成！');
+    
+    ShowChineseMessage(
+      '一键优化完成！' + sLineBreak + sLineBreak +
+      Format('共释放空间：%s', [TSystemCheck.FormatBytes(TotalFreed)]));
+    
+  finally
+    ProgressBar1.Visible := False;
+    ProgressBar1.Style := pbstNormal;
+  end;
 end;
 
 end.

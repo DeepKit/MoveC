@@ -422,7 +422,7 @@ object frmMain: TfrmMain
       OnClick = btnSmartCleanClick
     end
     object btnSmartMigration: TBitBtn
-      Left = 768
+      Left = 103
       Top = 5
       Width = 90
       Height = 50
@@ -457,13 +457,31 @@ object frmMain: TfrmMain
       TabOrder = 8
       OnClick = btnExecuteClick
     end
+    object btnRollback: TBitBtn
+      Left = 768
+      Top = 5
+      Width = 90
+      Height = 50
+      Caption = #19968#38190#22238#36864
+      TabOrder = 9
+      OnClick = btnRollbackClick
+    end
+    object btnOneKeyDiagnose: TBitBtn
+      Left = 8
+      Top = 5
+      Width = 90
+      Height = 50
+      Caption = #19968#38190#35786#26029
+      TabOrder = 10
+      OnClick = btnOneKeyDiagnoseClick
+    end
     object btnExit: TBitBtn
       Left = 863
       Top = 5
       Width = 90
       Height = 50
       Caption = #36864#20986
-      TabOrder = 9
+      TabOrder = 11
       OnClick = btnExitClick
     end
   end
