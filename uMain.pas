@@ -304,7 +304,9 @@ begin
   {$ENDIF}
   
   // 初始化防篡改包
-  var Config := TAntiTamperPackage.GetDefaultConfig;
+  var
+    Config: TAntiTamperConfig;
+  Config := TAntiTamperPackage.GetDefaultConfig;
   Config.EncryptionKey := 'MoveC_AntiTamper_Key_2025';
   Config.DownloadURL := 'http://www.goodmem.cn';
   Config.EnableLogging := {$IFDEF DEBUG}True{$ELSE}False{$ENDIF};
@@ -579,10 +581,13 @@ begin
 
           // 检查是否有子目录，如果有则添加占位符
           try
-            var SubDirs := TDirectory.GetDirectories(Directories[I]);
+            var
+              SubDirs: TArray<string>;
+              PlaceholderNode: TTreeNode;
+            SubDirs := TDirectory.GetDirectories(Directories[I]);
             if Length(SubDirs) > 0 then
             begin
-              var PlaceholderNode := ATreeView.Items.AddChild(SubNode, '...');
+              PlaceholderNode := ATreeView.Items.AddChild(SubNode, '...');
               PlaceholderNode.Data := nil;  // 占位符标记
             end;
           except
@@ -915,7 +920,9 @@ begin
 
           // 检查是否有子目录，如果有则添加占位符
           try
-            var SubDirs := TDirectory.GetDirectories(Directories[I]);
+            var
+              SubDirs: TArray<string>;
+            SubDirs := TDirectory.GetDirectories(Directories[I]);
             if Length(SubDirs) > 0 then
             begin
               PlaceholderNode := ATreeView.Items.AddChild(SubNode, '...');
@@ -1398,8 +1405,11 @@ begin
     end;
 
     // 计算备份目录大小
-    var BackupSize: Int64 := 0;
-    var BackupFileCount: Integer := 0;
+    var
+      BackupSize: Int64;
+      BackupFileCount: Integer;
+    BackupSize := 0;
+    BackupFileCount := 0;
     if TDirectory.Exists(FMigrationTransaction.BackupDir) then
     begin
       ComputeDirStats(FMigrationTransaction.BackupDir, BackupFileCount, BackupSize);
@@ -1514,7 +1524,9 @@ begin
   begin
     if FCancelRequested then Break;
 
-    var SubDir := System.SysUtils.ExtractFileName(Dirs[I]);
+    var
+      SubDir: string;
+    SubDir := System.SysUtils.ExtractFileName(Dirs[I]);
     CopyDirRecursive(Dirs[I], TPath.Combine(ADst, SubDir), ACopied);
   end;
 end;
@@ -1559,7 +1571,9 @@ begin
     end;
 
     // 根据路径特征判断风险
-    var PathLower := LowerCase(APath);
+    var
+      PathLower: string;
+    PathLower := LowerCase(APath);
     if Pos('system', PathLower) > 0 then
     begin
       RiskLevel := '🔴 极高风险';
@@ -1738,8 +1752,10 @@ begin
       Break;
     end;
 
-    var SubDir := System.SysUtils.ExtractFileName(Dirs[I]);
-    if not CopyDirRecursiveWithVerify(Dirs[I], TPath.Combine(ADst, SubDir), 
+    var
+      SubDir: string;
+    SubDir := System.SysUtils.ExtractFileName(Dirs[I]);
+    if not CopyDirRecursiveWithVerify(Dirs[I], TPath.Combine(ADst, SubDir),
       ATransaction) then
       Result := False;
   end;
@@ -1763,7 +1779,9 @@ begin
 
     // 2. 尝试列举目录内容
     try
-      var Files := TDirectory.GetFiles(AJunctionPath);
+      var
+        Files: TArray<string>;
+      Files := TDirectory.GetFiles(AJunctionPath);
       UpdateStatus(Format('联接目录可访问，包含 %d 个文件', [Length(Files)]));
     except
       on E: Exception do
@@ -1781,10 +1799,13 @@ begin
       TFile.WriteAllText(TestFile, TestContent);
 
       // 4. 验证文件是否在目标目录中
-      var TargetTestFile := TPath.Combine(ATargetPath, '_verify_test.tmp');
+      var
+        TargetTestFile: string;
+        ReadContent: string;
+      TargetTestFile := TPath.Combine(ATargetPath, '_verify_test.tmp');
       if TFile.Exists(TargetTestFile) then
       begin
-        var ReadContent := TFile.ReadAllText(TargetTestFile);
+        ReadContent := TFile.ReadAllText(TargetTestFile);
         if ReadContent = TestContent then
         begin
           Result := True;
@@ -2958,6 +2979,7 @@ var
   JunctionPath: string;
   FileCount: Integer;
   TotalSize: Int64;
+  PosBackup: Integer;
 begin
   if not FIsAdmin then
   begin
@@ -2987,9 +3009,9 @@ begin
   // 从备份目录名推断原始目录
   // 备份格式：原目录.backup_YYYYMMDD_HHNNSS
   OriginalDir := BackupDir;
-  var Pos := System.Pos('.backup_', OriginalDir);
-  if Pos > 0 then
-    OriginalDir := Copy(OriginalDir, 1, Pos - 1)
+  PosBackup := System.Pos('.backup_', OriginalDir);
+  if PosBackup > 0 then
+    OriginalDir := Copy(OriginalDir, 1, PosBackup - 1)
   else
   begin
     ShowChineseMessage('无法从备份目录名推断原始目录！');
