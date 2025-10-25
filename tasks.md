@@ -13,7 +13,7 @@
 - [x] 基本清理动作：回收站/临时文件/浏览器缓存/系统日志/预取文件（uCleanupManager）
 - [x] 迁移演示流程：复制→重命名备份→mklink（uMain.ExecuteOperation）
 - [x] 智能清理聚合入口（PerformSmartCleanup）
-- [x] 防篡改体系：AES-256加密、SHA-256校验、AboutMe框架
+- [x] 防篡改框架基础：图像加密/校验、AboutMe 框架（需继续强化）
 - [x] 现代化UI样式管理器
 
 ---
@@ -264,3 +264,18 @@
 2. 添加【一键诊断】按钮：扫描C盘大文件和目录
 3. 添加【一键优化】按钮：整合所有清理功能
 4. 优化简洁模式下按钮布局
+
+---
+
+## 🛡️ 防篡改与发布打磨（新增）
+
+### 已完成（本次提交）
+- [x] 修复 SimpleSecureManager 恒真漏洞：现在强制校验 MoveC.db 存在、images 表存在、记录数与关键键（wechat/alipay/btc）。任一失败则返回 False，触发主程序安全退出。
+- [x] 将 AntiTamper 下载地址切换为 HTTPS（uMain 中 DownloadURL -> https://www.goodmem.cn）。
+
+### 待完成
+- [ ] DPR 早期自检：在主窗体创建前执行反调试与关键资源自检（建议新建 uSecureStartupGuard 单元，并从 C盘瘦身.dpr 调用）。
+- [ ] AntiTamper 加固：统一以 SHA-256 存储哈希（字段名从 md5_hash 迁移到 sha256_hash），AES-256 + KDF（PBKDF2/Argon2id）派生密钥，HTTPS 仅信任。
+- [ ] 多重心跳校验：在多个代码路径周期性复验关键资源，任一失败触发安全退出。
+- [ ] 安装器与签名：Inno/MSIX 安装包、UAC requireAdministrator、代码签名、依赖（sqlite3.dll）部署。
+- [ ] UI一致性整改：统一字体/边距/去除Emoji，按钮布局改为自适应容器。

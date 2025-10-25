@@ -13,8 +13,18 @@ uses
   uStyles, uStrings, uIconManager,
   // Security modules
   uSimpleSecureManager, FrameAboutMe, uAntiTamperPackage, uAntiDebug,
-  // Cleanup manager
+  // Clean up modules
   uCleanupManager,
+  // Advanced file manager
+  uAdvancedFileManagerForm,
+  // Smart migration wizard
+  uSmartMigrationWizard,
+  // Log manager
+  uLogManager,
+  // Advanced options dialog
+  uAdvancedOptions,
+  // Enhanced system monitoring dialog
+  uSystemMonitorDialog,
   // Migration transaction and file hasher
   uMigrationTransaction, uFileHasher,
   // System check utilities
@@ -22,7 +32,11 @@ uses
   // App association detector
   uAppAssociation,
   // System monitoring and performance modules
-  uSystemMonitor, uPerformanceAnalyzer, uSystemOptimizer;
+  uSystemMonitor, uPerformanceAnalyzer, uSystemOptimizer,
+  // C盘空间分析器
+  uDiskAnalyzer,
+  // FireDAC for SQLite initialization when DB is missing
+  FireDAC.Comp.Client, FireDAC.Stan.Def, FireDAC.Phys.SQLite, Data.DB;
 
 type
   TfrmMain = class(TForm)
@@ -65,6 +79,7 @@ type
     miSimpleMode: TMenuItem;
     miConfigManager: TMenuItem;
     miSeparatorTools1: TMenuItem;
+    miAdvancedFileManager: TMenuItem;
     miLogManager: TMenuItem;
     miAdvancedOptions: TMenuItem;
     MenuTheme: TMenuItem;
@@ -101,6 +116,7 @@ type
     btnCleanUpdate: TBitBtn;
     btnSmartClean: TBitBtn;
     btnSmartMigration: TBitBtn;
+    btnAdvancedFileManager: TBitBtn;
     btnAnalyze: TBitBtn;
     btnCalculateSize: TBitBtn;
     btnExecute: TBitBtn;
@@ -128,6 +144,7 @@ type
     procedure btnCleanUpdateClick(Sender: TObject);
     procedure btnSmartCleanClick(Sender: TObject);
     procedure btnSmartMigrationClick(Sender: TObject);
+    procedure btnAdvancedFileManagerClick(Sender: TObject);
     procedure btnExecuteClick(Sender: TObject);
     procedure btnAnalyzeClick(Sender: TObject);
     procedure btnCalculateSizeClick(Sender: TObject);
@@ -160,6 +177,7 @@ type
     procedure MenuCleanupSoftwareDistributionClick(Sender: TObject);
     procedure MenuCleanupDuplicateFilesClick(Sender: TObject);
     procedure miConfigManagerClick(Sender: TObject);
+    procedure miAdvancedFileManagerClick(Sender: TObject);
     procedure miLogManagerClick(Sender: TObject);
     procedure miAdvancedOptionsClick(Sender: TObject);
     procedure miSimpleModeClick(Sender: TObject);
@@ -216,10 +234,16 @@ type
     FPerformanceAnalyzer: TPerformanceAnalyzer;
     FSystemOptimizer: TSystemOptimizer;
     FMonitoringActive: Boolean;
-
+    // C盘空间分析器
+    FCDriveAnalyzer: TCDriveAnalyzer;
+    FAnalysisResults: TArray<TCleanupSuggestion>;
+    FLastAnalysisTime: TDateTime;
+    FHeartbeatTimer: TTimer;
+    
     procedure InitializeInterface;
     procedure InitializeTreeViews;
     function UpdateStatus(const AMessage: string): Boolean;
+    procedure HeartbeatCheck(Sender: TObject);
     procedure LoadDirectoryTree(ATreeView: TTreeView; const APath: string);
     procedure ExpandTreeNode(ATreeView: TTreeView; ANode: TTreeNode);
     procedure FreeTreeViewData(ATreeView: TTreeView);
@@ -291,6 +315,15 @@ type
     procedure OnSystemInfoUpdate(const Info: TSystemInfo);
     procedure OnMonitorEventAlert(const Event: TMonitorEvent);
     
+    // C盘空间分析功能
+    procedure StartCDriveAnalysis;
+    procedure ShowAnalysisResults;
+    procedure ShowSpaceAnalysisDialog;
+    procedure ApplySuggestion(const Suggestion: TCleanupSuggestion);
+    procedure OnAnalysisProgress(const Message: string; Progress: Integer);
+    function GetCDriveFreeSpace: Int64;
+    function GetCDriveTotalSpace: Int64;
+    
     // 安全检查
     function IsSystemCriticalDirectory(const APath: string): Boolean;
     function CheckDirectorySafety(const ASourcePath, ATargetPath: string): Boolean;
@@ -312,6 +345,7 @@ var
   Config: TAntiTamperConfig;
 begin
   // FormCreate开始执行
+  LogInfo('Main', 'MoveC 应用程序正在启动...');
   
   // 反调试保护（仅在Release版本启用）
   {$IFDEF RELEASE}
@@ -326,10 +360,82 @@ begin
   // 初始化防篡改包
   Config := TAntiTamperPackage.GetDefaultConfig;
   Config.EncryptionKey := 'MoveC_AntiTamper_Key_2025';
-  Config.DownloadURL := 'http://www.goodmem.cn';
+  Config.DownloadURL := 'https://www.goodmem.cn';
   Config.EnableLogging := {$IFDEF DEBUG}True{$ELSE}False{$ENDIF};
   Config.EncryptionType := etAES256; // 使用AES-256加密
   TAntiTamperPackage.Initialize(Config);
+
+  // 可控一次性修复：若存在同目录标记文件 "MoveC.repair"，允许仅本次自动创建并播种最小数据，随后仍按fail-closed执行
+  try
+    var Root := ExtractFilePath(ParamStr(0));
+    var DbPath := TPath.Combine(Root, 'MoveC.db');
+    var RepairFlag := TPath.Combine(Root, 'MoveC.repair');
+    if (not TFile.Exists(DbPath)) and TFile.Exists(RepairFlag) then
+    begin
+      var Conn := TFDConnection.Create(nil);
+      var Q := TFDQuery.Create(nil);
+      try
+        Conn.DriverName := 'SQLite';
+        Conn.Params.Values['Database'] := DbPath;
+        Conn.LoginPrompt := False;
+        Conn.Connected := True;
+        // 创建表
+        if not TAntiTamperPackage.SetupDatabase(Conn) then
+          raise Exception.Create('创建数据库表失败');
+        // 播种最小合法记录（空BLOB + SHA-256("")）
+        Q.Connection := Conn;
+        Q.SQL.Text := 'INSERT OR IGNORE INTO images (image_key, image_data, address_text, description, md5_hash) ' +
+                      'VALUES (:k, :d, :a, :desc, :h)';
+        // 准备关键键与地址
+        var Keys: array[0..2] of string;
+        var Addr: array[0..2] of string;
+        Keys[0] := 'wechat';  Addr[0] := '微信收款码';
+        Keys[1] := 'alipay';  Addr[1] := '支付宝收款码';
+        Keys[2] := 'btc';     Addr[2] := '';
+        var I: Integer;
+        for I := 0 to 2 do
+        begin
+          Q.ParamByName('k').AsString := Keys[I];
+          Q.ParamByName('a').AsString := Addr[I];
+          Q.ParamByName('desc').AsString := 'seed';
+          // 空BLOB
+          var MS: TMemoryStream;
+          MS := TMemoryStream.Create;
+          try
+            Q.ParamByName('d').LoadFromStream(MS, ftBlob);
+          finally
+            MS.Free;
+          end;
+          // SHA-256("")
+          Q.ParamByName('h').AsString := 'E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855';
+          Q.ExecSQL;
+        end;
+      finally
+        try Q.Free; except end;
+        if Assigned(Conn) then
+        begin
+          try Conn.Connected := False; except end;
+          Conn.Free;
+        end;
+        // 用后即焚
+        try TFile.Delete(RepairFlag); except end;
+      end;
+    end;
+  except
+    // 修复失败不影响后续严格校验
+  end;
+
+  // 防篡改原则：关键资源缺失立即退出（fail-closed）
+  try
+    var DbPath2 := TPath.Combine(ExtractFilePath(ParamStr(0)), 'MoveC.db');
+    if not TFile.Exists(DbPath2) then
+    begin
+      MessageBox(0, '检测到关键资源缺失：MoveC.db。程序将退出。', '安全警告', MB_OK or MB_ICONERROR or MB_TOPMOST);
+      Application.Terminate;
+      Exit;
+    end;
+  except
+  end;
 
   FStyleManager := TModernStyleManager.Create;
   FSourcePath := '';
@@ -359,6 +465,12 @@ begin
   FSystemOptimizer := TSystemOptimizer.Create;
   FMonitoringActive := False;
   
+  // 初始化C盘空间分析器
+  FCDriveAnalyzer := TCDriveAnalyzer.Create;
+  FCDriveAnalyzer.OnProgress := OnAnalysisProgress;
+  SetLength(FAnalysisResults, 0);
+  FLastAnalysisTime := 0;
+  
   // 设置窗体标题和界面文本 - 让DFM文件中的Unicode编码生效
   // Caption := 'C盘瘦身神器 - 智能目录迁移专家';
 
@@ -384,6 +496,17 @@ begin
   
   // 检查管理员权限
   CheckAndRequestAdminPrivileges;
+  
+  // 启动防护心跳：周期验证关键资源存在
+  if not Assigned(FHeartbeatTimer) then
+  begin
+    FHeartbeatTimer := TTimer.Create(Self);
+    FHeartbeatTimer.Interval := 60000; // 60秒
+    FHeartbeatTimer.OnTimer := HeartbeatCheck;
+    FHeartbeatTimer.Enabled := True;
+  end;
+
+  LogInfo('Main', 'MoveC 应用程序初始化完成');
 end;
 
 procedure TfrmMain.FormDestroy(Sender: TObject);
@@ -420,6 +543,14 @@ begin
     FPerformanceAnalyzer.Free;
   if Assigned(FSystemOptimizer) then
     FSystemOptimizer.Free;
+    
+  // 清理C盘分析器
+  if Assigned(FCDriveAnalyzer) then
+  begin
+    if FCDriveAnalyzer.Analyzing then
+      FCDriveAnalyzer.StopAnalysis;
+    FCDriveAnalyzer.Free;
+  end;
 
   FStyleManager.Free;
 end;
@@ -451,6 +582,16 @@ begin
     edtTargetDir.Text := FTargetPath;
     LoadDirectoryTree(tvTarget, FTargetPath);
   end;
+  
+  // 设置C盘瘦身核心功能按钮文本
+  if Assigned(btnAnalyze) then
+    btnAnalyze.Caption := 'C盘空间分析';
+  if Assigned(btnSmartClean) then
+    btnSmartClean.Caption := '一键清理';
+  if Assigned(btnExecute) then
+    btnExecute.Caption := '开始迁移';
+  if Assigned(btnRollback) then
+    btnRollback.Caption := '一键回滚';
   
   // 初始化AboutMe安全模块
   try
@@ -571,27 +712,27 @@ begin
     FStyleManager.StyleTreeView(tvTarget);
   end;
   
-  // 为右键菜单添加彩色emoji图标
+  // 为右键菜单设置纯文本（移除emoji，避免渲染兼容性问题）
   // 源目录菜单
-  miSrcOpen.Caption := '📂 打开';
-  miSrcOpenInExplorer.Caption := '📁 在资源管理器中打开';
-  miSrcCopyPath.Caption := '📋 复制路径';
-  miSrcSetRoot.Caption := '🏠 设为根目录';
-  miSrcScanHere.Caption := '📊 扫描这里';
-  miSrcAnalyzeHere.Caption := '🔍 分析这里';
-  miSrcProperties.Caption := '⚙️ 属性';
-  miSrcDelete.Caption := '🗑️ 删除当前目录';
-  miSrcRefresh.Caption := '🔄 刷新';
+  miSrcOpen.Caption := '打开';
+  miSrcOpenInExplorer.Caption := '在资源管理器中打开';
+  miSrcCopyPath.Caption := '复制路径';
+  miSrcSetRoot.Caption := '设为根目录';
+  miSrcScanHere.Caption := '扫描这里';
+  miSrcAnalyzeHere.Caption := '分析这里';
+  miSrcProperties.Caption := '属性';
+  miSrcDelete.Caption := '删除当前目录';
+  miSrcRefresh.Caption := '刷新';
   
   // 目标目录菜单
-  miTgtOpen.Caption := '📂 打开';
-  miTgtOpenInExplorer.Caption := '📁 在资源管理器中打开';
-  miTgtCopyPath.Caption := '📋 复制路径';
-  miTgtSetRoot.Caption := '🏠 设为根目录';
-  miTgtSetAsTargetPath.Caption := '🎯 设为目标路径';
-  miTgtProperties.Caption := '⚙️ 属性';
-  miTgtDelete.Caption := '🗑️ 删除当前目录';
-  miTgtRefresh.Caption := '🔄 刷新';
+  miTgtOpen.Caption := '打开';
+  miTgtOpenInExplorer.Caption := '在资源管理器中打开';
+  miTgtCopyPath.Caption := '复制路径';
+  miTgtSetRoot.Caption := '设为根目录';
+  miTgtSetAsTargetPath.Caption := '设为目标路径';
+  miTgtProperties.Caption := '属性';
+  miTgtDelete.Caption := '删除当前目录';
+  miTgtRefresh.Caption := '刷新';
 end;
 
 procedure TfrmMain.InitializeTreeViews;
@@ -676,6 +817,10 @@ begin
     lblStatus.Caption := AMessage;
   if Assigned(memoStatus) then
     memoStatus.Lines.Add(FormatDateTime('hh:nn:ss', Now) + ' - ' + AMessage);
+  
+  // 记录到日志系统
+  LogInfo('StatusUpdate', AMessage);
+  
   Application.ProcessMessages;
   Result := True;
 end;
@@ -752,10 +897,62 @@ begin
 end;
 
 procedure TfrmMain.btnSmartMigrationClick(Sender: TObject);
+var
+  WizardForm: TfrmSmartMigrationWizard;
 begin
-  UpdateStatus('迁移向导功能暂时不可用');
-  ShowChineseMessage('迁移向导功能正在开发中！' + sLineBreak + sLineBreak +
-    '当前请使用“开始迁移”按钮执行迁移操作。');
+  try
+    UpdateStatus('正在启动智能迁移向导...');
+    
+    WizardForm := TfrmSmartMigrationWizard.Create(Self);
+    try
+      // 如果当前已选择了源目录，传给向导
+      if FSourcePath <> '' then
+        WizardForm.SourcePath := FSourcePath;
+      if FTargetPath <> '' then
+        WizardForm.TargetPath := FTargetPath;
+        
+      if WizardForm.ShowModal = mrOk then
+      begin
+        UpdateStatus('智能迁移向导已完成');
+        ShowChineseMessage('迁移操作已成功完成！' + sLineBreak + sLineBreak +
+                           '您可以现在使用新的文件位置。');
+        
+        // 更新主窗口中的路径显示
+        if WizardForm.SourcePath <> '' then
+        begin
+          FSourcePath := WizardForm.SourcePath;
+          edtSourceDir.Text := FSourcePath;
+          LoadDirectoryTree(tvSource, FSourcePath);
+        end;
+        
+        if WizardForm.TargetPath <> '' then
+        begin
+          FTargetPath := WizardForm.TargetPath;
+          edtTargetDir.Text := FTargetPath;
+          LoadDirectoryTree(tvTarget, FTargetPath);
+        end;
+      end
+      else
+      begin
+        UpdateStatus('智能迁移向导已取消');
+      end;
+    finally
+      WizardForm.Free;
+    end;
+    
+  except
+    on E: Exception do
+    begin
+      UpdateStatus('启动智能迁移向导失败: ' + E.Message);
+      ShowChineseMessage('启动智能迁移向导失败：' + sLineBreak + E.Message);
+    end;
+  end;
+end;
+
+// 高级文件管理器按钮点击事件
+procedure TfrmMain.btnAdvancedFileManagerClick(Sender: TObject);
+begin
+  miAdvancedFileManagerClick(Sender);
 end;
 
 procedure TfrmMain.btnExecuteClick(Sender: TObject);
@@ -797,14 +994,8 @@ end;
 
 procedure TfrmMain.btnAnalyzeClick(Sender: TObject);
 begin
-  if FSourcePath = '' then
-  begin
-    UpdateStatus('❌ 请先选择源目录');
-    ShowChineseMessage('请先选择源目录！');
-    Exit;
-  end;
-
-  AnalyzeDirectory(FSourcePath);
+  // 启动C盘空间分析
+  StartCDriveAnalysis;
 end;
 
 procedure TfrmMain.btnCalculateSizeClick(Sender: TObject);
@@ -1028,6 +1219,31 @@ begin
   ShowChineseMessage('配置管理器功能正在开发中，敬请期待！');
 end;
 
+// 高级文件管理器菜单点击事件
+procedure TfrmMain.miAdvancedFileManagerClick(Sender: TObject);
+var
+  AdvancedForm: TfrmAdvancedFileManager;
+begin
+  try
+    UpdateStatus('正在打开高级文件管理器...');
+    
+    AdvancedForm := TfrmAdvancedFileManager.Create(Self);
+    try
+      AdvancedForm.ShowModal;
+    finally
+      AdvancedForm.Free;
+    end;
+    
+    UpdateStatus('高级文件管理器已关闭');
+  except
+    on E: Exception do
+    begin
+      UpdateStatus('打开高级文件管理器失败: ' + E.Message);
+      ShowChineseMessage('打开高级文件管理器失败：' + sLineBreak + E.Message);
+    end;
+  end;
+end;
+
 // 清理进度回调
 procedure TfrmMain.OnCleanupProgress(const AMessage: string; AProgress: Integer);
 begin
@@ -1198,6 +1414,19 @@ begin
   end;
 end;
 
+procedure TfrmMain.HeartbeatCheck(Sender: TObject);
+begin
+  try
+    if not TFile.Exists(TPath.Combine(ExtractFilePath(ParamStr(0)), 'MoveC.db')) then
+    begin
+      UpdateStatus('关键资源丢失：MoveC.db');
+      ShowChineseMessage('检测到关键资源丢失：MoveC.db，程序将退出。');
+      Application.Terminate;
+    end;
+  except
+  end;
+end;
+
 procedure TfrmMain.FreeTreeViewData(ATreeView: TTreeView);
 var
   I: Integer;
@@ -1231,6 +1460,8 @@ var
   BackupSize: Int64;
   BackupFileCount: Integer;
 begin
+  LogInfo('Migration', '开始执行目录迁移操作');
+  
   // 初始化取消标志和统计变量
   FCancelRequested := False;
   FStartTime := Now;
@@ -2067,18 +2298,110 @@ begin
 end;
 
 procedure TfrmMain.MenuCleanupDuplicateFilesClick(Sender: TObject);
+var
+  AdvancedForm: TfrmAdvancedFileManager;
 begin
-  ShowChineseMessage('智能重复文件清理功能正在开发中，敬请期待！');
+  try
+    UpdateStatus('正在启动高级文件管理器 - 重复文件清理...');
+    
+    AdvancedForm := TfrmAdvancedFileManager.Create(Self);
+    try
+      // 直接跳转到重复文件标签页
+      if AdvancedForm.pgcMain.PageCount > 1 then
+        AdvancedForm.pgcMain.ActivePageIndex := 1; // 重复文件页
+        
+      // 如果有选定的源目录，设为默认扫描路径
+      if FSourcePath <> '' then
+      begin
+        AdvancedForm.edtDuplicatePath.Text := FSourcePath;
+      end
+      else if TDirectory.Exists('C:\\Users') then
+      begin
+        AdvancedForm.edtDuplicatePath.Text := 'C:\\Users';
+      end;
+      
+      AdvancedForm.ShowModal;
+    finally
+      AdvancedForm.Free;
+    end;
+    
+    UpdateStatus('重复文件清理工具已关闭');
+  except
+    on E: Exception do
+    begin
+      UpdateStatus('启动重复文件清理失败: ' + E.Message);
+      ShowChineseMessage('启动重复文件清理失败：' + sLineBreak + E.Message);
+    end;
+  end;
 end;
 
 procedure TfrmMain.miLogManagerClick(Sender: TObject);
+var
+  LogViewer: TfrmLogViewer;
 begin
-  ShowChineseMessage('日志管理功能正在开发中，敬请期待！');
+  try
+    UpdateStatus('正在打开日志查看器...');
+    
+    LogViewer := TfrmLogViewer.Create(Self, GlobalLogManager);
+    try
+      LogViewer.Show; // 使用Show而不是ShowModal，允许同时使用主窗口
+    except
+      LogViewer.Free;
+      raise;
+    end;
+    
+    UpdateStatus('日志查看器已打开');
+  except
+    on E: Exception do
+    begin
+      UpdateStatus('打开日志查看器失败: ' + E.Message);
+      ShowChineseMessage('打开日志查看器失败：' + sLineBreak + E.Message);
+    end;
+  end;
 end;
 
 procedure TfrmMain.miAdvancedOptionsClick(Sender: TObject);
+var
+  OptionsDialog: TfrmAdvancedOptions;
 begin
-  ShowChineseMessage('高级功能正在开发中，敬请期待！');
+  try
+    UpdateStatus('正在打开高级选项对话框...');
+    
+    OptionsDialog := TfrmAdvancedOptions.Create(Self);
+    try
+      if OptionsDialog.ShowModal = mrOk then
+      begin
+        UpdateStatus('高级选项设置已更新');
+        LogInfo('Settings', '用户更新了高级选项设置');
+        
+        // 在这里可以根据新设置更新主窗口行为
+        // 例如更新线程数、日志级别等
+        if Assigned(GlobalLogManager) then
+        begin
+          var Settings := TSettingsManager.Instance.Settings;
+          GlobalLogManager.LogLevel := Settings.LogLevel;
+          GlobalLogManager.LogToFile := Settings.EnableFileLogging;
+          GlobalLogManager.MaxFileSize := Settings.LogRotationSize * 1024 * 1024;
+          GlobalLogManager.MaxFiles := Settings.MaxLogFiles;
+        end;
+        
+        ShowChineseMessage('高级选项设置已保存！部分设置将在下次启动时生效。');
+      end
+      else
+      begin
+        UpdateStatus('高级选项对话框已取消');
+      end;
+    finally
+      OptionsDialog.Free;
+    end;
+    
+  except
+    on E: Exception do
+    begin
+      UpdateStatus('打开高级选项对话框失败: ' + E.Message);
+      ShowChineseMessage('打开高级选项对话框失败：' + sLineBreak + E.Message);
+    end;
+  end;
 end;
 
 procedure TfrmMain.MenuThemeClick(Sender: TObject);
@@ -2146,6 +2469,7 @@ begin
   if Assigned(btnCleanUpdate) then SetButtonStyle(btnCleanUpdate, $2196F3, clBlack);
   if Assigned(btnSmartClean) then SetButtonStyle(btnSmartClean, $009688, clBlack);
   if Assigned(btnSmartMigration) then SetButtonStyle(btnSmartMigration, $00BCD4, clBlack);
+  if Assigned(btnAdvancedFileManager) then SetButtonStyle(btnAdvancedFileManager, $FF9800, clBlack);
   if Assigned(btnBrowseSource) then SetButtonStyle(btnBrowseSource, $607D8B, clBlack);
   if Assigned(btnBrowseTarget) then SetButtonStyle(btnBrowseTarget, $607D8B, clBlack);
   if Assigned(btnSourceUp) then SetButtonStyle(btnSourceUp, $795548, clBlack);
@@ -2186,6 +2510,7 @@ begin
   if Assigned(btnCleanUpdate) then IconManager.ApplyIconToButton(btnCleanUpdate, IconManager.ICON_CLEAN_UPDATE);
   if Assigned(btnSmartClean) then IconManager.ApplyIconToButton(btnSmartClean, IconManager.ICON_SMART_CLEAN);
   if Assigned(btnSmartMigration) then IconManager.ApplyIconToButton(btnSmartMigration, IconManager.ICON_SMART_MIGRATION);
+  if Assigned(btnAdvancedFileManager) then IconManager.ApplyIconToButton(btnAdvancedFileManager, IconManager.ICON_FILE_MANAGER);
 
   // 为主要功能按钮加载图标
   if Assigned(btnExecute) then IconManager.ApplyIconToButton(btnExecute, IconManager.ICON_EXECUTE);
@@ -3015,6 +3340,7 @@ begin
     if Assigned(btnOneKeyDiagnose) then btnOneKeyDiagnose.Visible := True;
     if Assigned(btnSmartClean) then btnSmartClean.Visible := True;
     if Assigned(btnSmartMigration) then btnSmartMigration.Visible := True;
+    if Assigned(btnAdvancedFileManager) then btnAdvancedFileManager.Visible := True;
     if Assigned(btnRollback) then btnRollback.Visible := True;
     if Assigned(btnExit) then btnExit.Visible := True;
     
@@ -3037,6 +3363,7 @@ begin
     if Assigned(btnCleanUpdate) then btnCleanUpdate.Visible := True;
     if Assigned(btnSmartClean) then btnSmartClean.Visible := True;
     if Assigned(btnSmartMigration) then btnSmartMigration.Visible := True;
+    if Assigned(btnAdvancedFileManager) then btnAdvancedFileManager.Visible := True;
     if Assigned(btnRollback) then btnRollback.Visible := True;
     if Assigned(btnAnalyze) then btnAnalyze.Visible := True;
     if Assigned(btnCalculateSize) then btnCalculateSize.Visible := True;
@@ -3480,41 +3807,28 @@ end;
 
 procedure TfrmMain.ShowSystemMonitorDialog;
 var
-  Info: TSystemInfo;
-  InfoText: string;
-  Uptime: Int64;
+  MonitorDialog: TfrmSystemMonitorDialog;
 begin
-  if not Assigned(FSystemMonitor) then
-  begin
-    ShowChineseMessage('系统监控器未初始化！');
-    Exit;
+  try
+    LogInfo('SystemMonitor', '正在打开增强系统监控对话框');
+    
+    MonitorDialog := TfrmSystemMonitorDialog.Create(Self);
+    try
+      MonitorDialog.Show; // 使用Show而不是ShowModal，允许同时使用主窗口
+    except
+      MonitorDialog.Free;
+      raise;
+    end;
+    
+    UpdateStatus('增强系统监控对话框已打开');
+  except
+    on E: Exception do
+    begin
+      UpdateStatus('打开系统监控对话框失败: ' + E.Message);
+      ShowChineseMessage('打开系统监控对话框失败：' + sLineBreak + E.Message);
+      LogError('SystemMonitor', '打开系统监控对话框失败: ' + E.Message);
+    end;
   end;
-  
-  Info := FSystemMonitor.GetCurrentSystemInfo;
-  Uptime := FSystemMonitor.GetSystemUptime;
-  
-  InfoText := Format(
-    '系统资源状态' + sLineBreak + sLineBreak +
-    'CPU 使用率: %.1f%%' + sLineBreak +
-    '内存使用率: %.1f%% (%.2f GB / %.2f GB)' + sLineBreak +
-    '磁盘使用率: %.1f%%' + sLineBreak +
-    '网络传输: 上行 %.2f MB/s, 下行 %.2f MB/s' + sLineBreak +
-    '进程数量: %d' + sLineBreak +
-    '系统运行时间: %.0f 分钟',
-    [
-      Info.CPUUsage,
-      Info.MemoryUsage,
-      Info.MemoryUsed / (1024*1024*1024),
-      Info.MemoryTotal / (1024*1024*1024),
-      Info.DiskUsage,
-      Info.NetworkUpload / (1024*1024),
-      Info.NetworkDownload / (1024*1024),
-      Info.ProcessCount,
-      Uptime / 60.0
-    ]
-  );
-  
-  ShowChineseMessage(InfoText);
 end;
 
 procedure TfrmMain.ShowPerformanceAnalysisDialog;
@@ -3643,6 +3957,314 @@ begin
   begin
     ShowChineseMessage(AlertText + sLineBreak + sLineBreak + '建议立即进行系统优化！');
   end;
+end;
+
+// ===== C盘空间分析功能实现 =====
+
+procedure TfrmMain.StartCDriveAnalysis;
+begin
+  if not Assigned(FCDriveAnalyzer) then
+  begin
+    ShowChineseMessage('空间分析器未初始化！');
+    Exit;
+  end;
+  
+  if FCDriveAnalyzer.Analyzing then
+  begin
+    ShowChineseMessage('分析正在进行中，请稍候...');
+    Exit;
+  end;
+  
+  if not ShowChineseConfirm('即将开始C盘空间分析，这可能需要几分钟时间。' + sLineBreak + sLineBreak +
+                           '分析将扫描C盘上的所有文件夹，找出占用空间最多的目录和文件。' + sLineBreak + sLineBreak +
+                           '是否继续？') then
+    Exit;
+    
+  UpdateStatus('正在分析C盘空间使用情况...');
+  ProgressBar1.Visible := True;
+  ProgressBar1.Style := pbstNormal;
+  ProgressBar1.Position := 0;
+  ShowCancelButton(True);
+  
+  // 创建线程进行空间分析
+  TTask.Run(
+    procedure
+    var
+      Success: Boolean;
+      TempResults: TArray<TCleanupSuggestion>;
+      TempTime: TDateTime;
+      ErrorMsg: string;
+    begin
+      try
+        Success := FCDriveAnalyzer.StartAnalysis;
+        
+        if Success then
+        begin
+          TempResults := FCDriveAnalyzer.GetCleanupSuggestions;
+          TempTime := Now;
+        end;
+        
+        // 在主线程中更新UI
+        TThread.Queue(nil,
+          procedure
+          begin
+            try
+              ProgressBar1.Visible := False;
+              ShowCancelButton(False);
+              
+              if Success then
+              begin
+                FAnalysisResults := TempResults;
+                FLastAnalysisTime := TempTime;
+                UpdateStatus('分析完成！');
+                ShowAnalysisResults;
+              end
+              else
+              begin
+                UpdateStatus('分析被取消或失败');
+                ShowChineseMessage('C盘空间分析被取消或失败！');
+              end;
+            except
+              on E: Exception do
+              begin
+                UpdateStatus('分析时发生错误: ' + E.Message);
+                ShowChineseMessage('分析时发生错误：' + sLineBreak + E.Message);
+              end;
+            end;
+          end);
+      except
+        on E: Exception do
+        begin
+          ErrorMsg := E.Message;
+          TThread.Queue(nil,
+            procedure
+            begin
+              ProgressBar1.Visible := False;
+              ShowCancelButton(False);
+              UpdateStatus('分析失败: ' + ErrorMsg);
+              ShowChineseMessage('分析失败：' + sLineBreak + ErrorMsg);
+            end);
+        end;
+      end;
+    end);
+end;
+
+procedure TfrmMain.ShowAnalysisResults;
+var
+  I: Integer;
+  ResultText: string;
+  TotalSavings: Int64;
+  CDriveFree, CDriveTotal: Int64;
+  UsagePercent: Double;
+begin
+  if Length(FAnalysisResults) = 0 then
+  begin
+    ShowChineseMessage('C盘分析完成，但没有发现明显的优化建议。' + sLineBreak + sLineBreak +
+                       'C盘可能已经相对干净，或者大部分空间被系统文件占用。');
+    Exit;
+  end;
+  
+  CDriveFree := GetCDriveFreeSpace;
+  CDriveTotal := GetCDriveTotalSpace;
+  UsagePercent := ((CDriveTotal - CDriveFree) * 100.0) / CDriveTotal;
+  
+  TotalSavings := FCDriveAnalyzer.GetEstimatedSavings;
+  
+  ResultText := Format(
+    'C盘空间分析报告' + sLineBreak + 
+    '================================' + sLineBreak + sLineBreak +
+    'C盘状态：' + sLineBreak +
+    '  总容量：%s' + sLineBreak +
+    '  已使用：%s (%.1f%%)' + sLineBreak +
+    '  可用空间：%s' + sLineBreak + sLineBreak +
+    '分析结果：' + sLineBreak +
+    '  扫描文件：%s' + sLineBreak +
+    '  扫描目录：%d 个' + sLineBreak +
+    '  发现建议：%d 条' + sLineBreak +
+    '  预计可节省：%s' + sLineBreak + sLineBreak,
+    [
+      FCDriveAnalyzer.FormatBytes(CDriveTotal),
+      FCDriveAnalyzer.FormatBytes(CDriveTotal - CDriveFree),
+      UsagePercent,
+      FCDriveAnalyzer.FormatBytes(CDriveFree),
+      FCDriveAnalyzer.FormatBytes(FCDriveAnalyzer.GetTotalScannedSize),
+      FCDriveAnalyzer.GetTotalDirectories,
+      Length(FAnalysisResults),
+      FCDriveAnalyzer.FormatBytes(TotalSavings)
+    ]
+  );
+  
+  ResultText := ResultText + '优化建议：' + sLineBreak;
+  ResultText := ResultText + '--------------------------------' + sLineBreak;
+  
+  // 按优先级和空间大小显示前10个建议
+  for I := 0 to Min(9, High(FAnalysisResults)) do
+  begin
+    ResultText := ResultText + Format('%d. %s' + sLineBreak, 
+      [I + 1, FAnalysisResults[I].Title]);
+    ResultText := ResultText + Format('   路径：%s' + sLineBreak, 
+      [FAnalysisResults[I].Path]);
+    ResultText := ResultText + Format('   可节省：%s' + sLineBreak, 
+      [FCDriveAnalyzer.FormatBytes(FAnalysisResults[I].EstimatedSpace)]);
+    ResultText := ResultText + Format('   说明：%s' + sLineBreak, 
+      [FAnalysisResults[I].Description]);
+    ResultText := ResultText + sLineBreak;
+  end;
+  
+  if Length(FAnalysisResults) > 10 then
+    ResultText := ResultText + Format('...还有 %d 个其他建议', [Length(FAnalysisResults) - 10]);
+  
+  ShowChineseMessage(ResultText);
+  
+  // 问是否打开详细的空间分析对话框
+  if ShowChineseConfirm('是否查看详细的空间分析信息？') then
+    ShowSpaceAnalysisDialog;
+end;
+
+procedure TfrmMain.ShowSpaceAnalysisDialog;
+var
+  I: Integer;
+  TopDirs: TArray<TDirectoryInfo>;
+  MigratableDirs: TArray<TDirectoryInfo>;
+  CleanableDirs: TArray<TDirectoryInfo>;
+  LargeFiles: TArray<TLargeFileInfo>;
+  DialogText: string;
+begin
+  if not Assigned(FCDriveAnalyzer) then
+    Exit;
+    
+  DialogText := 'C盘详细分析信息' + sLineBreak + sLineBreak;
+  
+  // 占用空间最多的目录
+  TopDirs := FCDriveAnalyzer.GetTopDirectoriesBySize(5);
+  if Length(TopDirs) > 0 then
+  begin
+    DialogText := DialogText + '占用空间最多的目录：' + sLineBreak;
+    for I := 0 to High(TopDirs) do
+    begin
+      DialogText := DialogText + Format('  %d. %s - %s' + sLineBreak, 
+        [I + 1, TopDirs[I].Name, FCDriveAnalyzer.FormatBytes(TopDirs[I].Size)]);
+    end;
+    DialogText := DialogText + sLineBreak;
+  end;
+  
+  // 可迁移的目录
+  MigratableDirs := FCDriveAnalyzer.GetMigratableDirectories;
+  if Length(MigratableDirs) > 0 then
+  begin
+    DialogText := DialogText + '可迁移的用户目录：' + sLineBreak;
+    for I := 0 to Min(4, High(MigratableDirs)) do
+    begin
+      DialogText := DialogText + Format('  • %s - %s' + sLineBreak, 
+        [MigratableDirs[I].Name, FCDriveAnalyzer.FormatBytes(MigratableDirs[I].Size)]);
+    end;
+    DialogText := DialogText + sLineBreak;
+  end;
+  
+  // 可清理的目录
+  CleanableDirs := FCDriveAnalyzer.GetCleanableDirectories;
+  if Length(CleanableDirs) > 0 then
+  begin
+    DialogText := DialogText + '可清理的目录：' + sLineBreak;
+    for I := 0 to Min(4, High(CleanableDirs)) do
+    begin
+      DialogText := DialogText + Format('  • %s - %s' + sLineBreak, 
+        [CleanableDirs[I].Name, FCDriveAnalyzer.FormatBytes(CleanableDirs[I].Size)]);
+    end;
+    DialogText := DialogText + sLineBreak;
+  end;
+  
+  // 大文件
+  LargeFiles := FCDriveAnalyzer.GetLargeFiles(100); // 大于100MB的文件
+  if Length(LargeFiles) > 0 then
+  begin
+    DialogText := DialogText + '大文件 (>100MB)：' + sLineBreak;
+    for I := 0 to Min(4, High(LargeFiles)) do
+    begin
+      DialogText := DialogText + Format('  • %s - %s' + sLineBreak, 
+        [LargeFiles[I].Name, FCDriveAnalyzer.FormatBytes(LargeFiles[I].Size)]);
+    end;
+  end;
+  
+  ShowChineseMessage(DialogText);
+end;
+
+procedure TfrmMain.ApplySuggestion(const Suggestion: TCleanupSuggestion);
+begin
+  // 根据建议类型执行相应操作
+  case Suggestion.SuggestionType of
+    cstMigrateUserFolders:
+    begin
+      // 设置源路径并开始迁移
+      FSourcePath := Suggestion.Path;
+      edtSourceDir.Text := FSourcePath;
+      LoadDirectoryTree(tvSource, FSourcePath);
+      
+      ShowChineseMessage('请选择目标位置后点击“开始迁移”按钮。' + sLineBreak + sLineBreak +
+                         '建议将文件夹迁移到D盘或其他非C盘分区。');
+    end;
+    
+    cstCleanTempFiles:
+    begin
+      if ShowChineseConfirm('即将清理临时文件。该操作安全无风险。' + sLineBreak + sLineBreak +
+                           '是否继续？') then
+        CleanTempFiles;
+    end;
+    
+    cstCleanRecycleBin:
+    begin
+      if ShowChineseConfirm('即将清空回收站。注意：清空后文件将无法恢复！' + sLineBreak + sLineBreak +
+                           '是否继续？') then
+        CleanRecycleBin;
+    end;
+    
+    cstCleanCache:
+    begin
+      if ShowChineseConfirm('即将清理系统缓存文件。该操作安全无风险。' + sLineBreak + sLineBreak +
+                           '是否继续？') then
+        CleanUpdateCache;
+    end;
+    
+    cstCleanLogs:
+    begin
+      if ShowChineseConfirm('即将清理系统日志文件。该操作安全无风险。' + sLineBreak + sLineBreak +
+                           '是否继续？') then
+        CleanBackupFiles;
+    end;
+    
+    cstCleanLargeFiles:
+    begin
+      ShowChineseMessage('大文件清理需要手动确认。' + sLineBreak + sLineBreak +
+                         '文件位置：' + Suggestion.Path + sLineBreak + sLineBreak +
+                         '请手动检查该文件是否仍需要，确认不需要后再删除。');
+    end;
+  end;
+end;
+
+procedure TfrmMain.OnAnalysisProgress(const Message: string; Progress: Integer);
+begin
+  UpdateStatus(Message);
+  if ProgressBar1.Visible then
+    ProgressBar1.Position := Progress;
+  Application.ProcessMessages;
+end;
+
+function TfrmMain.GetCDriveFreeSpace: Int64;
+var
+  FreeBytes, TotalBytes: Int64;
+begin
+  Result := 0;
+  if GetDiskFreeSpaceEx('C:\\', FreeBytes, TotalBytes, nil) then
+    Result := FreeBytes;
+end;
+
+function TfrmMain.GetCDriveTotalSpace: Int64;
+var
+  FreeBytes, TotalBytes: Int64;
+begin
+  Result := 0;
+  if GetDiskFreeSpaceEx('C:\\', FreeBytes, TotalBytes, nil) then
+    Result := TotalBytes;
 end;
 
 end.

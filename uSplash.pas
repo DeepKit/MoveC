@@ -89,7 +89,7 @@ begin
   lblTitle.Font.Size := 18;
   lblTitle.Font.Style := [fsBold];
   lblTitle.Font.Color := $333333;
-  lblTitle.Caption := 'C盘瘦身工具 v3.0 Enterprise';
+  lblTitle.Caption := 'C盘超级瘦身 v3.0';
 
   // 版本标签样式
   lblVersion.Font.Name := 'Microsoft YaHei UI';

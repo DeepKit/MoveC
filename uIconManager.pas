@@ -40,6 +40,9 @@ type
       ICON_EXIT = 9;
       ICON_BROWSE = 10;
       ICON_UP = 11;
+      ICON_DIAGNOSE = 12;
+      ICON_ROLLBACK = 13;
+      ICON_FILE_MANAGER = 14;
   end;
 
 var
@@ -140,6 +143,21 @@ begin
 
   // 11. 上级 - 棕色
   Bitmap := CreateIconWithText('^', $795548);
+  FImageList.Add(Bitmap, nil);
+  Bitmap.Free;
+  
+  // 12. 一键诊断 - 蓝色
+  Bitmap := CreateIconWithText('D', $3F51B5);
+  FImageList.Add(Bitmap, nil);
+  Bitmap.Free;
+  
+  // 13. 回退 - 深橙色
+  Bitmap := CreateIconWithText('←', $FF5722);  // 左箭头符号
+  FImageList.Add(Bitmap, nil);
+  Bitmap.Free;
+  
+  // 14. 高级文件管理器 - 橙色
+  Bitmap := CreateIconWithText('FM', $FF9800);  // File Manager缩写
   FImageList.Add(Bitmap, nil);
   Bitmap.Free;
 end;
@@ -254,6 +272,8 @@ begin
     ICON_EXIT: begin IconText := 'X'; IconColor := $F44336; end;
     ICON_BROWSE: begin IconText := 'F'; IconColor := $607D8B; end;
     ICON_UP: begin IconText := '^'; IconColor := $795548; end;
+    ICON_DIAGNOSE: begin IconText := 'D'; IconColor := $3F51B5; end;
+    ICON_ROLLBACK: begin IconText := '←'; IconColor := $FF5722; end;
   else
     Exit;
   end;
@@ -262,14 +282,14 @@ begin
   try
     if (Bitmap.Width > 0) and (Bitmap.Height > 0) then
     begin
-      // 设置TBitBtn的图标
+      // 设置tbitbtn的图标
       AButton.Glyph.Assign(Bitmap);
       AButton.Layout := blGlyphLeft;
       AButton.Spacing := 4;
-      AButton.Margin := -1;  // 使用-1让Delphi自动居中
+      AButton.Margin := -1;  // 使用-1让delphi自动居中
 
       // 调整按钮样式
-      AButton.Height := 36;
+      AButton.Height := 46;  // 增加10像素
     end;
   finally
     Bitmap.Free;

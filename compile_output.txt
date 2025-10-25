@@ -1,3 +1,3 @@
-﻿Embarcadero Delphi for Win32 compiler version 36.0
+Embarcadero Delphi for Win32 compiler version 36.0
 Copyright (c) 1983,2024 Embarcadero Technologies, Inc.
-51 lines, 0.16 seconds, 2473668 bytes code, 56280 bytes data.
+Fatal: F1026 File not found: 'C盘瘦�?dpr.dpr'
