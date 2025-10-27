@@ -296,7 +296,7 @@ begin
       end;
 
       Query.ParamByName('key').AsString := AImageKey;
-      Query.ParamByName('data').AsBytes := EncryptedData;
+      Query.ParamByName('data').SetData(@EncryptedData[0], Length(EncryptedData));
       Query.ParamByName('addr').AsString := AAddressText;
       Query.ParamByName('desc').AsString := ADescription;
       Query.ParamByName('md5').AsString := OriginalMD5;
@@ -443,78 +443,6 @@ begin
   // 强制退出程序
   WriteLog('程序因安全违规退出');
   ExitProcess(1);
-end;
-
-class function TAntiTamperPackage.SetupDatabase(AConnection: TFDConnection): Boolean;
-var
-  Query: TFDQuery;
-begin
-  Result := False;
-  try
-    Query := TFDQuery.Create(nil);
-    try
-      Query.Connection := AConnection;
-
-      // 创建表结构
-      Query.SQL.Text :=
-        'CREATE TABLE IF NOT EXISTS ' + FConfig.TableName + ' (' +
-        '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-        '  image_key TEXT NOT NULL UNIQUE,' +
-        '  image_data BLOB NOT NULL,' +
-        '  address_text TEXT,' +
-        '  description TEXT,' +
-        '  md5_hash TEXT NOT NULL,' +
-        '  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,' +
-        '  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP' +
-        ')';
-      Query.ExecSQL;
-
-      WriteLog('防篡改数据表创建成功');
-      Result := True;
-
-    finally
-      Query.Free;
-    end;
-  except
-    on E: Exception do
-    begin
-      WriteLog('创建防篡改数据表失败: ' + E.Message);
-      Result := False;
-    end;
-  end;
-end;
-
-class function TAntiTamperPackage.UpgradeDatabase(AConnection: TFDConnection): Boolean;
-var
-  Query: TFDQuery;
-begin
-  Result := False;
-  try
-    Query := TFDQuery.Create(nil);
-    try
-      Query.Connection := AConnection;
-
-      // 为现有表添加md5_hash字段
-      try
-        Query.SQL.Text := 'ALTER TABLE ' + FConfig.TableName + ' ADD COLUMN md5_hash TEXT';
-        Query.ExecSQL;
-        WriteLog('md5_hash字段添加成功');
-      except
-        WriteLog('md5_hash字段可能已存在');
-      end;
-
-      Result := True;
-
-    finally
-      Query.Free;
-    end;
-  except
-    on E: Exception do
-    begin
-      WriteLog('升级数据库失败: ' + E.Message);
-      Result := False;
-    end;
-  end;
 end;
 
 end.
