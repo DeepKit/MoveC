@@ -1,4 +1,4 @@
-﻿unit uMain;
+unit uMain;
 
 interface
 
@@ -363,6 +363,10 @@ begin
   Config.DownloadURL := 'https://www.goodmem.cn';
   Config.EnableLogging := {$IFDEF DEBUG}True{$ELSE}False{$ENDIF};
   Config.EncryptionType := etAES256; // 使用AES-256加密
+  // 启用KDF+HMAC
+  Config.Salt := 'MoveC_Salt_v1';
+  Config.KdfIterations := 10000;
+  Config.EnableHMAC := True;
   TAntiTamperPackage.Initialize(Config);
 
   // 可控一次性修复：若存在同目录标记文件 "MoveC.repair"，允许仅本次自动创建并播种最小数据，随后仍按fail-closed执行
@@ -423,6 +427,41 @@ begin
     end;
   except
     // 修复失败不影响后续严格校验
+  end;
+
+  // 严格模式：若存在 MoveC.reset 标记，则清空并重新播种
+  try
+    var Root2 := ExtractFilePath(ParamStr(0));
+    var DbPath3 := TPath.Combine(Root2, 'MoveC.db');
+    var ResetFlag := TPath.Combine(Root2, 'MoveC.reset');
+    if TFile.Exists(ResetFlag) then
+    begin
+      var Conn2 := TFDConnection.Create(nil);
+      try
+        Conn2.DriverName := 'SQLite';
+        Conn2.Params.Values['Database'] := DbPath3;
+        Conn2.LoginPrompt := False;
+        Conn2.Connected := True;
+        // 确保表结构存在并包含新字段
+        if not TAntiTamperPackage.SetupDatabase(Conn2) then
+          raise Exception.Create('创建/校验防篡改数据表失败');
+        // 清空并播种
+        TAntiTamperPackage.ClearTable(Conn2);
+        TAntiTamperPackage.ReseedMinimal(Conn2);
+        // 删除标记
+        TFile.Delete(ResetFlag);
+        LogInfo('Main', '已按标记执行严格清空并重播种（MoveC.reset）');
+      finally
+        if Assigned(Conn2) then
+        begin
+          try Conn2.Connected := False; except end;
+          Conn2.Free;
+        end;
+      end;
+    end;
+  except
+    on E: Exception do
+      LogError('Main', '严格模式重置失败: ' + E.Message);
   end;
 
   // 防篡改原则：关键资源缺失立即退出（fail-closed）

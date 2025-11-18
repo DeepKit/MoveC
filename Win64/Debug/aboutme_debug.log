@@ -1,61 +1,62 @@
-﻿[2025/10/27 9:35:33] InitializeDataManager started
-[2025/10/27 9:35:33] Project root directory: D:\SynologyDrive\Progs\_Delphi\MoveC\Win64\Debug\
-[2025/10/27 9:35:33] Setting database path: D:\SynologyDrive\Progs\_Delphi\MoveC\Win64\Debug\MoveC.db
-[2025/10/27 9:35:33] Setting up database connection
-[2025/10/27 9:35:33] Checking design-time database components:
-[2025/10/27 9:35:33]   FDConnection1.Connected: False
-[2025/10/27 9:35:33]   FDTable1.Active: False
-[2025/10/27 9:35:33]   Database path: D:\SynologyDrive\Progs\_Delphi\MoveC\Win64\Debug\MoveC.db
-[2025/10/27 9:35:33]   FDTable1.TableName: images
-[2025/10/27 9:35:33] Attempting to activate database connection
-[2025/10/27 9:35:33] Database connection activated successfully
-[2025/10/27 9:35:33] Attempting to activate data table
-[2025/10/27 9:35:33] Data table activated successfully
-[2025/10/27 9:35:33] 验证Image控件分配状态:
-[2025/10/27 9:35:33]   imgWechat: True (地址: 000001F7EE71B160)
-[2025/10/27 9:35:33]   imgAlipay: True (地址: 000001F7EE71BCA0)
-[2025/10/27 9:35:33]   imgBTC: True (地址: 000001F7EE71C7E0)
-[2025/10/27 9:35:33]   imgUSDT: True (地址: 000001F7EE71D320)
-[2025/10/27 9:35:33]   imgAboutMe: True (地址: 000001F7EE71E220)
-[2025/10/27 9:35:33] Frame状态检查:
-[2025/10/27 9:35:33]   Frame.Parent: True
-[2025/10/27 9:35:33]   Frame.Visible: True
-[2025/10/27 9:35:33]   Frame.ComponentCount: 28
-[2025/10/27 9:35:33] 图像映射数组初始化完成
-[2025/10/27 9:35:33] EnsureDefaultImagesPresent: current records = 5
-[2025/10/27 9:35:33] EnsureDefaultImagesPresent: alipay already exists, skip
-[2025/10/27 9:35:33] EnsureDefaultImagesPresent: btc already exists, skip
-[2025/10/27 9:35:33] EnsureDefaultImagesPresent: usdt already exists, skip
-[2025/10/27 9:35:33] EnsureDefaultImagesPresent: aboutme already exists, skip
-[2025/10/27 9:35:33] EnsureDefaultImagesPresent: current records = 5
-[2025/10/27 9:35:33] EnsureDefaultImagesPresent: alipay already exists, skip
-[2025/10/27 9:35:33] EnsureDefaultImagesPresent: btc already exists, skip
-[2025/10/27 9:35:33] EnsureDefaultImagesPresent: usdt already exists, skip
-[2025/10/27 9:35:33] EnsureDefaultImagesPresent: aboutme already exists, skip
-[2025/10/27 9:35:33] 开始加载和显示图像
-[2025/10/27 9:35:33] 处理图像 0: wechat
-[2025/10/27 9:35:33] 在数据库中找到记录: wechat
-[2025/10/27 9:35:33] 加密数据长度: 33360 bytes
-[2025/10/27 9:35:33] 解密数据长度: 33314 bytes
-[2025/10/27 9:35:33] 数据库图像加载成功: wechat, 数据大小: 33314 bytes
-[2025/10/27 9:35:33] 处理图像 1: alipay
-[2025/10/27 9:35:33] 在数据库中找到记录: alipay
-[2025/10/27 9:35:33] 加密数据长度: 14384 bytes
-[2025/10/27 9:35:33] 解密数据长度: 14348 bytes
-[2025/10/27 9:35:33] 数据库图像加载成功: alipay, 数据大小: 14348 bytes
-[2025/10/27 9:35:33] 处理图像 2: btc
-[2025/10/27 9:35:33] 在数据库中找到记录: btc
-[2025/10/27 9:35:33] 加密数据长度: 5920 bytes
-[2025/10/27 9:35:33] 解密数据长度: 5877 bytes
-[2025/10/27 9:35:33] 数据库图像加载成功: btc, 数据大小: 5877 bytes
-[2025/10/27 9:35:33] 处理图像 3: usdt
-[2025/10/27 9:35:33] 在数据库中找到记录: usdt
-[2025/10/27 9:35:33] 加密数据长度: 162944 bytes
-[2025/10/27 9:35:33] 解密数据长度: 162906 bytes
-[2025/10/27 9:35:33] 数据库图像加载成功: usdt, 数据大小: 162906 bytes
-[2025/10/27 9:35:33] 处理图像 4: aboutme
-[2025/10/27 9:35:33] 在数据库中找到记录: aboutme
-[2025/10/27 9:35:33] 加密数据长度: 112176 bytes
-[2025/10/27 9:35:33] 解密数据长度: 112143 bytes
-[2025/10/27 9:35:33] 数据库图像加载成功: aboutme, 数据大小: 112143 bytes
-[2025/10/27 9:35:33] 延迟初始化完成
+﻿[2025/11/18 20:50:40] InitializeDataManager started
+[2025/11/18 20:50:40] Project root directory: D:\SynologyDrive\Progs\_Delphi\MoveC\Win64\Debug\
+[2025/11/18 20:50:40] Setting database path: D:\SynologyDrive\Progs\_Delphi\MoveC\Win64\Debug\MoveC.db
+[2025/11/18 20:50:40] Setting up database connection
+[2025/11/18 20:50:40] Checking design-time database components:
+[2025/11/18 20:50:40]   FDConnection1.Connected: False
+[2025/11/18 20:50:40]   FDTable1.Active: False
+[2025/11/18 20:50:40]   Database path: D:\SynologyDrive\Progs\_Delphi\MoveC\Win64\Debug\MoveC.db
+[2025/11/18 20:50:40]   FDTable1.TableName: images
+[2025/11/18 20:50:40] Attempting to activate database connection
+[2025/11/18 20:50:40] Database connection activated successfully
+[2025/11/18 20:50:40] Attempting to activate data table
+[2025/11/18 20:50:40] Data table activated successfully
+[2025/11/18 20:50:40] 开始初始化图像映射数组
+[2025/11/18 20:50:40] 验证Image控件分配状态:
+[2025/11/18 20:50:40]   imgWechat: True (地址: 00000274FCB3B160)
+[2025/11/18 20:50:40]   imgAlipay: True (地址: 00000274FCB3BCA0)
+[2025/11/18 20:50:40]   imgBTC: True (地址: 00000274FCB3C7E0)
+[2025/11/18 20:50:40]   imgUSDT: True (地址: 00000274FCB3D320)
+[2025/11/18 20:50:40]   imgAboutMe: True (地址: 00000274FCB3E220)
+[2025/11/18 20:50:40] Frame状态检查:
+[2025/11/18 20:50:40]   Frame.Parent: True
+[2025/11/18 20:50:40]   Frame.Visible: True
+[2025/11/18 20:50:40]   Frame.ComponentCount: 28
+[2025/11/18 20:50:40] 图像映射数组初始化完成
+[2025/11/18 20:50:40] EnsureDefaultImagesPresent: current records = 5
+[2025/11/18 20:50:40] EnsureDefaultImagesPresent: alipay already exists, skip
+[2025/11/18 20:50:40] EnsureDefaultImagesPresent: btc already exists, skip
+[2025/11/18 20:50:40] EnsureDefaultImagesPresent: usdt already exists, skip
+[2025/11/18 20:50:40] EnsureDefaultImagesPresent: aboutme already exists, skip
+[2025/11/18 20:50:40] EnsureDefaultImagesPresent: current records = 5
+[2025/11/18 20:50:40] EnsureDefaultImagesPresent: alipay already exists, skip
+[2025/11/18 20:50:40] EnsureDefaultImagesPresent: btc already exists, skip
+[2025/11/18 20:50:40] EnsureDefaultImagesPresent: usdt already exists, skip
+[2025/11/18 20:50:40] EnsureDefaultImagesPresent: aboutme already exists, skip
+[2025/11/18 20:50:40] 开始加载和显示图像
+[2025/11/18 20:50:40] 处理图像 0: wechat
+[2025/11/18 20:50:40] 在数据库中找到记录: wechat
+[2025/11/18 20:50:40] 加密数据长度: 33360 bytes
+[2025/11/18 20:50:40] 解密数据长度: 33314 bytes
+[2025/11/18 20:50:40] 数据库图像加载成功: wechat, 数据大小: 33314 bytes
+[2025/11/18 20:50:40] 处理图像 1: alipay
+[2025/11/18 20:50:40] 在数据库中找到记录: alipay
+[2025/11/18 20:50:40] 加密数据长度: 14384 bytes
+[2025/11/18 20:50:40] 解密数据长度: 14348 bytes
+[2025/11/18 20:50:40] 数据库图像加载成功: alipay, 数据大小: 14348 bytes
+[2025/11/18 20:50:40] 处理图像 2: btc
+[2025/11/18 20:50:40] 在数据库中找到记录: btc
+[2025/11/18 20:50:40] 加密数据长度: 5920 bytes
+[2025/11/18 20:50:40] 解密数据长度: 5877 bytes
+[2025/11/18 20:50:40] 数据库图像加载成功: btc, 数据大小: 5877 bytes
+[2025/11/18 20:50:40] 处理图像 3: usdt
+[2025/11/18 20:50:40] 在数据库中找到记录: usdt
+[2025/11/18 20:50:40] 加密数据长度: 162944 bytes
+[2025/11/18 20:50:40] 解密数据长度: 162906 bytes
+[2025/11/18 20:50:40] 数据库图像加载成功: usdt, 数据大小: 162906 bytes
+[2025/11/18 20:50:40] 处理图像 4: aboutme
+[2025/11/18 20:50:40] 在数据库中找到记录: aboutme
+[2025/11/18 20:50:40] 加密数据长度: 112176 bytes
+[2025/11/18 20:50:40] 解密数据长度: 112143 bytes
+[2025/11/18 20:50:40] 数据库图像加载成功: aboutme, 数据大小: 112143 bytes
+[2025/11/18 20:50:40] 延迟初始化完成

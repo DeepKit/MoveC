@@ -1,2 +1,21 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<BorlandProject/>
+<BorlandProject>
+  <Transactions>
+    <Transaction>2025/11/18 14:40:41.893,D:\SynologyDrive\Progs\_Delphi\MoveC\uMain.pas=</Transaction>
+    <Transaction>2025/11/18 14:40:58.557,=D:\SynologyDrive\Progs\_Delphi\MoveC\uMain.pas</Transaction>
+    <Transaction>2025/11/18 14:58:37.357,=D:\SynologyDrive\Progs\_Delphi\MoveC\Unit2.pas</Transaction>
+    <Transaction>2025/11/18 15:01:59.178,=D:\SynologyDrive\Progs\_Delphi\MoveC\Unit2.pas</Transaction>
+    <Transaction>2025/11/18 15:03:31.231,D:\SynologyDrive\Progs\_Delphi\MoveC\uMain.pas=</Transaction>
+    <Transaction>2025/11/18 15:04:28.629,=D:\SynologyDrive\Progs\_Delphi\MoveC\uMain.pas</Transaction>
+    <Transaction>2025/11/18 15:04:52.028,D:\SynologyDrive\Progs\_Delphi\MoveC\uMain.pas=</Transaction>
+    <Transaction>2025/11/18 15:05:01.234,=D:\SynologyDrive\Progs\_Delphi\MoveC\uMain.pas</Transaction>
+    <Transaction>2025/11/18 16:01:40.261,D:\SynologyDrive\Progs\_Delphi\MoveC\uMain.pas=</Transaction>
+    <Transaction>2025/11/18 16:01:52.853,=D:\SynologyDrive\Progs\_Delphi\MoveC\uMain.pas</Transaction>
+    <Transaction>2025/11/18 16:03:21.333,D:\SynologyDrive\Progs\_Delphi\MoveC\uMain.pas=</Transaction>
+    <Transaction>2025/11/18 16:04:58.846,=D:\SynologyDrive\Progs\_Delphi\MoveC\uMain.pas</Transaction>
+    <Transaction>2025/11/18 16:05:18.176,D:\SynologyDrive\Progs\_Delphi\MoveC\uMain.pas=</Transaction>
+    <Transaction>2025/11/18 16:05:30.335,=D:\SynologyDrive\Progs\_Delphi\MoveC\uMain.pas</Transaction>
+    <Transaction>2025/11/18 16:14:09.413,D:\SynologyDrive\Progs\_Delphi\MoveC\FrameAboutMe.pas=</Transaction>
+    <Transaction>2025/11/18 16:14:26.305,=D:\SynologyDrive\Progs\_Delphi\MoveC\FrameAboutMe.pas</Transaction>
+  </Transactions>
+</BorlandProject>
