@@ -369,65 +369,8 @@ begin
   Config.EnableHMAC := True;
   TAntiTamperPackage.Initialize(Config);
 
-  // 可控一次性修复：若存在同目录标记文件 "MoveC.repair"，允许仅本次自动创建并播种最小数据，随后仍按fail-closed执行
-  try
-    var Root := ExtractFilePath(ParamStr(0));
-    var DbPath := TPath.Combine(Root, 'MoveC.db');
-    var RepairFlag := TPath.Combine(Root, 'MoveC.repair');
-    if (not TFile.Exists(DbPath)) and TFile.Exists(RepairFlag) then
-    begin
-      var Conn := TFDConnection.Create(nil);
-      var Q := TFDQuery.Create(nil);
-      try
-        Conn.DriverName := 'SQLite';
-        Conn.Params.Values['Database'] := DbPath;
-        Conn.LoginPrompt := False;
-        Conn.Connected := True;
-        // 创建表
-        if not TAntiTamperPackage.SetupDatabase(Conn) then
-          raise Exception.Create('创建数据库表失败');
-        // 播种最小合法记录（空BLOB + SHA-256("")）
-        Q.Connection := Conn;
-        Q.SQL.Text := 'INSERT OR IGNORE INTO images (image_key, image_data, address_text, description, md5_hash) ' +
-                      'VALUES (:k, :d, :a, :desc, :h)';
-        // 准备关键键与地址
-        var Keys: array[0..2] of string;
-        var Addr: array[0..2] of string;
-        Keys[0] := 'wechat';  Addr[0] := '微信收款码';
-        Keys[1] := 'alipay';  Addr[1] := '支付宝收款码';
-        Keys[2] := 'btc';     Addr[2] := '';
-        var I: Integer;
-        for I := 0 to 2 do
-        begin
-          Q.ParamByName('k').AsString := Keys[I];
-          Q.ParamByName('a').AsString := Addr[I];
-          Q.ParamByName('desc').AsString := 'seed';
-          // 空BLOB
-          var MS: TMemoryStream;
-          MS := TMemoryStream.Create;
-          try
-            Q.ParamByName('d').LoadFromStream(MS, ftBlob);
-          finally
-            MS.Free;
-          end;
-          // SHA-256("")
-          Q.ParamByName('h').AsString := 'E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855';
-          Q.ExecSQL;
-        end;
-      finally
-        try Q.Free; except end;
-        if Assigned(Conn) then
-        begin
-          try Conn.Connected := False; except end;
-          Conn.Free;
-        end;
-        // 用后即焚
-        try TFile.Delete(RepairFlag); except end;
-      end;
-    end;
-  except
-    // 修复失败不影响后续严格校验
-  end;
+  // 主程序不再负责播种，仅负责解密和校验
+  // 播种功能已分离到独立工具 SeedTool.exe
 
   // 严格模式：若存在 MoveC.reset 标记，则清空并重新播种
   try

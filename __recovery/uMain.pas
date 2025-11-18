@@ -369,64 +369,42 @@ begin
   Config.EnableHMAC := True;
   TAntiTamperPackage.Initialize(Config);
 
-  // 可控一次性修复：若存在同目录标记文件 "MoveC.repair"，允许仅本次自动创建并播种最小数据，随后仍按fail-closed执行
+  // 主程序不再负责播种，仅负责解密和校验
+  // 播种功能已分离到独立工具 SeedTool.exe
+
+  // 严格模式：若存在 MoveC.reset 标记，则清空并重新播种
   try
-    var Root := ExtractFilePath(ParamStr(0));
-    var DbPath := TPath.Combine(Root, 'MoveC.db');
-    var RepairFlag := TPath.Combine(Root, 'MoveC.repair');
-    if (not TFile.Exists(DbPath)) and TFile.Exists(RepairFlag) then
+    var Root2 := ExtractFilePath(ParamStr(0));
+    var DbPath3 := TPath.Combine(Root2, 'MoveC.db');
+    var ResetFlag := TPath.Combine(Root2, 'MoveC.reset');
+    if TFile.Exists(ResetFlag) then
     begin
-      var Conn := TFDConnection.Create(nil);
-      var Q := TFDQuery.Create(nil);
+      var Conn2 := TFDConnection.Create(nil);
       try
-        Conn.DriverName := 'SQLite';
-        Conn.Params.Values['Database'] := DbPath;
-        Conn.LoginPrompt := False;
-        Conn.Connected := True;
-        // 创建表
-        if not TAntiTamperPackage.SetupDatabase(Conn) then
-          raise Exception.Create('创建数据库表失败');
-        // 播种最小合法记录（空BLOB + SHA-256("")）
-        Q.Connection := Conn;
-        Q.SQL.Text := 'INSERT OR IGNORE INTO images (image_key, image_data, address_text, description, md5_hash) ' +
-                      'VALUES (:k, :d, :a, :desc, :h)';
-        // 准备关键键与地址
-        var Keys: array[0..2] of string;
-        var Addr: array[0..2] of string;
-        Keys[0] := 'wechat';  Addr[0] := '微信收款码';
-        Keys[1] := 'alipay';  Addr[1] := '支付宝收款码';
-        Keys[2] := 'btc';     Addr[2] := '';
-        var I: Integer;
-        for I := 0 to 2 do
-        begin
-          Q.ParamByName('k').AsString := Keys[I];
-          Q.ParamByName('a').AsString := Addr[I];
-          Q.ParamByName('desc').AsString := 'seed';
-          // 空BLOB
-          var MS: TMemoryStream;
-          MS := TMemoryStream.Create;
-          try
-            Q.ParamByName('d').LoadFromStream(MS, ftBlob);
-          finally
-            MS.Free;
-          end;
-          // SHA-256("")
-          Q.ParamByName('h').AsString := 'E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855';
-          Q.ExecSQL;
-        end;
+        Conn2.DriverName := 'SQLite';
+        Conn2.Params.Values['Database'] := DbPath3;
+        Conn2.LoginPrompt := False;
+        Conn2.Connected := True;
+        // 确保表结构存在并包含新字段
+        if not TAntiTamperPackage.SetupDatabase(Conn2) then
+          raise Exception.Create('创建/校验防篡改数据表失败');
+        // 清空并播种
+        TAntiTamperPackage.ClearTable(Conn2);
+        TAntiTamperPackage.ReseedMinimal(Conn2);
+        // 删除标记
+        TFile.Delete(ResetFlag);
+        LogInfo('Main', '已按标记执行严格清空并重播种（MoveC.reset）');
       finally
-        try Q.Free; except end;
-        if Assigned(Conn) then
+        if Assigned(Conn2) then
         begin
-          try Conn.Connected := False; except end;
-          Conn.Free;
+          try Conn2.Connected := False; except end;
+          Conn2.Free;
         end;
-        // 用后即焚
-        try TFile.Delete(RepairFlag); except end;
       end;
     end;
   except
-    // 修复失败不影响后续严格校验
+    on E: Exception do
+      LogError('Main', '严格模式重置失败: ' + E.Message);
   end;
 
   // 防篡改原则：关键资源缺失立即退出（fail-closed）
@@ -950,33 +928,6 @@ begin
       UpdateStatus('启动智能迁移向导失败: ' + E.Message);
       ShowChineseMessage('启动智能迁移向导失败：' + sLineBreak + E.Message);
     end;
-  end;
-end;
-
-// 严格模式：若存在 MoveC.reset 标记，则清空并重新播种
-var ResetFlag := TPath.Combine(Root, 'MoveC.reset');
-if TFile.Exists(ResetFlag) then
-begin
-  var Conn2 := TFDConnection.Create(nil);
-  var Q2 := TFDQuery.Create(nil);
-  try
-    Conn2.Params.DriverID := 'SQLite';
-    Conn2.LoginPrompt := False;
-    Conn2.Params.Database := DbPath;
-    Conn2.Connected := True;
-    Q2.Connection := Conn2;
-    // 确保表结构存在并包含新字段
-    if not TAntiTamperPackage.SetupDatabase(Conn2) then
-      raise Exception.Create('创建/校验防篡改数据表失败');
-    // 清空并播种
-    TAntiTamperPackage.ClearTable(Conn2);
-    TAntiTamperPackage.ReseedMinimal(Conn2);
-    // 删除标记
-    TFile.Delete(ResetFlag);
-    LogInfo('Main', '已按标记执行严格清空并重播种（MoveC.reset）');
-  finally
-    Q2.Free;
-    Conn2.Free;
   end;
 end;
 

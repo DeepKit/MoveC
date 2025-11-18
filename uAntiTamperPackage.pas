@@ -306,6 +306,7 @@ end;
 class function TAntiTamperPackage.SetupDatabase(AConnection: TFDConnection): Boolean;
 var
   Query: TFDQuery;
+  TableExists: Boolean;
 begin
   Result := False;
   try
@@ -313,22 +314,41 @@ begin
     try
       Query.Connection := AConnection;
       
-      // 创建表结构
-      Query.SQL.Text :=
-        'CREATE TABLE IF NOT EXISTS ' + FConfig.TableName + ' (' +
-        '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-        '  image_key TEXT NOT NULL UNIQUE,' +
-        '  image_data BLOB NOT NULL,' +
-        '  address_text TEXT,' +
-        '  description TEXT,' +
-        '  sha256_hash TEXT NOT NULL,' +
-        '  hmac_sha256 TEXT NOT NULL,' +
-        '  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,' +
-        '  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP' +
-        ')';
-      Query.ExecSQL;
+      // 检查表是否存在
+      Query.SQL.Text := 'SELECT name FROM sqlite_master WHERE type=''table'' AND name=''' + FConfig.TableName + '''';
+      Query.Open;
+      TableExists := not Query.IsEmpty;
+      Query.Close;
       
-      WriteLog('防篡改数据表创建成功');
+      if not TableExists then
+      begin
+        // 创建新表结构（包含所有字段）
+        Query.SQL.Text :=
+          'CREATE TABLE ' + FConfig.TableName + ' (' +
+          '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+          '  image_key TEXT NOT NULL UNIQUE,' +
+          '  image_data BLOB NOT NULL,' +
+          '  address_text TEXT,' +
+          '  description TEXT,' +
+          '  sha256_hash TEXT NOT NULL,' +
+          '  hmac_sha256 TEXT NOT NULL,' +
+          '  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,' +
+          '  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP' +
+          ')';
+        Query.ExecSQL;
+        WriteLog('防篡改数据表创建成功');
+      end
+      else
+      begin
+        // 表已存在，升级表结构
+        WriteLog('防篡改数据表已存在，检查并升级字段');
+        if not UpgradeDatabase(AConnection) then
+        begin
+          WriteLog('升级数据表失败');
+          Exit;
+        end;
+      end;
+      
       Result := True;
       
     finally
@@ -337,7 +357,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLog('创建防篡改数据表失败: ' + E.Message);
+      WriteLog('设置防篡改数据表失败: ' + E.Message);
       Result := False;
     end;
   end;
@@ -420,17 +440,18 @@ begin
       
       if RecordExists then
       begin
-        // 更新现有记录（严格模式：必须包含 sha256_hash 与 hmac_sha256）
+        // 更新现有记录（严格模式：必须包含 sha256_hash 与 hmac_sha256，md5_hash 保持兼容）
         Query.SQL.Text :=
-          'UPDATE ' + FConfig.TableName + ' SET image_data = :data, address_text = :addr, description = :desc, sha256_hash = :hash, hmac_sha256 = :hmac, updated_at = CURRENT_TIMESTAMP ' +
+          'UPDATE ' + FConfig.TableName + ' SET image_data = :data, address_text = :addr, description = :desc, ' +
+          'sha256_hash = :hash, hmac_sha256 = :hmac, md5_hash = :md5, updated_at = CURRENT_TIMESTAMP ' +
           'WHERE image_key = :key';
       end
       else
       begin
-        // 插入新记录（严格模式）
+        // 插入新记录（严格模式，md5_hash 写入空字符串以兼容旧表 NOT NULL 约束）
         Query.SQL.Text :=
-          'INSERT INTO ' + FConfig.TableName + ' (image_key, image_data, address_text, description, sha256_hash, hmac_sha256) ' +
-          'VALUES (:key, :data, :addr, :desc, :hash, :hmac)';
+          'INSERT INTO ' + FConfig.TableName + ' (image_key, image_data, address_text, description, sha256_hash, hmac_sha256, md5_hash) ' +
+          'VALUES (:key, :data, :addr, :desc, :hash, :hmac, :md5)';
       end;
 
       var Stream := TBytesStream.Create(EncryptedData);
@@ -445,6 +466,8 @@ begin
       end;
       // 写入HMAC（严格模式：必须）
       Query.ParamByName('hmac').AsString := ComputeHMACSHA256(AImageData);
+      // 写入md5_hash（兼容旧表的NOT NULL约束，写入空字符串）
+      Query.ParamByName('md5').AsString := '';
       Query.ExecSQL;
       
       WriteLog(Format('安全图像保存成功: %s', [AImageKey]));
