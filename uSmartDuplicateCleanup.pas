@@ -418,7 +418,7 @@ begin
   BorderStyle := bsDialog;
 
   // 设置标题
-  lblTitle.Caption := '🤖 智能重复文件清理';
+  lblTitle.Caption := '智能重复文件清理';
   lblTitle.Font.Size := 16;
   lblTitle.Font.Style := [fsBold];
 
@@ -426,16 +426,16 @@ begin
   lblSubtitle.Font.Size := 10;
 
   // 设置按钮
-  btnScanDuplicates.Caption := '🔍 扫描重复文件';
+  btnScanDuplicates.Caption := '扫描重复文件';
   btnScanDuplicates.Height := 40;
   btnScanDuplicates.Font.Size := 12;
 
-  btnOneClickCleanup.Caption := '⚡ 一键智能清理';
+  btnOneClickCleanup.Caption := '一键智能清理';
   btnOneClickCleanup.Height := 40;
   btnOneClickCleanup.Font.Size := 12;
   btnOneClickCleanup.Font.Style := [fsBold];
 
-  btnViewReport.Caption := '📊 查看详细报告';
+  btnViewReport.Caption := '查看详细报告';
   btnViewReport.Height := 40;
   btnViewReport.Font.Size := 12;
 

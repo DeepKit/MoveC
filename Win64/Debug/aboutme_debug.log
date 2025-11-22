@@ -1,62 +1,52 @@
-﻿[2025/11/19 0:11:32] InitializeDataManager started
-[2025/11/19 0:11:32] Project root directory: D:\SynologyDrive\Progs\_Delphi\MoveC\Win64\Debug\
-[2025/11/19 0:11:32] Setting database path: D:\SynologyDrive\Progs\_Delphi\MoveC\Win64\Debug\MoveC.db
-[2025/11/19 0:11:32] Setting up database connection
-[2025/11/19 0:11:32] Checking design-time database components:
-[2025/11/19 0:11:32]   FDConnection1.Connected: False
-[2025/11/19 0:11:32]   FDTable1.Active: False
-[2025/11/19 0:11:32]   Database path: D:\SynologyDrive\Progs\_Delphi\MoveC\Win64\Debug\MoveC.db
-[2025/11/19 0:11:32]   FDTable1.TableName: images
-[2025/11/19 0:11:32] Attempting to activate database connection
-[2025/11/19 0:11:32] Database connection activated successfully
-[2025/11/19 0:11:32] Attempting to activate data table
-[2025/11/19 0:11:32] Data table activated successfully
-[2025/11/19 0:11:32] 开始初始化图像映射数组
-[2025/11/19 0:11:32] 验证Image控件分配状态:
-[2025/11/19 0:11:32]   imgWechat: True (地址: 0000019B8676B160)
-[2025/11/19 0:11:32]   imgAlipay: True (地址: 0000019B8676BCA0)
-[2025/11/19 0:11:32]   imgBTC: True (地址: 0000019B8676C7E0)
-[2025/11/19 0:11:32]   imgUSDT: True (地址: 0000019B8676D320)
-[2025/11/19 0:11:32]   imgAboutMe: True (地址: 0000019B8676E220)
-[2025/11/19 0:11:32] Frame状态检查:
-[2025/11/19 0:11:32]   Frame.Parent: True
-[2025/11/19 0:11:32]   Frame.Visible: True
-[2025/11/19 0:11:32]   Frame.ComponentCount: 28
-[2025/11/19 0:11:32] 图像映射数组初始化完成
-[2025/11/19 0:11:32] EnsureDefaultImagesPresent: current records = 5
-[2025/11/19 0:11:32] EnsureDefaultImagesPresent: alipay already exists, skip
-[2025/11/19 0:11:32] EnsureDefaultImagesPresent: btc already exists, skip
-[2025/11/19 0:11:32] EnsureDefaultImagesPresent: usdt already exists, skip
-[2025/11/19 0:11:32] EnsureDefaultImagesPresent: aboutme already exists, skip
-[2025/11/19 0:11:32] EnsureDefaultImagesPresent: current records = 5
-[2025/11/19 0:11:32] EnsureDefaultImagesPresent: alipay already exists, skip
-[2025/11/19 0:11:32] EnsureDefaultImagesPresent: btc already exists, skip
-[2025/11/19 0:11:32] EnsureDefaultImagesPresent: usdt already exists, skip
-[2025/11/19 0:11:32] EnsureDefaultImagesPresent: aboutme already exists, skip
-[2025/11/19 0:11:32] 开始加载和显示图像
-[2025/11/19 0:11:32] 处理图像 0: wechat
-[2025/11/19 0:11:32] 在数据库中找到记录: wechat
-[2025/11/19 0:11:32] 加密数据长度: 33360 bytes
-[2025/11/19 0:11:32] 解密数据长度: 33314 bytes
-[2025/11/19 0:11:32] 数据库图像加载成功: wechat, 数据大小: 33314 bytes
-[2025/11/19 0:11:32] 处理图像 1: alipay
-[2025/11/19 0:11:32] 在数据库中找到记录: alipay
-[2025/11/19 0:11:32] 加密数据长度: 14384 bytes
-[2025/11/19 0:11:32] 解密数据长度: 14348 bytes
-[2025/11/19 0:11:32] 数据库图像加载成功: alipay, 数据大小: 14348 bytes
-[2025/11/19 0:11:32] 处理图像 2: btc
-[2025/11/19 0:11:32] 在数据库中找到记录: btc
-[2025/11/19 0:11:32] 加密数据长度: 5920 bytes
-[2025/11/19 0:11:32] 解密数据长度: 5877 bytes
-[2025/11/19 0:11:32] 数据库图像加载成功: btc, 数据大小: 5877 bytes
-[2025/11/19 0:11:32] 处理图像 3: usdt
-[2025/11/19 0:11:32] 在数据库中找到记录: usdt
-[2025/11/19 0:11:32] 加密数据长度: 162944 bytes
-[2025/11/19 0:11:32] 解密数据长度: 162906 bytes
-[2025/11/19 0:11:32] 数据库图像加载成功: usdt, 数据大小: 162906 bytes
-[2025/11/19 0:11:32] 处理图像 4: aboutme
-[2025/11/19 0:11:32] 在数据库中找到记录: aboutme
-[2025/11/19 0:11:32] 加密数据长度: 112176 bytes
-[2025/11/19 0:11:32] 解密数据长度: 112143 bytes
-[2025/11/19 0:11:32] 数据库图像加载成功: aboutme, 数据大小: 112143 bytes
-[2025/11/19 0:11:32] 延迟初始化完成
+﻿[2025/11/22 8:22:59] InitializeDataManager started
+[2025/11/22 8:22:59] Project root directory: D:\_Progs\02Business\MoveC\Win64\Debug\
+[2025/11/22 8:22:59] Setting database path: D:\_Progs\02Business\MoveC\Win64\Debug\MoveC.db
+[2025/11/22 8:22:59] Setting up database connection
+[2025/11/22 8:22:59] Checking design-time database components:
+[2025/11/22 8:22:59]   FDConnection1.Connected: False
+[2025/11/22 8:22:59]   FDTable1.Active: False
+[2025/11/22 8:22:59]   Database path: D:\_Progs\02Business\MoveC\Win64\Debug\MoveC.db
+[2025/11/22 8:22:59]   FDTable1.TableName: images
+[2025/11/22 8:22:59] Attempting to activate database connection
+[2025/11/22 8:22:59] Database connection activated successfully
+[2025/11/22 8:22:59] Attempting to activate data table
+[2025/11/22 8:22:59] Data table activated successfully
+[2025/11/22 8:22:59] 寮€濮嬪垵濮嬪寲鍥惧儚鏄犲皠鏁扮粍
+[2025/11/22 8:22:59] 楠岃瘉Image鎺т欢鍒嗛厤鐘舵€?
+[2025/11/22 8:22:59]   imgWechat: True (鍦板潃: 000001BC127CB160)
+[2025/11/22 8:22:59]   imgAlipay: True (鍦板潃: 000001BC127CBCA0)
+[2025/11/22 8:22:59]   imgBTC: True (鍦板潃: 000001BC127CC7E0)
+[2025/11/22 8:22:59]   imgUSDT: True (鍦板潃: 000001BC127CD320)
+[2025/11/22 8:22:59]   imgAboutMe: True (鍦板潃: 000001BC127CE220)
+[2025/11/22 8:22:59] Frame鐘舵€佹鏌?
+[2025/11/22 8:22:59]   Frame.Parent: True
+[2025/11/22 8:22:59]   Frame.Visible: True
+[2025/11/22 8:22:59]   Frame.ComponentCount: 28
+[2025/11/22 8:22:59] 鍥惧儚鏄犲皠鏁扮粍鍒濆鍖栧畬鎴?
+[2025/11/22 8:22:59] 寮€濮嬪姞杞藉拰鏄剧ず鍥惧儚
+[2025/11/22 8:22:59] 澶勭悊鍥惧儚 0: wechat
+[2025/11/22 8:22:59] 鍦ㄦ暟鎹簱涓壘鍒拌褰? wechat
+[2025/11/22 8:22:59] 鍔犲瘑鏁版嵁闀垮害: 33360 bytes
+[2025/11/22 8:22:59] 瑙ｅ瘑鏁版嵁闀垮害: 33314 bytes
+[2025/11/22 8:22:59] 鏁版嵁搴撳浘鍍忓姞杞芥垚鍔? wechat, 鏁版嵁澶у皬: 33314 bytes
+[2025/11/22 8:22:59] 澶勭悊鍥惧儚 1: alipay
+[2025/11/22 8:22:59] 鍦ㄦ暟鎹簱涓壘鍒拌褰? alipay
+[2025/11/22 8:22:59] 鍔犲瘑鏁版嵁闀垮害: 14384 bytes
+[2025/11/22 8:22:59] 瑙ｅ瘑鏁版嵁闀垮害: 14348 bytes
+[2025/11/22 8:22:59] 鏁版嵁搴撳浘鍍忓姞杞芥垚鍔? alipay, 鏁版嵁澶у皬: 14348 bytes
+[2025/11/22 8:22:59] 澶勭悊鍥惧儚 2: btc
+[2025/11/22 8:22:59] 鍦ㄦ暟鎹簱涓壘鍒拌褰? btc
+[2025/11/22 8:22:59] 鍔犲瘑鏁版嵁闀垮害: 5920 bytes
+[2025/11/22 8:22:59] 瑙ｅ瘑鏁版嵁闀垮害: 5877 bytes
+[2025/11/22 8:22:59] 鏁版嵁搴撳浘鍍忓姞杞芥垚鍔? btc, 鏁版嵁澶у皬: 5877 bytes
+[2025/11/22 8:22:59] 澶勭悊鍥惧儚 3: usdt
+[2025/11/22 8:22:59] 鍦ㄦ暟鎹簱涓壘鍒拌褰? usdt
+[2025/11/22 8:22:59] 鍔犲瘑鏁版嵁闀垮害: 162944 bytes
+[2025/11/22 8:22:59] 瑙ｅ瘑鏁版嵁闀垮害: 162906 bytes
+[2025/11/22 8:22:59] 鏁版嵁搴撳浘鍍忓姞杞芥垚鍔? usdt, 鏁版嵁澶у皬: 162906 bytes
+[2025/11/22 8:22:59] 澶勭悊鍥惧儚 4: aboutme
+[2025/11/22 8:22:59] 鍦ㄦ暟鎹簱涓壘鍒拌褰? aboutme
+[2025/11/22 8:22:59] 鍔犲瘑鏁版嵁闀垮害: 112176 bytes
+[2025/11/22 8:22:59] 瑙ｅ瘑鏁版嵁闀垮害: 112143 bytes
+[2025/11/22 8:22:59] 鏁版嵁搴撳浘鍍忓姞杞芥垚鍔? aboutme, 鏁版嵁澶у皬: 112143 bytes
+[2025/11/22 8:22:59] 寤惰繜鍒濆鍖栧畬鎴?

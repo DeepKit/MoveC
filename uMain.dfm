@@ -25,7 +25,7 @@ object frmMain: TfrmMain
     BevelOuter = bvNone
     Color = 16053754
     TabOrder = 0
-    ExplicitTop = 60
+    ExplicitWidth = 978
     ExplicitHeight = 582
     object pnlLeft: TPanel
       Left = 0
@@ -192,6 +192,7 @@ object frmMain: TfrmMain
       Height = 599
       Align = alClient
       TabOrder = 2
+      ExplicitWidth = 338
       ExplicitHeight = 582
       object lvFiles: TListView
         Left = 1
@@ -228,8 +229,6 @@ object frmMain: TfrmMain
         ParentFont = False
         TabOrder = 0
         ViewStyle = vsReport
-        ExplicitWidth = 536
-        ExplicitHeight = 580
       end
     end
   end
@@ -252,6 +251,8 @@ object frmMain: TfrmMain
       item
         Width = 50
       end>
+    ExplicitTop = 839
+    ExplicitWidth = 978
   end
   object pnlBottom: TPanel
     Left = 0
@@ -260,6 +261,8 @@ object frmMain: TfrmMain
     Height = 214
     Align = alBottom
     TabOrder = 2
+    ExplicitTop = 625
+    ExplicitWidth = 978
     object pnlAboutMe: TPanel
       Left = 1
       Top = 1
@@ -268,6 +271,7 @@ object frmMain: TfrmMain
       Align = alClient
       BevelInner = bvLowered
       TabOrder = 0
+      ExplicitWidth = 976
       object Splitter1: TSplitter
         Left = 977
         Top = 2
@@ -287,6 +291,7 @@ object frmMain: TfrmMain
         Caption = #29366#24577#20449#24687
         Color = 16449532
         TabOrder = 0
+        ExplicitWidth = 969
         object lblStatus: TLabel
           Left = 10
           Top = 10
@@ -365,7 +370,7 @@ object frmMain: TfrmMain
           ParentFont = False
           ScrollBars = ssVertical
           TabOrder = 1
-          ExplicitWidth = 1149
+          ExplicitWidth = 949
         end
       end
     end
@@ -378,6 +383,7 @@ object frmMain: TfrmMain
     Align = alTop
     BevelOuter = bvLowered
     TabOrder = 3
+    ExplicitWidth = 978
     object btnCleanBackup: TBitBtn
       Left = 679
       Top = 5

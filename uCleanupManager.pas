@@ -34,11 +34,14 @@ type
     function GetWindowsUpdatePath: string;
     function GetBrowserCachePaths: TArray<string>;
     function GetSystemTempPaths: TArray<string>;
+    // 服务控制
+    function StopServiceByName(const ServiceName: string; TimeoutMs: Cardinal = 15000): Boolean;
+    function StartServiceByName(const ServiceName: string; TimeoutMs: Cardinal = 15000): Boolean;
     
     // 安全检查
     function IsSafeToDelete(const APath: string): Boolean;
     function IsSystemCriticalPath(const APath: string): Boolean;
-    
+
     // 清理实现
     function CleanDirectoryRecursive(const ADirectory: string; var AResult: TCleanupResult): Boolean;
     function EmptyRecycleBinInternal: TCleanupResult;
@@ -79,7 +82,7 @@ type
 implementation
 
 uses
-  System.StrUtils;
+  Winapi.WinSvc, System.StrUtils;
 
 { TCleanupManager }
 
@@ -456,6 +459,7 @@ end;
 function TCleanupManager.CleanWindowsUpdateCacheInternal: TCleanupResult;
 var
   UpdatePath: string;
+  StoppedWU, StoppedBITS: Boolean;
 begin
   Result.Success := False;
   Result.FilesDeleted := 0;
@@ -464,7 +468,14 @@ begin
   Result.Details := TStringList.Create;
   
   try
-    UpdateProgress('正在清理Windows更新缓存...', 0);
+    UpdateProgress('正在准备清理Windows更新缓存...', 0);
+    // 停止 Windows Update 相关服务
+    StoppedWU := StopServiceByName('wuauserv');
+    StoppedBITS := StopServiceByName('bits');
+    if StoppedWU or StoppedBITS then
+      UpdateProgress('已停止相关服务，开始清理...', 10)
+    else
+      UpdateProgress('未能停止部分服务，尝试继续清理...', 10);
     
     UpdatePath := GetWindowsUpdatePath;
     if TDirectory.Exists(UpdatePath) then
@@ -474,19 +485,24 @@ begin
       if CleanDirectoryRecursive(UpdatePath, Result) then
       begin
         Result.Success := True;
-        UpdateProgress('Windows更新缓存清理完成', 100);
+        UpdateProgress('Windows更新缓存清理完成', 90);
       end
       else
       begin
-        UpdateProgress('Windows更新缓存清理完成(部分失败)', 100);
+        UpdateProgress('Windows更新缓存清理完成(部分失败)', 90);
       end;
     end
     else
     begin
       Result.Success := True;
       Result.Details.Add('Windows更新缓存目录不存在');
-      UpdateProgress('Windows更新缓存目录不存在', 100);
+      UpdateProgress('Windows更新缓存目录不存在', 90);
     end;
+    
+    // 尝试恢复服务
+    if StoppedWU then StartServiceByName('wuauserv');
+    if StoppedBITS then StartServiceByName('bits');
+    UpdateProgress('服务状态已恢复', 100);
     
   except
     on E: Exception do
@@ -763,5 +779,77 @@ begin
   Result := 0;
   // TODO: 实现可清理大小计算逻辑
 end;
+
+function TCleanupManager.StopServiceByName(const ServiceName: string; TimeoutMs: Cardinal): Boolean;
+var
+  hSCM, hSvc: SC_HANDLE;
+  SvcStatus: SERVICE_STATUS_PROCESS;
+  BytesNeeded: DWORD;
+  StartTick: Cardinal;
+  SvcStatusLegacy: SERVICE_STATUS;
+begin
+  Result := False;
+  hSCM := Winapi.WinSvc.OpenSCManager(nil, nil, SC_MANAGER_CONNECT);
+  if hSCM = 0 then Exit;
+  try
+    hSvc := Winapi.WinSvc.OpenService(hSCM, PChar(ServiceName), SERVICE_STOP or SERVICE_QUERY_STATUS);
+    if hSvc = 0 then Exit;
+    try
+      Winapi.WinSvc.ControlService(hSvc, SERVICE_CONTROL_STOP, SvcStatusLegacy);
+      StartTick := GetTickCount;
+      repeat
+        if not Winapi.WinSvc.QueryServiceStatusEx(hSvc, SC_STATUS_PROCESS_INFO, @SvcStatus, SizeOf(SvcStatus), BytesNeeded) then Break;
+        if SvcStatus.dwCurrentState = SERVICE_STOPPED then
+        begin
+          Result := True;
+          Break;
+        end;
+        Sleep(200);
+      until (GetTickCount - StartTick >= TimeoutMs);
+    finally
+      Winapi.WinSvc.CloseServiceHandle(hSvc);
+    end;
+  finally
+    Winapi.WinSvc.CloseServiceHandle(hSCM);
+  end;
+end;
+
+function TCleanupManager.StartServiceByName(const ServiceName: string; TimeoutMs: Cardinal): Boolean;
+var
+  hSCM, hSvc: SC_HANDLE;
+  SvcStatus: SERVICE_STATUS_PROCESS;
+  BytesNeeded: DWORD;
+  StartTick: Cardinal;
+  Args: PWideChar;
+
+begin
+  Result := False;
+  hSCM := Winapi.WinSvc.OpenSCManager(nil, nil, SC_MANAGER_CONNECT);
+  if hSCM = 0 then Exit;
+  try
+    hSvc := Winapi.WinSvc.OpenService(hSCM, PChar(ServiceName), SERVICE_START or SERVICE_QUERY_STATUS);
+    if hSvc = 0 then Exit;
+    try
+      Args := nil;
+      Winapi.WinSvc.StartService(hSvc, 0, Args);
+      StartTick := GetTickCount;
+      repeat
+        if not Winapi.WinSvc.QueryServiceStatusEx(hSvc, SC_STATUS_PROCESS_INFO, @SvcStatus, SizeOf(SvcStatus), BytesNeeded) then Break;
+        if SvcStatus.dwCurrentState = SERVICE_RUNNING then
+        begin
+          Result := True;
+          Break;
+        end;
+        Sleep(200);
+      until (GetTickCount - StartTick >= TimeoutMs);
+    finally
+      Winapi.WinSvc.CloseServiceHandle(hSvc);
+    end;
+  finally
+    Winapi.WinSvc.CloseServiceHandle(hSCM);
+  end;
+end;
+
+
 
 end.

@@ -36,7 +36,9 @@ uses
   // C盘空间分析器
   uDiskAnalyzer,
   // FireDAC for SQLite initialization when DB is missing
-  FireDAC.Comp.Client, FireDAC.Stan.Def, FireDAC.Phys.SQLite, Data.DB;
+  FireDAC.Comp.Client, FireDAC.Stan.Def, FireDAC.Phys.SQLite, Data.DB,
+  // Tray and Sync
+  uTrayIcon, uSyncEngine, uSyncDatabase;
 
 type
   TfrmMain = class(TForm)
@@ -79,7 +81,6 @@ type
     miSimpleMode: TMenuItem;
     miConfigManager: TMenuItem;
     miSeparatorTools1: TMenuItem;
-    miAdvancedFileManager: TMenuItem;
     miLogManager: TMenuItem;
     miAdvancedOptions: TMenuItem;
     MenuTheme: TMenuItem;
@@ -111,12 +112,8 @@ type
     pnlAboutMe: TPanel;
     pnlTop: TPanel;
     btnCleanBackup: TBitBtn;
-    btnCleanRecycleBin: TBitBtn;
-    btnCleanTemp: TBitBtn;
-    btnCleanUpdate: TBitBtn;
     btnSmartClean: TBitBtn;
     btnSmartMigration: TBitBtn;
-    btnAdvancedFileManager: TBitBtn;
     btnAnalyze: TBitBtn;
     btnCalculateSize: TBitBtn;
     btnExecute: TBitBtn;
@@ -239,6 +236,14 @@ type
     FAnalysisResults: TArray<TCleanupSuggestion>;
     FLastAnalysisTime: TDateTime;
     FHeartbeatTimer: TTimer;
+    // 托盘与同步
+    FTray: TTrayManager;
+    FSyncEngine: TSyncEngine;
+    FSampleTask: uSyncEngine.TSyncTask;
+    FMenuSyncSample: TMenuItem;
+    procedure MenuSyncSampleClick(Sender: TObject);
+    procedure OnSyncProgress(const P: TSyncProgress);
+    procedure OnSyncComplete(Success: Boolean; const Msg: string);
     
     procedure InitializeInterface;
     procedure InitializeTreeViews;
@@ -338,6 +343,55 @@ var
 implementation
 
 {$R *.dfm}
+
+procedure TfrmMain.MenuSyncSampleClick(Sender: TObject);
+begin
+  if Assigned(FTray) then
+    FTray.SetStatus(tsSyncing);
+  UpdateStatus('开始执行样例同步任务...');
+  if Assigned(ProgressBar1) then
+  begin
+    ProgressBar1.Visible := True;
+    ProgressBar1.Position := 0;
+  end;
+  if Assigned(FSampleTask) then
+    FSampleTask.Start;
+end;
+
+procedure TfrmMain.OnSyncProgress(const P: TSyncProgress);
+begin
+  if Assigned(lblCurrentFile) then
+    lblCurrentFile.Caption := P.CurrentFile;
+  if Assigned(ProgressBar1) then
+    ProgressBar1.Position := EnsureRange(Round(P.Percent), 0, 100);
+end;
+
+procedure TfrmMain.OnSyncComplete(Success: Boolean; const Msg: string);
+begin
+  if Assigned(ProgressBar1) then
+    ProgressBar1.Visible := False;
+  if Success then
+  begin
+    UpdateStatus('样例同步完成');
+    if Assigned(FTray) then
+    begin
+      FTray.SetStatus(tsIdle);
+      FTray.ShowBalloon('同步完成', '样例同步已完成');
+    end;
+    ShowChineseMessage('样例同步完成');
+  end
+  else
+  begin
+    UpdateStatus('样例同步失败: ' + Msg);
+    if Assigned(FTray) then
+    begin
+      FTray.SetStatus(tsError);
+      FTray.ShowBalloon('同步失败', Msg);
+    end;
+    ShowChineseMessage('样例同步失败：' + Msg);
+  end;
+end;
+
 
 
 procedure TfrmMain.FormCreate(Sender: TObject);
@@ -488,6 +542,29 @@ begin
     FHeartbeatTimer.Enabled := True;
   end;
 
+  // 托盘与同步最小集成
+  FTray := TTrayManager.Create(Self);
+  FTray.Initialize(Self);
+
+  FSyncEngine := TSyncEngine.Create(Self);
+  FSampleTask := uSyncEngine.TSyncTask.Create;
+  FSampleTask.Name := '样例同步任务';
+  FSampleTask.SourcePath := 'D:\\SynologyDrive\\Progs\\_Delphi\\wyjx';
+  FSampleTask.TargetPath := 'F:\\Backup\\wyjx2';
+  FSampleTask.Mode := uSyncDatabase.smManual;
+  FSampleTask.OnProgress := OnSyncProgress;
+  FSampleTask.OnComplete := OnSyncComplete;
+  FSyncEngine.AddTask(FSampleTask);
+
+  // 工具菜单增加“立即同步样例任务”入口
+  if Assigned(MenuTools) then
+  begin
+    FMenuSyncSample := TMenuItem.Create(Self);
+    FMenuSyncSample.Caption := '立即同步样例任务';
+    FMenuSyncSample.OnClick := MenuSyncSampleClick;
+    MenuTools.Add(FMenuSyncSample);
+  end;
+
   LogInfo('Main', 'MoveC 应用程序初始化完成');
 end;
 
@@ -533,6 +610,11 @@ begin
       FCDriveAnalyzer.StopAnalysis;
     FCDriveAnalyzer.Free;
   end;
+
+  // 清理托盘与同步
+  if Assigned(FSyncEngine) then FSyncEngine.Free;
+  // FSampleTask由FSyncEngine拥有并随之释放
+  FTray := nil;
 
   FStyleManager.Free;
 end;
@@ -2445,13 +2527,13 @@ begin
   if Assigned(btnExecute) then SetButtonStyle(btnExecute, $4CAF50, clBlack);
   if Assigned(btnAnalyze) then SetButtonStyle(btnAnalyze, $2196F3, clBlack);
   if Assigned(btnCalculateSize) then SetButtonStyle(btnCalculateSize, $FF9800, clBlack);
-  if Assigned(btnCleanRecycleBin) then SetButtonStyle(btnCleanRecycleBin, $9C27B0, clBlack);
-  if Assigned(btnCleanTemp) then SetButtonStyle(btnCleanTemp, $673AB7, clBlack);
+  // if Assigned(btnCleanRecycleBin) then SetButtonStyle(btnCleanRecycleBin, $9C27B0, clBlack);
+  // if Assigned(btnCleanTemp) then SetButtonStyle(btnCleanTemp, $673AB7, clBlack);
   if Assigned(btnCleanBackup) then SetButtonStyle(btnCleanBackup, $3F51B5, clBlack);
-  if Assigned(btnCleanUpdate) then SetButtonStyle(btnCleanUpdate, $2196F3, clBlack);
+  // if Assigned(btnCleanUpdate) then SetButtonStyle(btnCleanUpdate, $2196F3, clBlack);
   if Assigned(btnSmartClean) then SetButtonStyle(btnSmartClean, $009688, clBlack);
   if Assigned(btnSmartMigration) then SetButtonStyle(btnSmartMigration, $00BCD4, clBlack);
-  if Assigned(btnAdvancedFileManager) then SetButtonStyle(btnAdvancedFileManager, $FF9800, clBlack);
+  // if Assigned(btnAdvancedFileManager) then SetButtonStyle(btnAdvancedFileManager, $FF9800, clBlack);
   if Assigned(btnBrowseSource) then SetButtonStyle(btnBrowseSource, $607D8B, clBlack);
   if Assigned(btnBrowseTarget) then SetButtonStyle(btnBrowseTarget, $607D8B, clBlack);
   if Assigned(btnSourceUp) then SetButtonStyle(btnSourceUp, $795548, clBlack);
@@ -2486,13 +2568,13 @@ end;
 procedure TfrmMain.LoadButtonIcons;
 begin
   // 为清理功能按钮加载图标 - 添加存在性检查
-  if Assigned(btnCleanRecycleBin) then IconManager.ApplyIconToButton(btnCleanRecycleBin, IconManager.ICON_RECYCLE_BIN);
-  if Assigned(btnCleanTemp) then IconManager.ApplyIconToButton(btnCleanTemp, IconManager.ICON_CLEAN_TEMP);
+  // if Assigned(btnCleanRecycleBin) then IconManager.ApplyIconToButton(btnCleanRecycleBin, IconManager.ICON_RECYCLE_BIN);
+  // if Assigned(btnCleanTemp) then IconManager.ApplyIconToButton(btnCleanTemp, IconManager.ICON_CLEAN_TEMP);
   if Assigned(btnCleanBackup) then IconManager.ApplyIconToButton(btnCleanBackup, IconManager.ICON_CLEAN_BACKUP);
-  if Assigned(btnCleanUpdate) then IconManager.ApplyIconToButton(btnCleanUpdate, IconManager.ICON_CLEAN_UPDATE);
+  // if Assigned(btnCleanUpdate) then IconManager.ApplyIconToButton(btnCleanUpdate, IconManager.ICON_CLEAN_UPDATE);
   if Assigned(btnSmartClean) then IconManager.ApplyIconToButton(btnSmartClean, IconManager.ICON_SMART_CLEAN);
   if Assigned(btnSmartMigration) then IconManager.ApplyIconToButton(btnSmartMigration, IconManager.ICON_SMART_MIGRATION);
-  if Assigned(btnAdvancedFileManager) then IconManager.ApplyIconToButton(btnAdvancedFileManager, IconManager.ICON_FILE_MANAGER);
+  // if Assigned(btnAdvancedFileManager) then IconManager.ApplyIconToButton(btnAdvancedFileManager, IconManager.ICON_FILE_MANAGER);
 
   // 为主要功能按钮加载图标
   if Assigned(btnExecute) then IconManager.ApplyIconToButton(btnExecute, IconManager.ICON_EXECUTE);
@@ -3313,7 +3395,7 @@ begin
   if Assigned(btnExecute) then btnExecute.Enabled := FIsAdmin;
   if Assigned(btnSmartMigration) then btnSmartMigration.Enabled := FIsAdmin;
   if Assigned(btnRollback) then btnRollback.Enabled := FIsAdmin;
-  if Assigned(btnCleanUpdate) then btnCleanUpdate.Enabled := FIsAdmin;
+  // if Assigned(btnCleanUpdate) then btnCleanUpdate.Enabled := FIsAdmin;
   
   // 在简洁模式下隐藏高级按钮
   if FSimpleMode then
@@ -3322,15 +3404,15 @@ begin
     if Assigned(btnOneKeyDiagnose) then btnOneKeyDiagnose.Visible := True;
     if Assigned(btnSmartClean) then btnSmartClean.Visible := True;
     if Assigned(btnSmartMigration) then btnSmartMigration.Visible := True;
-    if Assigned(btnAdvancedFileManager) then btnAdvancedFileManager.Visible := True;
+    // if Assigned(btnAdvancedFileManager) then btnAdvancedFileManager.Visible := True;
     if Assigned(btnRollback) then btnRollback.Visible := True;
     if Assigned(btnExit) then btnExit.Visible := True;
     
     // 隐藏高级按钮
-    if Assigned(btnCleanRecycleBin) then btnCleanRecycleBin.Visible := False;
-    if Assigned(btnCleanTemp) then btnCleanTemp.Visible := False;
+    // if Assigned(btnCleanRecycleBin) then btnCleanRecycleBin.Visible := False;
+    // if Assigned(btnCleanTemp) then btnCleanTemp.Visible := False;
     if Assigned(btnCleanBackup) then btnCleanBackup.Visible := False;
-    if Assigned(btnCleanUpdate) then btnCleanUpdate.Visible := False;
+    // if Assigned(btnCleanUpdate) then btnCleanUpdate.Visible := False;
     if Assigned(btnAnalyze) then btnAnalyze.Visible := False;
     if Assigned(btnCalculateSize) then btnCalculateSize.Visible := False;
     if Assigned(btnExecute) then btnExecute.Visible := False;
@@ -3339,13 +3421,13 @@ begin
   begin
     // 专家模式：显示所有按钮
     if Assigned(btnOneKeyDiagnose) then btnOneKeyDiagnose.Visible := True;
-    if Assigned(btnCleanRecycleBin) then btnCleanRecycleBin.Visible := True;
-    if Assigned(btnCleanTemp) then btnCleanTemp.Visible := True;
+    // if Assigned(btnCleanRecycleBin) then btnCleanRecycleBin.Visible := True;
+    // if Assigned(btnCleanTemp) then btnCleanTemp.Visible := True;
     if Assigned(btnCleanBackup) then btnCleanBackup.Visible := True;
-    if Assigned(btnCleanUpdate) then btnCleanUpdate.Visible := True;
+    // if Assigned(btnCleanUpdate) then btnCleanUpdate.Visible := True;
     if Assigned(btnSmartClean) then btnSmartClean.Visible := True;
     if Assigned(btnSmartMigration) then btnSmartMigration.Visible := True;
-    if Assigned(btnAdvancedFileManager) then btnAdvancedFileManager.Visible := True;
+    // if Assigned(btnAdvancedFileManager) then btnAdvancedFileManager.Visible := True;
     if Assigned(btnRollback) then btnRollback.Visible := True;
     if Assigned(btnAnalyze) then btnAnalyze.Visible := True;
     if Assigned(btnCalculateSize) then btnCalculateSize.Visible := True;
@@ -3969,66 +4051,55 @@ begin
   ShowCancelButton(True);
   
   // 创建线程进行空间分析
-  TTask.Run(
-    procedure
-    var
-      Success: Boolean;
-      TempResults: TArray<TCleanupSuggestion>;
-      TempTime: TDateTime;
-      ErrorMsg: string;
+  // Simplified version - run synchronously
+  var Success: Boolean;
+  var TempResults: TArray<TCleanupSuggestion>;
+  var TempTime: TDateTime;
+  var ErrorMsg: string;
+  
+  try
+    Success := FCDriveAnalyzer.StartAnalysis;
+    
+    if Success then
     begin
-      try
-        Success := FCDriveAnalyzer.StartAnalysis;
-        
-        if Success then
-        begin
-          TempResults := FCDriveAnalyzer.GetCleanupSuggestions;
-          TempTime := Now;
-        end;
-        
-        // 在主线程中更新UI
-        TThread.Queue(nil,
-          procedure
-          begin
-            try
-              ProgressBar1.Visible := False;
-              ShowCancelButton(False);
-              
-              if Success then
-              begin
-                FAnalysisResults := TempResults;
-                FLastAnalysisTime := TempTime;
-                UpdateStatus('分析完成！');
-                ShowAnalysisResults;
-              end
-              else
-              begin
-                UpdateStatus('分析被取消或失败');
-                ShowChineseMessage('C盘空间分析被取消或失败！');
-              end;
-            except
-              on E: Exception do
-              begin
-                UpdateStatus('分析时发生错误: ' + E.Message);
-                ShowChineseMessage('分析时发生错误：' + sLineBreak + E.Message);
-              end;
-            end;
-          end);
-      except
-        on E: Exception do
-        begin
-          ErrorMsg := E.Message;
-          TThread.Queue(nil,
-            procedure
-            begin
-              ProgressBar1.Visible := False;
-              ShowCancelButton(False);
-              UpdateStatus('分析失败: ' + ErrorMsg);
-              ShowChineseMessage('分析失败：' + sLineBreak + ErrorMsg);
-            end);
-        end;
+      TempResults := FCDriveAnalyzer.GetCleanupSuggestions;
+      TempTime := Now;
+    end;
+    
+    // Update UI directly
+    try
+      ProgressBar1.Visible := False;
+      ShowCancelButton(False);
+      
+      if Success then
+      begin
+        FAnalysisResults := TempResults;
+        FLastAnalysisTime := TempTime;
+        UpdateStatus('分析完成！');
+        ShowAnalysisResults;
+      end
+      else
+      begin
+        UpdateStatus('分析被取消或失败');
+        ShowChineseMessage('C盘空间分析被取消或失败！');
       end;
-    end);
+    except
+      on E: Exception do
+      begin
+        UpdateStatus('分析时发生错误: ' + E.Message);
+        ShowChineseMessage('分析时发生错误：' + sLineBreak + E.Message);
+      end;
+    end;
+  except
+    on E: Exception do
+    begin
+      ErrorMsg := E.Message;
+      ProgressBar1.Visible := False;
+      ShowCancelButton(False);
+      UpdateStatus('分析失败: ' + ErrorMsg);
+      ShowChineseMessage('分析失败：' + sLineBreak + ErrorMsg);
+    end;
+  end;
 end;
 
 procedure TfrmMain.ShowAnalysisResults;

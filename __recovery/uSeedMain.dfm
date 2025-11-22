@@ -2,8 +2,8 @@ object frmSeedMain: TfrmSeedMain
   Left = 0
   Top = 0
   Caption = #38450#31735#25913#25773#31181#24037#20855
-  ClientHeight = 600
-  ClientWidth = 800
+  ClientHeight = 583
+  ClientWidth = 794
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -16,19 +16,18 @@ object frmSeedMain: TfrmSeedMain
   object pnlTop: TPanel
     Left = 0
     Top = 0
-    Width = 800
+    Width = 794
     Height = 60
     Align = alTop
     BevelOuter = bvNone
     Color = 3355443
     ParentBackground = False
     TabOrder = 0
-    ExplicitWidth = 794
     object lblTitle: TLabel
       AlignWithMargins = True
       Left = 20
       Top = 15
-      Width = 760
+      Width = 754
       Height = 30
       Margins.Left = 20
       Margins.Top = 15
@@ -48,18 +47,16 @@ object frmSeedMain: TfrmSeedMain
   object pnlCenter: TPanel
     Left = 0
     Top = 60
-    Width = 800
-    Height = 400
+    Width = 794
+    Height = 383
     Align = alClient
     BevelOuter = bvNone
     TabOrder = 1
-    ExplicitWidth = 794
-    ExplicitHeight = 383
     object gbPassword: TGroupBox
       AlignWithMargins = True
       Left = 10
       Top = 10
-      Width = 780
+      Width = 774
       Height = 80
       Margins.Left = 10
       Margins.Top = 10
@@ -74,12 +71,11 @@ object frmSeedMain: TfrmSeedMain
       Font.Style = [fsBold]
       ParentFont = False
       TabOrder = 0
-      ExplicitWidth = 774
       object lblPasswordHint: TLabel
         AlignWithMargins = True
         Left = 15
         Top = 50
-        Width = 750
+        Width = 744
         Height = 15
         Margins.Left = 13
         Margins.Top = 5
@@ -99,7 +95,7 @@ object frmSeedMain: TfrmSeedMain
         AlignWithMargins = True
         Left = 15
         Top = 27
-        Width = 750
+        Width = 744
         Height = 23
         Margins.Left = 13
         Margins.Top = 8
@@ -113,15 +109,14 @@ object frmSeedMain: TfrmSeedMain
         Font.Style = []
         ParentFont = False
         TabOrder = 0
-        ExplicitWidth = 744
       end
     end
     object gbImages: TGroupBox
       AlignWithMargins = True
       Left = 10
       Top = 100
-      Width = 780
-      Height = 290
+      Width = 774
+      Height = 273
       Margins.Left = 10
       Margins.Top = 5
       Margins.Right = 10
@@ -135,13 +130,11 @@ object frmSeedMain: TfrmSeedMain
       Font.Style = [fsBold]
       ParentFont = False
       TabOrder = 1
-      ExplicitWidth = 774
-      ExplicitHeight = 273
       object lblImageCount: TLabel
         AlignWithMargins = True
         Left = 15
-        Top = 260
-        Width = 750
+        Top = 243
+        Width = 744
         Height = 15
         Margins.Left = 13
         Margins.Top = 5
@@ -155,14 +148,15 @@ object frmSeedMain: TfrmSeedMain
         Font.Name = 'Segoe UI'
         Font.Style = []
         ParentFont = False
+        ExplicitTop = 260
         ExplicitWidth = 90
       end
       object lstImages: TListBox
         AlignWithMargins = True
         Left = 15
         Top = 27
-        Width = 763
-        Height = 223
+        Width = 757
+        Height = 206
         Margins.Left = 13
         Margins.Top = 8
         Margins.Right = 0
@@ -176,8 +170,6 @@ object frmSeedMain: TfrmSeedMain
         ItemHeight = 14
         ParentFont = False
         TabOrder = 0
-        ExplicitWidth = 757
-        ExplicitHeight = 206
       end
       object btnAddImage: TBitBtn
         Left = 680
@@ -210,19 +202,17 @@ object frmSeedMain: TfrmSeedMain
   end
   object pnlBottom: TPanel
     Left = 0
-    Top = 460
-    Width = 800
+    Top = 443
+    Width = 794
     Height = 140
     Align = alBottom
     BevelOuter = bvNone
     TabOrder = 2
-    ExplicitTop = 443
-    ExplicitWidth = 794
     object memoLog: TMemo
       AlignWithMargins = True
       Left = 10
       Top = 5
-      Width = 780
+      Width = 774
       Height = 130
       Margins.Left = 10
       Margins.Top = 5
