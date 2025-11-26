@@ -1,4 +1,4 @@
-object FrameAboutMe: TFrameAboutMe
+﻿object FrameAboutMe: TFrameAboutMe
   Left = 0
   Top = 0
   Width = 600

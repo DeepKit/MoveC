@@ -1,4 +1,4 @@
-unit uIconManager;
+﻿unit uIconManager;
 
 interface
 

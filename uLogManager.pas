@@ -1,4 +1,4 @@
-unit uLogManager;
+﻿unit uLogManager;
 
 {
   日志管理器 - Comprehensive Logging System

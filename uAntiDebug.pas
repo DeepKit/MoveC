@@ -1,4 +1,4 @@
-unit uAntiDebug;
+﻿unit uAntiDebug;
 
 {
   反调试保护模块

@@ -1,4 +1,4 @@
-object frmLogViewer: TfrmLogViewer
+﻿object frmLogViewer: TfrmLogViewer
   Left = 0
   Top = 0
 Caption = 'Log Viewer'

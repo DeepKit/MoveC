@@ -1,4 +1,4 @@
-object frmTraySettings: TfrmTraySettings
+﻿object frmTraySettings: TfrmTraySettings
   Left = 0
   Top = 0
   Caption = '托盘设置'

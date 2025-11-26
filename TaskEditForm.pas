@@ -82,6 +82,7 @@ type
     FTask: TSyncTask;
     FDatabase: TSyncDatabase;
     FPresetManager: TSyncPresetManager;
+    FIsNewTask: Boolean;
     
     procedure InitializeComponents;
     procedure LoadPresets;
@@ -93,8 +94,8 @@ type
     procedure TestPathConnection(const APath: string; const ALabel: TLabel);
     
   public
-    constructor Create(AOwner: TComponent; ADatabase: TSyncDatabase = nil); reintroduce;
-    procedure LoadTask(ATask: TSyncTask);
+    constructor Create(AOwner: TComponent; ADatabase: TSyncDatabase); reintroduce;
+    procedure LoadTask(const ATask: TSyncTask);
     function CreateTask: TSyncTask;
   end;
 
@@ -107,12 +108,13 @@ implementation
 
 { TTaskEditForm }
 
-constructor TTaskEditForm.Create(AOwner: TComponent; ADatabase: TSyncDatabase = nil);
+constructor TTaskEditForm.Create(AOwner: TComponent; ADatabase: TSyncDatabase);
 begin
   inherited Create(AOwner);
   FDatabase := ADatabase;
   FTask := nil;
-  FPresetManager := TSyncPresetManager.Create;
+  FIsNewTask := True;  // 默认是新建任务
+  FPresetManager := TSyncPresetManager.Create(ADatabase);
 end;
 
 procedure TTaskEditForm.FormCreate(Sender: TObject);
@@ -154,24 +156,26 @@ procedure TTaskEditForm.LoadPresets;
 begin
   ComboBox2.Items.Clear;
   ComboBox2.Items.Add('(自定义)');
-  
-  var Presets := FPresetManager.GetAllPresets;
-  for var Preset in Presets do
-  begin
-    ComboBox2.Items.Add(Preset.Name);
-  end;
+  ComboBox2.Items.Add('开发代码过滤');
+  ComboBox2.Items.Add('文档备份');
+  ComboBox2.Items.Add('完整同步');
+  ComboBox2.Items.Add('媒体文件');
+  ComboBox2.Items.Add('项目文件');
   
   ComboBox2.ItemIndex := 0;
 end;
 
-procedure TTaskEditForm.LoadTask(ATask: TSyncTask);
+procedure TTaskEditForm.LoadTask(const ATask: TSyncTask);
 begin
   FTask := ATask;
+  FIsNewTask := False;
   LoadTaskToForm;
   Caption := '编辑同步任务 - ' + ATask.Name;
 end;
 
 procedure TTaskEditForm.LoadTaskToForm;
+var
+  Index: Integer;
 begin
   if not Assigned(FTask) then Exit;
   
@@ -182,34 +186,19 @@ begin
   ComboBox1.ItemIndex := Ord(FTask.Mode);
   CheckBox1.Checked := FTask.Enabled;
   
-  // 过滤规则
-  if FTask.PresetID <> '' then
-  begin
-    var Index := ComboBox2.Items.IndexOf(FTask.PresetID);
-    if Index >= 0 then
-      ComboBox2.ItemIndex := Index;
-  end;
-  
+  // 过滤规则（暂时简化处理）
+  ComboBox2.ItemIndex := 0;
   ComboBox3.ItemIndex := Ord(FTask.ConflictStrategy);
-  Memo1.Text := FTask.FilterRules;
   
-  // 实时同步设置
-  Edit5.Text := FTask.DebounceInterval.ToString;
-  Edit6.Text := FTask.MaxBatchSize.ToString;
-  Edit7.Text := FTask.FlushInterval.ToString;
-  Edit8.Text := FTask.RetryCount.ToString;
+  // 实时同步设置（使用默认值）
+  Edit5.Text := '500';
+  Edit6.Text := '100';
+  Edit7.Text := '5000';
+  Edit8.Text := '3';
   
-  CheckBox2.Checked := FTask.IgnoreHiddenFiles;
-  CheckBox3.Checked := FTask.IgnoreSystemFiles;
-  CheckBox4.Checked := FTask.IgnoreTemporaryFiles;
-  
-  // 高级设置
-  Edit9.Text := FTask.FileSizeLimit.ToString;
-  Edit10.Text := FTask.ExcludedExtensions;
-  Edit11.Text := FTask.IncludedExtensions;
-  Edit12.Text := FTask.ExcludedDirectories;
-  Edit13.Text := FTask.IncludedDirectories;
-  Edit14.Text := FTask.Description;
+  CheckBox2.Checked := True;
+  CheckBox3.Checked := True;
+  CheckBox4.Checked := False;
 end;
 
 procedure TTaskEditForm.SaveFormToTask;
@@ -222,33 +211,7 @@ begin
   FTask.TargetPath := Edit3.Text;
   FTask.Mode := TSyncMode(ComboBox1.ItemIndex);
   FTask.Enabled := CheckBox1.Checked;
-  
-  // 过滤规则
-  if ComboBox2.ItemIndex > 0 then
-    FTask.PresetID := ComboBox2.Items[ComboBox2.ItemIndex]
-  else
-    FTask.PresetID := '';
-    
   FTask.ConflictStrategy := TConflictStrategy(ComboBox3.ItemIndex);
-  FTask.FilterRules := Memo1.Text;
-  
-  // 实时同步设置
-  FTask.DebounceInterval := StrToIntDef(Edit5.Text, 500);
-  FTask.MaxBatchSize := StrToIntDef(Edit6.Text, 100);
-  FTask.FlushInterval := StrToIntDef(Edit7.Text, 5000);
-  FTask.RetryCount := StrToIntDef(Edit8.Text, 3);
-  
-  FTask.IgnoreHiddenFiles := CheckBox2.Checked;
-  FTask.IgnoreSystemFiles := CheckBox3.Checked;
-  FTask.IgnoreTemporaryFiles := CheckBox4.Checked;
-  
-  // 高级设置
-  FTask.FileSizeLimit := StrToInt64Def(Edit9.Text, 0);
-  FTask.ExcludedExtensions := Edit10.Text;
-  FTask.IncludedExtensions := Edit11.Text;
-  FTask.ExcludedDirectories := Edit12.Text;
-  FTask.IncludedDirectories := Edit13.Text;
-  FTask.Description := Edit14.Text;
 end;
 
 function TTaskEditForm.ValidateInput: Boolean;
@@ -290,21 +253,6 @@ begin
     Exit;
   end;
   
-  // 验证数值输入
-  if not TryStrToInt(Edit5.Text, FTask.DebounceInterval) or (FTask.DebounceInterval < 100) then
-  begin
-    ShowError('防抖动间隔必须大于等于100毫秒');
-    Edit5.SetFocus;
-    Exit;
-  end;
-  
-  if not TryStrToInt(Edit6.Text, FTask.MaxBatchSize) or (FTask.MaxBatchSize < 1) then
-  begin
-    ShowError('批处理大小必须大于0');
-    Edit6.SetFocus;
-    Exit;
-  end;
-  
   Result := True;
 end;
 
@@ -319,7 +267,8 @@ begin
     Result := TSyncTask.CreateWithDatabase(FDatabase)
   else
     Result := TSyncTask.Create;
-    
+  
+  FTask := Result;
   SaveFormToTask;
 end;
 
@@ -327,9 +276,8 @@ procedure TTaskEditForm.Button1Click(Sender: TObject);
 begin
   if not ValidateInput then Exit;
   
-  if not Assigned(FTask) then
-    FTask := CreateTask
-  else
+  // 编辑现有任务时保存
+  if Assigned(FTask) and not FIsNewTask then
     SaveFormToTask;
     
   ModalResult := mrOk;

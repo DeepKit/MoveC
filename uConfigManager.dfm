@@ -1,4 +1,4 @@
-object frmConfigManager: TfrmConfigManager
+﻿object frmConfigManager: TfrmConfigManager
   Left = 0
   Top = 0
   Caption = #37197#32622#31649#29702#22120

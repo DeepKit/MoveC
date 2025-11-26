@@ -1,4 +1,4 @@
-unit uPerformanceAnalyzer;
+﻿unit uPerformanceAnalyzer;
 
 {
   性能分析引擎 - Phase 2.2

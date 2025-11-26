@@ -15,11 +15,14 @@ type
     Action: TFileAction;
   end;
 
+  TFileChangeEvent = procedure(Sender: TObject; const Changes: TArray<TFileChange>) of object;
+
   TFileSystemWatcher = class(TComponent)
   private
     FPath: string;
     FRecursive: Boolean;
     FOnChange: TProc<TArray<TFileChange>>;
+    FOnChangeEvent: TFileChangeEvent;
     FActive: Boolean;
     FThread: TThread;
     FStopEvent: TEvent;
@@ -42,6 +45,7 @@ type
     property Recursive: Boolean read FRecursive write FRecursive;
     property Active: Boolean read FActive;
     property OnChange: TProc<TArray<TFileChange>> read FOnChange write FOnChange;
+    property OnChangeEvent: TFileChangeEvent read FOnChangeEvent write FOnChangeEvent;
     property IntervalMs: Cardinal read FIntervalMs write FIntervalMs;
     property Mode: TWatchMode read FMode write FMode;
   end;
@@ -138,8 +142,13 @@ begin
         Changes.Add(Change);
       end;
 
-    if (Changes.Count > 0) and Assigned(FOnChange) then
-      FOnChange(Changes.ToArray);
+    if Changes.Count > 0 then
+    begin
+      if Assigned(FOnChange) then
+        FOnChange(Changes.ToArray);
+      if Assigned(FOnChangeEvent) then
+        FOnChangeEvent(Self, Changes.ToArray);
+    end;
   finally
     Changes.Free;
   end;
@@ -253,7 +262,7 @@ var
   I: Integer;
 begin
   // 转发原生监控的变更事件
-  if Assigned(FOnChange) and FActive then
+  if (Assigned(FOnChange) or Assigned(FOnChangeEvent)) and FActive then
   begin
     try
       SetLength(Converted, Length(AChanges));
@@ -267,7 +276,10 @@ begin
           Converted[I].Action := faModified;
         end;
       end;
-      FOnChange(Converted);
+      if Assigned(FOnChange) then
+        FOnChange(Converted);
+      if Assigned(FOnChangeEvent) then
+        FOnChangeEvent(Self, Converted);
     except
       // 忽略回调错误
     end;

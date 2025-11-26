@@ -1,4 +1,4 @@
-unit uSmartDuplicateCleanup;
+﻿unit uSmartDuplicateCleanup;
 
 interface
 

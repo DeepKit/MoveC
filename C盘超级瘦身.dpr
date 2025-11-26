@@ -1,20 +1,22 @@
-﻿program C盘瘦身;
+program MoveC;
 
 uses
   Vcl.Forms,
   Winapi.Windows,
-  System.SysUtils, System.IOUtils,
+  System.SysUtils,
+  System.IOUtils,
   uSplash in 'uSplash.pas' {frmSplash},
   uMain in 'uMain.pas' {frmMain},
   uIconManager in 'uIconManager.pas',
-
   FrameAboutMe in 'FrameAboutMe.pas' {FrameAboutMe: TFrame},
-  // 图像安全模块
   uImageSecurity in 'uImageSecurity.pas',
-  // 清理管理器
-  uCleanupManager in 'uCleanupManager.pas';
+  uCleanupManager in 'uCleanupManager.pas',
+  uSyncSettingsBasic in 'uSyncSettingsBasic.pas' {frmSyncSettingsBasic};
 
-{$R 'C盘超级瘦身.res' 'C盘瘦身.rc'}
+{.$R 'C盘超级瘦身.res' 'C盘瘦身.rc'}
+
+var
+  DbPath: string;
 
 begin
   Application.Initialize;
@@ -23,7 +25,7 @@ begin
 
   // 入口前置关键资源自检（fail-closed）
   try
-    var DbPath := TPath.Combine(ExtractFilePath(ParamStr(0)), 'MoveC.db');
+    DbPath := TPath.Combine(ExtractFilePath(ParamStr(0)), 'MoveC.db');
     if not TFile.Exists(DbPath) then
     begin
       MessageBox(0, '检测到关键资源缺失：MoveC.db。程序将退出。', '安全警告', MB_OK or MB_ICONERROR or MB_TOPMOST);
@@ -43,6 +45,7 @@ begin
 
   // 再创建主窗体（较重的DFM加载放在Splash之后）
   Application.CreateForm(TfrmMain, frmMain);
+  Application.CreateForm(TfrmSyncSettingsBasic, frmSyncSettingsBasic);
   frmMain.Show; // 显式显示主窗体
 
   // 进入消息循环

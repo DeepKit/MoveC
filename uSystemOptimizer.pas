@@ -1,4 +1,4 @@
-unit uSystemOptimizer;
+﻿unit uSystemOptimizer;
 
 {
   系统优化工具 - Phase 2.2

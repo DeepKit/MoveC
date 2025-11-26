@@ -1,4 +1,4 @@
-unit uDuplicateFileDetector;
+﻿unit uDuplicateFileDetector;
 
 interface
 

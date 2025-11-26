@@ -1,4 +1,4 @@
-unit uLoggerExample;
+﻿unit uLoggerExample;
 
 {
   统一日志接口使用示例

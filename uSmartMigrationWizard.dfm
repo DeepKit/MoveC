@@ -1,4 +1,4 @@
-object frmSmartMigrationWizard: TfrmSmartMigrationWizard
+﻿object frmSmartMigrationWizard: TfrmSmartMigrationWizard
   Left = 0
   Top = 0
 Caption = 'Smart Migration Wizard'

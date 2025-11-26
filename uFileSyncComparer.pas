@@ -1,4 +1,4 @@
-unit uFileSyncComparer;
+﻿unit uFileSyncComparer;
 
 interface
 

@@ -1,7 +1,7 @@
-object frmSyncSettings: TfrmSyncSettings
+﻿object frmSyncSettings: TfrmSyncSettings
   Left = 0
   Top = 0
-  Caption = #37722#24225#24436#37722#23678#57630#29825#21095#30086
+  Caption = '同步盘设置'
   ClientHeight = 480
   ClientWidth = 760
   Color = clBtnFace
@@ -18,16 +18,16 @@ object frmSyncSettings: TfrmSyncSettings
   object lblFilter: TLabel
     Left = 16
     Top = 16
-    Width = 76
+    Width = 52
     Height = 15
-    Caption = #37714#21977#34987#32475#28066#8364'?'
+    Caption = '任务筛选'
   end
   object lblHint: TLabel
     Left = 256
     Top = 16
-    Width = 457
+    Width = 300
     Height = 15
-    Caption = #37819#24878#12378#38171#27692#24379#37713#35763#25442#37716#8243#24434#32514#26668#32235#38171#28066#8364#22795#23272#37722#24225#24434#37904#29808#22190#37413#28357#29659#37719#20914#24723#23005#12514#8364#28612#8364'?'
+    Caption = '双击任务可编辑，右键可查看更多选项。实时监控需要管理员权限。'
   end
   object cbFilter: TComboBox
     Left = 80
@@ -58,7 +58,7 @@ object frmSyncSettings: TfrmSyncSettings
     Top = 420
     Width = 80
     Height = 28
-    Caption = #37826#26495#32531
+    Caption = '新建'
     TabOrder = 2
     OnClick = btnNewClick
   end
@@ -67,7 +67,7 @@ object frmSyncSettings: TfrmSyncSettings
     Top = 420
     Width = 80
     Height = 28
-    Caption = #32514#26668#32235
+    Caption = '编辑'
     TabOrder = 3
     OnClick = btnEditClick
   end
@@ -76,7 +76,7 @@ object frmSyncSettings: TfrmSyncSettings
     Top = 420
     Width = 80
     Height = 28
-    Caption = #37714#29371#27342
+    Caption = '删除'
     TabOrder = 4
     OnClick = btnDeleteClick
   end
@@ -85,7 +85,7 @@ object frmSyncSettings: TfrmSyncSettings
     Top = 420
     Width = 96
     Height = 28
-    Caption = #37722#57884#25956'/'#32450#20346#25956
+    Caption = '启用/禁用'
     TabOrder = 5
     OnClick = btnToggleEnableClick
   end
@@ -94,7 +94,7 @@ object frmSyncSettings: TfrmSyncSettings
     Top = 420
     Width = 96
     Height = 28
-    Caption = #37720#21975#24438#29825#26495#32141
+    Caption = '同步历史'
     TabOrder = 6
     OnClick = btnHistoryClick
   end
@@ -103,7 +103,7 @@ object frmSyncSettings: TfrmSyncSettings
     Top = 420
     Width = 112
     Height = 28
-    Caption = #32468#23338#23878#37722#23678#57630
+    Caption = '立即同步'
     TabOrder = 7
     OnClick = btnSyncNowClick
   end
@@ -112,7 +112,7 @@ object frmSyncSettings: TfrmSyncSettings
     Top = 420
     Width = 120
     Height = 28
-    Caption = #37711#25277#26868
+    Caption = '关闭'
     ModalResult = 1
     TabOrder = 8
   end

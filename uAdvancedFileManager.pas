@@ -1,4 +1,4 @@
-unit uAdvancedFileManager;
+﻿unit uAdvancedFileManager;
 
 {
   高级文件管理模块 - Phase 2.1

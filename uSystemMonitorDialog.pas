@@ -1,4 +1,4 @@
-unit uSystemMonitorDialog;
+﻿unit uSystemMonitorDialog;
 
 {
   增强系统监控对话框 - Enhanced System Monitoring Dialog

@@ -1,4 +1,4 @@
-object frmSeedMain: TfrmSeedMain
+﻿object frmSeedMain: TfrmSeedMain
   Left = 0
   Top = 0
   Caption = #38450#31735#25913#25773#31181#24037#20855

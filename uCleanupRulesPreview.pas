@@ -1,4 +1,4 @@
-unit uCleanupRulesPreview;
+﻿unit uCleanupRulesPreview;
 
 interface
 

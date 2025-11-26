@@ -6,7 +6,8 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ComCtrls, Vcl.StdCtrls,
   Vcl.ExtCtrls, Vcl.Menus, Vcl.ToolWin, Vcl.Grids, Vcl.ValEdit, System.Generics.Collections,
-  uSyncEngine, uSyncDatabase, uRealtimeSyncManager, uNetworkPathManager, uConflictResolver;
+  uSyncEngine, uSyncDatabase, uRealtimeSyncManager, uNetworkPathManager, uConflictResolver,
+  uSyncExecutorSimple, uTrayIcon;
 
 type
   TMainSyncForm = class(TForm)
@@ -67,6 +68,7 @@ type
     
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
+    procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure NewTask1Click(Sender: TObject);
     procedure EditTask1Click(Sender: TObject);
     procedure DeleteTask1Click(Sender: TObject);
@@ -91,9 +93,14 @@ type
     FNetworkManager: TNetworkPathManager;
     FConflictResolver: TConflictResolver;
     FSelectedTask: TSyncTask;
+    FTrayManager: TTrayManager;
+    FMinimizeToTray: Boolean;
+    FReallyClose: Boolean;
     
     procedure InitializeComponents;
     procedure LoadTasksToListView;
+  public
+    procedure RealClose;
     procedure UpdateTaskStatus(const ATask: TSyncTask);
     procedure UpdateStatistics;
     procedure RefreshTaskList;
@@ -124,17 +131,37 @@ uses
 { TMainSyncForm }
 
 procedure TMainSyncForm.FormCreate(Sender: TObject);
+var
+  DbPath: string;
 begin
   InitializeComponents;
   
   // 初始化核心组件
-  FDatabase := TSyncDatabase.Create;
-  FDatabase.InitializeDatabase;
+  DbPath := TPath.Combine(ExtractFilePath(ParamStr(0)), 'MoveC.db');
+  FDatabase := TSyncDatabase.Create(DbPath);
+  
+  // 连接数据库
+  if not FDatabase.Connect then
+  begin
+    ShowMessage('数据库连接失败，程序可能无法正常工作');
+    Memo1.Lines.Add('[错误] 数据库连接失败: ' + DbPath);
+  end
+  else
+  begin
+    Memo1.Lines.Add('[成功] 数据库已连接: ' + DbPath);
+  end;
   
   FSyncEngine := TSyncEngine.CreateWithDatabase(Self, FDatabase);
   FRealtimeManager := TRealtimeSyncManager.Create(FDatabase);
   FNetworkManager := TNetworkPathManager.Create;
   FConflictResolver := TConflictResolver.Create(FDatabase);
+  
+  // 初始化托盘图标
+  FTrayManager := TTrayManager.Create(Self);
+  FTrayManager.Initialize(Self);
+  FTrayManager.OnExit := RealClose; // 设置托盘退出事件
+  FMinimizeToTray := True; // 默认启用最小化到托盘
+  FReallyClose := False; // 初始化退出标志
   
   // 设置事件处理
   FRealtimeManager.OnSyncEvent := HandleSyncEvent;
@@ -142,8 +169,9 @@ begin
   FNetworkManager.OnConnectionChange := HandleNetworkStatusChange;
   FConflictResolver.OnConflictDetected := HandleConflictDetected;
   
-  // 加载任务
+  // 加载任务（仅从数据库，不使用mock数据）
   FSyncEngine.LoadTasksFromDatabase;
+  Memo1.Lines.Add(Format('[信息] 已从数据库加载 %d 个同步任务', [FSyncEngine.TaskCount]));
   LoadTasksToListView;
   
   // 启动定时器
@@ -159,11 +187,35 @@ begin
   FRealtimeManager.StopAllRealtimeSync;
   
   // 释放组件
+  FreeAndNil(FTrayManager);
   FreeAndNil(FConflictResolver);
   FreeAndNil(FNetworkManager);
   FreeAndNil(FRealtimeManager);
   FreeAndNil(FSyncEngine);
   FreeAndNil(FDatabase);
+end;
+
+procedure TMainSyncForm.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+begin
+  // 如果是真正退出，则允许关闭
+  if FReallyClose then
+  begin
+    CanClose := True;
+    Exit;
+  end;
+  
+  // 如果启用了最小化到托盘，则关闭时最小化而不是退出
+  if FMinimizeToTray then
+  begin
+    CanClose := False;
+    Hide;
+    if Assigned(FTrayManager) then
+      FTrayManager.ShowBalloon('文件同步工具', '程序已最小化到系统托盘，双击托盘图标或右键菜单可显示主窗口');
+  end
+  else
+  begin
+    CanClose := True;
+  end;
 end;
 
 procedure TMainSyncForm.InitializeComponents;
@@ -378,22 +430,64 @@ end;
 // 事件处理程序
 
 procedure TMainSyncForm.NewTask1Click(Sender: TObject);
+var
+  NewTask: TSyncTask;
+  EditForm: TTaskEditForm;
 begin
-  with TTaskEditForm.Create(Self) do
+  EditForm := TTaskEditForm.Create(Self, FDatabase);
   try
-    if ShowModal = mrOk then
+    if EditForm.ShowModal = mrOk then
     begin
-      var NewTask := CreateTask;
-      FSyncEngine.AddTask(NewTask);
-      NewTask.Save;
-      RefreshTaskList;
+      try
+        Memo1.Lines.Add(Format('[%s] 正在创建任务...', [FormatDateTime('hh:nn:ss', Now)]));
+        NewTask := EditForm.CreateTask;
+        if Assigned(NewTask) then
+        begin
+          Memo1.Lines.Add(Format('[%s] 任务对象创建成功: %s', 
+            [FormatDateTime('hh:nn:ss', Now), NewTask.Name]));
+          
+          FSyncEngine.AddTask(NewTask);
+          Memo1.Lines.Add(Format('[%s] 任务已添加到引擎', [FormatDateTime('hh:nn:ss', Now)]));
+          
+          NewTask.Save;
+          Memo1.Lines.Add(Format('[%s] 任务保存完成 (ID: %d)', 
+            [FormatDateTime('hh:nn:ss', Now), NewTask.TaskID]));
+            
+          if NewTask.TaskID > 0 then
+          begin
+            Memo1.Lines.Add(Format('[%s] ✅ 新建任务成功: %s (ID: %d)', 
+              [FormatDateTime('hh:nn:ss', Now), NewTask.Name, NewTask.TaskID]));
+            RefreshTaskList;
+          end
+          else
+          begin
+            Memo1.Lines.Add(Format('[%s] ❌ 任务保存失败: TaskID = 0', 
+              [FormatDateTime('hh:nn:ss', Now)]));
+            ShowMessage('任务保存失败，请检查数据库连接');
+          end;
+        end
+        else
+        begin
+          Memo1.Lines.Add(Format('[%s] ❌ 创建任务对象失败', [FormatDateTime('hh:nn:ss', Now)]));
+          ShowMessage('创建任务失败');
+        end;
+      except
+        on E: Exception do
+        begin
+          Memo1.Lines.Add(Format('[%s] ❌ 异常: %s', 
+            [FormatDateTime('hh:nn:ss', Now), E.Message]));
+          ShowMessage('创建任务时发生错误: ' + E.Message);
+        end;
+      end;
     end;
   finally
-    Free;
+    EditForm.Free;
   end;
 end;
 
 procedure TMainSyncForm.EditTask1Click(Sender: TObject);
+var
+  EditForm: TTaskEditForm;
 begin
   if not Assigned(FSelectedTask) then
   begin
@@ -401,20 +495,23 @@ begin
     Exit;
   end;
   
-  with TTaskEditForm.Create(Self) do
+  EditForm := TTaskEditForm.Create(Self, FDatabase);
   try
-    LoadTask(FSelectedTask);
-    if ShowModal = mrOk then
+    EditForm.LoadTask(FSelectedTask);
+    if EditForm.ShowModal = mrOk then
     begin
       FSelectedTask.Save;
       RefreshTaskList;
     end;
   finally
-    Free;
+    EditForm.Free;
   end;
 end;
 
 procedure TMainSyncForm.DeleteTask1Click(Sender: TObject);
+var
+  TaskID: Integer;
+  TaskName: string;
 begin
   if not Assigned(FSelectedTask) then
   begin
@@ -422,19 +519,58 @@ begin
     Exit;
   end;
   
-  if MessageDlg(Format('确定要删除任务 "%s" 吗？', [FSelectedTask.Name]), 
+  TaskName := FSelectedTask.Name;
+  TaskID := FSelectedTask.TaskID;
+  
+  if MessageDlg(Format('确定要删除任务 "%s" 吗？', [TaskName]), 
     mtConfirmation, [mbYes, mbNo], 0) = mrYes then
   begin
-    FRealtimeManager.StopRealtimeSync(FSelectedTask.ID);
-    FSyncEngine.RemoveTask(FSelectedTask);
-    // TODO: 从数据库删除
-    RefreshTaskList;
-    FSelectedTask := nil;
+    try
+      Memo1.Lines.Add(Format('[%s] 正在删除任务: %s (ID: %d)', 
+        [FormatDateTime('hh:nn:ss', Now), TaskName, TaskID]));
+      
+      // 停止实时同步
+      FRealtimeManager.StopRealtimeSync(TaskID);
+      Memo1.Lines.Add(Format('[%s] 已停止实时同步', [FormatDateTime('hh:nn:ss', Now)]));
+      
+      // 从内存删除
+      FSyncEngine.RemoveTask(FSelectedTask);
+      Memo1.Lines.Add(Format('[%s] 已从内存列表删除', [FormatDateTime('hh:nn:ss', Now)]));
+      
+      // 从数据库删除
+      if Assigned(FDatabase) and (TaskID > 0) then
+      begin
+        if FDatabase.DeleteSyncTask(TaskID) then
+        begin
+          Memo1.Lines.Add(Format('[%s] ✅ 已从数据库删除', [FormatDateTime('hh:nn:ss', Now)]));
+        end
+        else
+        begin
+          Memo1.Lines.Add(Format('[%s] ❌ 数据库删除失败', [FormatDateTime('hh:nn:ss', Now)]));
+          ShowMessage('数据库删除失败，任务仅从内存中移除');
+        end;
+      end
+      else
+      begin
+        Memo1.Lines.Add(Format('[%s] ⚠️ 数据库未连接或TaskID无效，跳过数据库删除', 
+          [FormatDateTime('hh:nn:ss', Now)]));
+      end;
+      
+      RefreshTaskList;
+      Memo1.Lines.Add(Format('[%s] ✅ 任务删除完成: %s', 
+        [FormatDateTime('hh:nn:ss', Now), TaskName]));
+        
+    except
+      on E: Exception do
+      begin
+        Memo1.Lines.Add(Format('[%s] ❌ 删除任务异常: %s', 
+          [FormatDateTime('hh:nn:ss', Now), E.Message]));
+        ShowMessage('删除任务时发生错误: ' + E.Message);
+      end;
+    end;
   end;
 end;
-
-procedure TMainSyncForm.Exit1Click(Sender: TObject);
-begin
+  FMinimizeToTray := False;
   Close;
 end;
 
@@ -540,6 +676,14 @@ end;
 procedure TMainSyncForm.Refresh2Click(Sender: TObject);
 begin
   RefreshTaskList;
+end;
+
+procedure TMainSyncForm.RealClose;
+begin
+  // 设置真正退出标志
+  FReallyClose := True;
+  // 关闭程序
+  Close;
 end;
 
 end.

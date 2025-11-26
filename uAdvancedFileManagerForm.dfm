@@ -1,4 +1,4 @@
-object frmAdvancedFileManager: TfrmAdvancedFileManager
+﻿object frmAdvancedFileManager: TfrmAdvancedFileManager
   Left = 0
   Top = 0
   Caption = '高级文件管理器'

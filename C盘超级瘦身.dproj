@@ -139,6 +139,11 @@
         </DCCReference>
         <DCCReference Include="uImageSecurity.pas"/>
         <DCCReference Include="uCleanupManager.pas"/>
+        <DCCReference Include="MainSyncForm.pas"/>
+        <DCCReference Include="uSyncSettingsBasic.pas">
+            <Form>frmSyncSettingsBasic</Form>
+            <FormType>dfm</FormType>
+        </DCCReference>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

@@ -1,3 +1,101 @@
-Embarcadero Delphi for Win32 compiler version 36.0
+﻿Embarcadero Delphi for Win64 compiler version 36.0
 Copyright (c) 1983,2024 Embarcadero Technologies, Inc.
-Fatal: F1026 File not found: 'C盘瘦�?dpr.dpr'
+uIconManager.pas(84) Hint: H2164 Variable 'Icon' is declared but never used in 'TIconManager.CreateSystemIcons'
+uIconManager.pas(17) Hint: H2219 Private symbol 'LoadIconFromFile' declared but never used
+uIconManager.pas(18) Hint: H2219 Private symbol 'CreateColoredIcon' declared but never used
+uAntiTamperPackage.pas(370) Hint: H2077 Value assigned to 'TAntiTamperPackage.UpgradeDatabase' never used
+FrameAboutMe.pas(131) Hint: H2164 Variable 'LogFile' is declared but never used in 'TFrameAboutMe.Create'
+FrameAboutMe.pas(172) Hint: H2164 Variable 'LogFile' is declared but never used in 'TFrameAboutMe.OnInitTimerTimer'
+FrameAboutMe.pas(195) Hint: H2164 Variable 'LogFile' is declared but never used in 'TFrameAboutMe.InitializeDataManager'
+FrameAboutMe.pas(332) Hint: H2164 Variable 'LogFile' is declared but never used in 'TFrameAboutMe.InitializeImageMappings'
+uAntiDebug.pas(63) Hint: H2164 Variable 'IsPresent' is declared but never used in 'TAntiDebug.CheckRemoteDebugger'
+uAntiDebug.pas(64) Hint: H2164 Variable 'ProcessHandle' is declared but never used in 'TAntiDebug.CheckRemoteDebugger'
+uAntiDebug.pas(92) Hint: H2164 Variable 'StartTick' is declared but never used in 'TAntiDebug.DetectTimingAnomaly'
+uAntiDebug.pas(93) Hint: H2164 Variable 'TimeDiff' is declared but never used in 'TAntiDebug.DetectTimingAnomaly'
+uAntiDebug.pas(115) Hint: H2164 Variable 'Context' is declared but never used in 'TAntiDebug.DetectHardwareBreakpoints'
+uAntiDebug.pas(116) Hint: H2164 Variable 'ThreadHandle' is declared but never used in 'TAntiDebug.DetectHardwareBreakpoints'
+uAntiDebug.pas(181) Hint: H2164 Variable 'NtSetInformationProcess' is declared but never used in 'TAntiDebug.ProtectProcess'
+uAntiDebug.pas(182) Hint: H2164 Variable 'ProcessInformation' is declared but never used in 'TAntiDebug.ProtectProcess'
+uAntiDebug.pas(183) Hint: H2164 Variable 'NtDllHandle' is declared but never used in 'TAntiDebug.ProtectProcess'
+uAntiDebug.pas(33) Hint: H2219 Private symbol 'GetTickCountDiff' declared but never used
+uCleanupManager.pas(33) Hint: H2219 Private symbol 'GetRecycleBinPath' declared but never used
+uAdvancedFileManager.pas(240) Warning: W1002 Symbol 'TFileAttributes' is specific to a platform
+uAdvancedFileManager.pas(240) Warning: W1002 Symbol 'TFileAttributes' is specific to a platform
+uAdvancedFileManager.pas(260) Warning: W1002 Symbol 'TFileAttribute' is specific to a platform
+uAdvancedFileManager.pas(260) Warning: W1002 Symbol 'faHidden' is specific to a platform
+uAdvancedFileManager.pas(261) Warning: W1002 Symbol 'TFileAttribute' is specific to a platform
+uAdvancedFileManager.pas(262) Warning: W1002 Symbol 'TFileAttribute' is specific to a platform
+uAdvancedFileManager.pas(262) Warning: W1002 Symbol 'faSysFile' is specific to a platform
+uAdvancedFileManager.pas(264) Warning: W1002 Symbol 'TFileAttribute' is specific to a platform
+uAdvancedFileManager.pas(265) Warning: W1002 Symbol 'TFileAttribute' is specific to a platform
+uAdvancedFileManager.pas(266) Warning: W1002 Symbol 'TFileAttribute' is specific to a platform
+uAdvancedFileManager.pas(603) Hint: H2077 Value assigned to 'TAdvancedFileManager.BatchOperation' never used
+uAdvancedFileManager.pas(726) Hint: H2077 Value assigned to 'TAdvancedFileManager.AnalyzeDirectory' never used
+uAdvancedFileManagerForm.pas(177) Hint: H2219 Private symbol 'UpdateDuplicateInfo' declared but never used
+uAdvancedFileManagerForm.pas(180) Hint: H2219 Private symbol 'GetCurrentListView' declared but never used
+uAdvancedFileManagerForm.pas(181) Hint: H2219 Private symbol 'GetSelectedFiles' declared but never used
+uAdvancedFileManagerForm.pas(183) Hint: H2219 Private symbol 'FormatFileInfo' declared but never used
+uSystemCheck.pas(112) Hint: H2077 Value assigned to 'TSystemCheck.CanCreateSymbolicLink' never used
+uSystemCheck.pas(160) Hint: H2077 Value assigned to 'TSystemCheck.RequestElevation' never used
+uSystemCheck.pas(277) Hint: H2164 Variable 'ModuleSnapshot' is declared but never used in 'TSystemCheck.GetFileLockInfo'
+uSystemCheck.pas(278) Hint: H2164 Variable 'ModuleEntry' is declared but never used in 'TSystemCheck.GetFileLockInfo'
+uDiskAnalyzer.pas(516) Hint: H2077 Value assigned to 'TotalCleanable' never used
+uDiskAnalyzer.pas(496) Hint: H2077 Value assigned to 'TotalMigratable' never used
+uDiskAnalyzer.pas(489) Hint: H2077 Value assigned to 'TotalCleanable' never used
+uDiskAnalyzer.pas(488) Hint: H2077 Value assigned to 'TotalMigratable' never used
+uSmartMigrationWizard.pas(142) Hint: H2219 Private symbol 'FRecommendedPaths<uSmartMigrationWizard.TMigrationRecommendation>' declared but never used
+uSmartMigrationWizard.pas(174) Hint: H2219 Private symbol 'AddExecutionLog' declared but never used
+uLogManager.pas(637) Hint: H2077 Value assigned to 'TLogManager.ExportToText' never used
+uLogManager.pas(656) Hint: H2077 Value assigned to 'TLogManager.ExportToCSV' never used
+uLogManager.pas(680) Hint: H2077 Value assigned to 'TLogManager.ExportToHTML' never used
+uLogManager.pas(72) Hint: H2219 Private symbol 'ParseLogLevel' declared but never used
+uLogManager.pas(200) Hint: H2219 Private symbol 'OnLogEvent' declared but never used
+uPerformanceAnalyzer.pas(110) Hint: H2219 Private symbol 'PredictValue' declared but never used
+uPerformanceAnalyzer.pas(111) Hint: H2219 Private symbol 'CalculateCorrelation' declared but never used
+uSystemMonitorDialog.pas(223) Hint: H2219 Private symbol 'GetSelectedProcessID' declared but never used
+uFileHasher.pas(53) Hint: H2164 Variable 'HeadSize' is declared but never used in 'TFileHasher.ComputeSHA256'
+uFileHasher.pas(53) Hint: H2164 Variable 'TailSize' is declared but never used in 'TFileHasher.ComputeSHA256'
+uSystemOptimizer.pas(569) Hint: H2164 Variable 'ExitCode' is declared but never used in 'TSystemOptimizer.FlushDNSCache'
+uSystemOptimizer.pas(133) Hint: H2219 Private symbol 'CleanWindowsCache' declared but never used
+uSystemOptimizer.pas(134) Hint: H2219 Private symbol 'CleanLogFiles' declared but never used
+uSystemOptimizer.pas(135) Hint: H2219 Private symbol 'CleanCustomPaths' declared but never used
+uSystemOptimizer.pas(138) Hint: H2219 Private symbol 'CleanRegistry' declared but never used
+uSystemOptimizer.pas(139) Hint: H2219 Private symbol 'OptimizeRegistrySize' declared but never used
+uSystemOptimizer.pas(140) Hint: H2219 Private symbol 'RemoveInvalidEntries' declared but never used
+uSystemOptimizer.pas(143) Hint: H2219 Private symbol 'OptimizeStartup' declared but never used
+uSystemOptimizer.pas(144) Hint: H2219 Private symbol 'DisableUnnecessaryStartupItems' declared but never used
+uSystemOptimizer.pas(145) Hint: H2219 Private symbol 'ScanStartupItems' declared but never used
+uSystemOptimizer.pas(148) Hint: H2219 Private symbol 'OptimizeServices' declared but never used
+uSystemOptimizer.pas(149) Hint: H2219 Private symbol 'DisableUnnecessaryServices' declared but never used
+uSystemOptimizer.pas(150) Hint: H2219 Private symbol 'ScanSystemServices' declared but never used
+uSystemOptimizer.pas(154) Hint: H2219 Private symbol 'ClearMemoryCache' declared but never used
+uSystemOptimizer.pas(155) Hint: H2219 Private symbol 'CompactWorkingSet' declared but never used
+uSystemOptimizer.pas(158) Hint: H2219 Private symbol 'OptimizeNetwork' declared but never used
+uSystemOptimizer.pas(160) Hint: H2219 Private symbol 'OptimizeTCPSettings' declared but never used
+uSystemOptimizer.pas(163) Hint: H2219 Private symbol 'RunSystemMaintenance' declared but never used
+uSystemOptimizer.pas(164) Hint: H2219 Private symbol 'CheckDiskErrors' declared but never used
+uSystemOptimizer.pas(165) Hint: H2219 Private symbol 'DefragmentDisk' declared but never used
+uSystemOptimizer.pas(166) Hint: H2219 Private symbol 'UpdateSystemFiles' declared but never used
+uSystemOptimizer.pas(171) Hint: H2219 Private symbol 'GetDirectorySize' declared but never used
+uSyncDatabase.pas(162) Hint: H2077 Value assigned to 'TSyncDatabase.Connect' never used
+uSyncSettingsBasic.pas(139) Warning: W1057 Implicit string cast from 'AnsiString' to 'string'
+uSyncSettingsBasic.pas(196) Warning: W1057 Implicit string cast from 'AnsiString' to 'string'
+uSyncSettingsBasic.pas(198) Warning: W1057 Implicit string cast from 'AnsiString' to 'string'
+uSyncSettingsBasic.pas(229) Warning: W1057 Implicit string cast from 'AnsiString' to 'string'
+uSyncSettingsBasic.pas(236) Warning: W1057 Implicit string cast from 'AnsiString' to 'string'
+uSyncSettingsBasic.pas(301) Warning: W1057 Implicit string cast from 'AnsiString' to 'string'
+uSyncSettingsBasic.pas(403) Warning: W1057 Implicit string cast from 'AnsiString' to 'string'
+uSyncSettingsBasic.pas(437) Warning: W1057 Implicit string cast from 'AnsiString' to 'string'
+uSyncSettingsBasic.pas(444) Warning: W1057 Implicit string cast from 'AnsiString' to 'string'
+uSyncSettingsBasic.pas(475) Warning: W1057 Implicit string cast from 'AnsiString' to 'string'
+uMain.pas(3303) Hint: H2077 Value assigned to 'RemainingBytes' never used
+uMain.pas(3588) Hint: H2164 Variable 'I' is declared but never used in 'TfrmMain.PerformOneKeyDiagnose'
+uMain.pas(3944) Hint: H2164 Variable 'ResultText' is declared but never used in 'TfrmMain.PerformSystemOptimization'
+uMain.pas(4076) Warning: W1036 Variable 'TempTime' might not have been initialized
+uMain.pas(312) Hint: H2219 Private symbol 'PerformOneKeyOptimize' declared but never used
+uMain.pas(315) Hint: H2219 Private symbol 'StartSystemMonitoring' declared but never used
+uMain.pas(317) Hint: H2219 Private symbol 'ShowSystemMonitorDialog' declared but never used
+uMain.pas(318) Hint: H2219 Private symbol 'ShowPerformanceAnalysisDialog' declared but never used
+uMain.pas(319) Hint: H2219 Private symbol 'PerformSystemOptimization' declared but never used
+uMain.pas(327) Hint: H2219 Private symbol 'ApplySuggestion' declared but never used
+21018 lines, 1.17 seconds, 9062304 bytes code, 1011432 bytes data.

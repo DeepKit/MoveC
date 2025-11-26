@@ -1,4 +1,4 @@
-unit uAdvancedFileManagerForm;
+﻿unit uAdvancedFileManagerForm;
 
 {
   高级文件管理界面 - Phase 2.1

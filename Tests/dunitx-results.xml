@@ -1,0 +1,224 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<test-results name="D:\_Progs\02Business\MoveC\Tests\SyncTests.exe" total="31" errors="1" failures="16" ignored="0" inconclusive="0" not-run="0" skipped="0" invalid="0" date="2025-11-27" time="2.195">
+  <culture-info current-culture="en" current-uiculture="en" />
+  <test-suite type="Assembly" name="SyncTests.exe" executed="true" result="Failure" success="False" time="2.195" asserts="0">
+    <results>
+        <test-suite type="Namespace" name="TestSyncDatabase" executed="true" result="Failure" success="False" time="0.065" asserts="0" >
+          <results>
+              <test-suite type="Fixture" name="TTestSyncDatabase" executed="True" result="Failure" success="False" time="0.065" >
+                <results>
+                  <test-case name="TestDatabaseConnection" executed="True" result="Success" success="True" time="0.007" asserts="0" />
+                  <test-case name="TestCreateSyncTask" executed="True" result="Failure" success="False" time="0.005" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Condition is False when True expected. [搴旇杩斿洖鏈夋晥鐨?TaskID] ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                  <test-case name="TestUpdateSyncTask" executed="True" result="Failure" success="False" time="0.005" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Expected [Updated Name] but got [] 浠诲姟鍚嶇О搴旇琚洿鏂? ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                  <test-case name="TestDeleteSyncTask" executed="True" result="Success" success="True" time="0.007" asserts="0" />
+                  <test-case name="TestGetSyncTask" executed="True" result="Failure" success="False" time="0.006" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Expected [Test Task] but got [] 浠诲姟鍚嶇О搴旇鍖归厤 ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                  <test-case name="TestGetAllSyncTasks" executed="True" result="Failure" success="False" time="0.005" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Expected [2] but got [1] 搴旇杩斿洖 2 涓换鍔? ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                  <test-case name="TestTaskPersistence" executed="True" result="Failure" success="False" time="0.013" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Expected [Persistent Task] but got [] 閲嶆柊鎵撳紑鍚庝换鍔″簲璇ヤ粛鐒跺瓨鍦? ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                </results>
+              </test-suite>
+          </results>
+        </test-suite>
+        <test-suite type="Namespace" name="TestSyncExecution" executed="true" result="Failure" success="False" time="1.212" asserts="0" >
+          <results>
+              <test-suite type="Fixture" name="TTestSyncExecution" executed="True" result="Failure" success="False" time="1.212" >
+                <results>
+                  <test-case name="TestBasicSync" executed="True" result="Failure" success="False" time="0.006" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Condition is False when True expected. [鍚屾搴旇瀹屾垚] ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                  <test-case name="TestIncrementalSync" executed="True" result="Success" success="True" time="1.118" asserts="0" />
+                  <test-case name="TestIgnoreRules" executed="True" result="Success" success="True" time="0.003" asserts="0" />
+                  <test-case name="TestSubdirectorySync" executed="True" result="Success" success="True" time="0.004" asserts="0" />
+                  <test-case name="TestEmptyDirectoryHandling" executed="True" result="Success" success="True" time="0.001" asserts="0" />
+                  <test-case name="TestNonExistentSource" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                </results>
+              </test-suite>
+          </results>
+        </test-suite>
+        <test-suite type="Namespace" name="TestSyncLocalCore" executed="true" result="Failure" success="False" time="0.854" asserts="0" >
+          <results>
+              <test-suite type="Fixture" name="TTestSyncLocalCore" executed="True" result="Failure" success="False" time="0.854" >
+                <results>
+                  <test-case name="TestDatabaseCreation.syncLocal.db" executed="True" result="Success" success="True" time="0.007" asserts="0" />
+                  <test-case name="TestDatabaseTablesExist" executed="True" result="Success" success="True" time="0.001" asserts="0" />
+                  <test-case name="TestCreateSyncTask" executed="True" result="Failure" success="False" time="0.000" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Condition is False when True expected. [搴旇杩斿洖鏈夋晥鐨?TaskID] ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                  <test-case name="TestGetEnabledTasks" executed="True" result="Failure" success="False" time="0.002" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Expected [1] but got [0] 搴旇鍙繑鍥炰竴涓惎鐢ㄧ殑浠诲姟 ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                  <test-case name="TestTaskEnableDisable" executed="True" result="Success" success="True" time="0.001" asserts="0" />
+                  <test-case name="TestManualSyncExecution" executed="True" result="Success" success="True" time="0.003" asserts="0" />
+                  <test-case name="TestIncrementalSync" executed="True" result="Success" success="True" time="0.003" asserts="0" />
+                  <test-case name="TestSyncWithIgnoreRules" executed="True" result="Success" success="True" time="0.002" asserts="0" />
+                  <test-case name="TestFileSystemWatcherInit" executed="True" result="Success" success="True" time="0.000" asserts="0" />
+                  <test-case name="TestFileChangeDetection" executed="True" result="Error" success="False" time="0.726" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Thread Error: 句柄无效。 (6) ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                  <test-case name="TestSyncHistoryCreation" executed="True" result="Failure" success="False" time="0.001" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Condition is False when True expected. [搴旇杩斿洖鏈夋晥鐨勫巻鍙茶褰旾D] ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                  <test-case name="TestSyncHistoryRetrieval" executed="True" result="Failure" success="False" time="0.001" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Expected [2] but got [0] 搴旇杩斿洖2鏉″巻鍙茶褰? ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                </results>
+              </test-suite>
+          </results>
+        </test-suite>
+        <test-suite type="Namespace" name="TestSyncTask" executed="true" result="Failure" success="False" time="0.063" asserts="0" >
+          <results>
+              <test-suite type="Fixture" name="TTestSyncTask" executed="True" result="Failure" success="False" time="0.063" >
+                <results>
+                  <test-case name="TestCreateTaskWithDatabase" executed="True" result="Failure" success="False" time="0.000" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Condition is False when True expected. [鏂颁换鍔＄殑 TaskID 搴旇鏄?0] ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                  <test-case name="TestTaskSaveToDatabase" executed="True" result="Failure" success="False" time="0.000" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Condition is False when True expected. [淇濆瓨鍚庡簲璇ユ湁鏈夋晥鐨?TaskID] ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                  <test-case name="TestTaskLoadFromDatabase" executed="True" result="Failure" success="False" time="0.000" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Expected [Test Load Task] but got [] 浠诲姟鍚嶇О搴旇鍖归厤 ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                  <test-case name="TestTaskSaveAndReload" executed="True" result="Failure" success="False" time="0.001" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Expected [Save and Reload Test] but got [] 閲嶆柊鍔犺浇鍚庢暟鎹簲璇ヤ竴鑷? ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                  <test-case name="TestTaskUpdatePersistence" executed="True" result="Failure" success="False" time="0.001" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Expected [Updated Name] but got [] 鏇存柊鍚庣殑鍚嶇О搴旇琚繚瀛? ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                  <test-case name="TestTaskWithoutDatabase" executed="True" result="Failure" success="False" time="0.000" asserts="0" >
+                    <failure>
+                      <message>
+                        <![CDATA[ Expected [0] but got [-1] 娌℃湁鏁版嵁搴撴椂 TaskID 搴旇淇濇寔 0 ]]>
+                      </message>
+                      <stack-trace>
+                        <![CDATA[  ]]>
+                      </stack-trace>
+                    </failure>
+                  </test-case>
+                </results>
+              </test-suite>
+          </results>
+        </test-suite>
+    </results>
+  </test-suite>
+</test-results>

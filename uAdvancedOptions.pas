@@ -1,4 +1,4 @@
-unit uAdvancedOptions;
+﻿unit uAdvancedOptions;
 
 {
   高级选项/设置对话框 - Advanced Options Dialog

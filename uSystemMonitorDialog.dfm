@@ -1,4 +1,4 @@
-object frmSystemMonitorDialog: TfrmSystemMonitorDialog
+﻿object frmSystemMonitorDialog: TfrmSystemMonitorDialog
   Left = 0
   Top = 0
   Caption = #31995#32479#30417#25511#22120

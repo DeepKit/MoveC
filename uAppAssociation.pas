@@ -1,4 +1,4 @@
-unit uAppAssociation;
+﻿unit uAppAssociation;
 
 interface
 

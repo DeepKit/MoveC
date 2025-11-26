@@ -1,4 +1,4 @@
-unit uCleanupDialog;
+﻿unit uCleanupDialog;
 
 interface
 

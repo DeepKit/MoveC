@@ -1,4 +1,4 @@
-unit uSyncHistory;
+﻿unit uSyncHistory;
 
 interface
 
@@ -14,6 +14,10 @@ type
     lvHistory: TListView;
     btnClose: TButton;
     btnRefresh: TButton;
+    procedure FormShow(Sender: TObject);
+    procedure FormDestroy(Sender: TObject);
+    procedure cbTasksChange(Sender: TObject);
+    procedure btnRefreshClick(Sender: TObject);
   private
     FConn: TFDConnection;
     FTaskId: string;
@@ -23,10 +27,6 @@ type
     procedure LoadHistory;
   public
     class procedure ShowHistory(AOwner: TComponent; const ATaskId: string = ''); static;
-    procedure FormShow(Sender: TObject);
-    procedure FormDestroy(Sender: TObject);
-    procedure cbTasksChange(Sender: TObject);
-    procedure btnRefreshClick(Sender: TObject);
   end;
 
 implementation
@@ -87,7 +87,8 @@ end;
 procedure TfrmSyncHistory.LoadTasks;
 var
   Q: TFDQuery;
-  Id, Name: string;
+  Id: Integer;
+  TaskName: string;
   I, IndexToSelect: Integer;
 begin
   cbTasks.Items.BeginUpdate;
@@ -103,14 +104,14 @@ begin
     Q := TFDQuery.Create(Self);
     try
       Q.Connection := FConn;
-      Q.SQL.Text := 'SELECT task_id, task_name FROM sync_tasks ORDER BY task_name';
+      Q.SQL.Text := 'SELECT id, name FROM sync_tasks ORDER BY name';
       Q.Open;
       while not Q.Eof do
       begin
-        Id := Q.FieldByName('task_id').AsString;
-        Name := Q.FieldByName('task_name').AsString;
-        cbTasks.Items.Add(Name);
-        FTaskIds.Add(Id);
+        Id := Q.FieldByName('id').AsInteger;
+        TaskName := Q.FieldByName('name').AsString;
+        cbTasks.Items.Add(TaskName);
+        FTaskIds.Add(IntToStr(Id));
         Q.Next;
       end;
     finally
@@ -152,19 +153,19 @@ begin
       Q.Connection := FConn;
       if SelId <> '' then
       begin
-        Q.SQL.Text := 'SELECT sync_start_time, sync_end_time, status, error_message FROM sync_history WHERE task_id = :id ORDER BY sync_start_time DESC';
-        Q.ParamByName('id').AsString := SelId;
+        Q.SQL.Text := 'SELECT start_time, end_time, status, error_message FROM sync_history WHERE task_id = :id ORDER BY start_time DESC';
+        Q.ParamByName('id').AsInteger := StrToIntDef(SelId, 0);
       end
       else
       begin
-        Q.SQL.Text := 'SELECT sync_start_time, sync_end_time, status, error_message FROM sync_history ORDER BY sync_start_time DESC';
+        Q.SQL.Text := 'SELECT start_time, end_time, status, error_message FROM sync_history ORDER BY start_time DESC';
       end;
       Q.Open;
       while not Q.Eof do
       begin
         It := lvHistory.Items.Add;
-        It.Caption := Q.FieldByName('sync_start_time').AsString;
-        It.SubItems.Add(Q.FieldByName('sync_end_time').AsString);
+        It.Caption := Q.FieldByName('start_time').AsString;
+        It.SubItems.Add(Q.FieldByName('end_time').AsString);
         It.SubItems.Add(Q.FieldByName('status').AsString);
         It.SubItems.Add(Q.FieldByName('error_message').AsString);
         Q.Next;

@@ -1,4 +1,4 @@
-unit uSyncSettings;
+﻿unit uSyncSettings;
 
 interface
 
@@ -22,6 +22,18 @@ type
     cbFilter: TComboBox;
     lblFilter: TLabel;
     btnHistory: TButton;
+    procedure FormCreate(Sender: TObject);
+    procedure FormDestroy(Sender: TObject);
+    procedure FormShow(Sender: TObject);
+    procedure btnSyncNowClick(Sender: TObject);
+    procedure btnNewClick(Sender: TObject);
+    procedure btnEditClick(Sender: TObject);
+    procedure btnDeleteClick(Sender: TObject);
+    procedure btnToggleEnableClick(Sender: TObject);
+    procedure cbFilterChange(Sender: TObject);
+    procedure btnHistoryClick(Sender: TObject);
+    procedure lvTasksDblClick(Sender: TObject);
+    procedure lvTasksKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
   private
     FEngine: uSyncEngine.TSyncEngine;
     FConn: TFDConnection;
@@ -43,19 +55,8 @@ type
     procedure InsertHistory(const T: uSyncEngine.TSyncTask; Success: Boolean; const Msg: string);
     procedure UpdateListStatuses(Sender: TObject);
   public
-    procedure FormCreate(Sender: TObject);
-    procedure FormDestroy(Sender: TObject);
-    procedure FormShow(Sender: TObject);
-    procedure btnSyncNowClick(Sender: TObject);
-    procedure btnNewClick(Sender: TObject);
-    procedure btnEditClick(Sender: TObject);
-    procedure btnDeleteClick(Sender: TObject);
-    procedure btnToggleEnableClick(Sender: TObject);
-    procedure cbFilterChange(Sender: TObject);
-    procedure btnHistoryClick(Sender: TObject);
-    procedure lvTasksDblClick(Sender: TObject);
-    procedure lvTasksKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     property Engine: TSyncEngine read FEngine write FEngine;
+    class procedure ShowSettings(AOwner: TComponent); static;
   end;
 
 
@@ -65,6 +66,9 @@ implementation
 
 procedure TfrmSyncSettings.FormCreate(Sender: TObject);
 begin
+  // 初始化同步引擎
+  FEngine := uSyncEngine.TSyncEngine.Create(Self);
+  
   // 准备筛选项
   cbFilter.Items.Clear;
   cbFilter.Items.Add('全部');
@@ -121,6 +125,10 @@ begin
   begin
     try FConn.Connected := False; except end;
     FreeAndNil(FConn);
+  end;
+  if Assigned(FEngine) then
+  begin
+    FreeAndNil(FEngine);
   end;
 end;
 
@@ -295,37 +303,39 @@ begin
   Q := TFDQuery.Create(Self);
   try
     Q.Connection := FConn;
-    // 创建表（若不存在）
+    // 创建表（若不存在）- 使用与uSyncDatabase一致的列名
     Q.SQL.Text :=
       'CREATE TABLE IF NOT EXISTS sync_tasks ('+
-      '  task_id TEXT PRIMARY KEY,'+
-      '  task_name TEXT NOT NULL,'+
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,'+
+      '  name TEXT NOT NULL,'+
       '  source_path TEXT NOT NULL,'+
       '  target_path TEXT NOT NULL,'+
-      '  sync_mode INTEGER NOT NULL,'+
-      '  is_enabled INTEGER NOT NULL DEFAULT 1,'+
-      '  preset_id TEXT,'+
+      '  sync_mode INTEGER NOT NULL DEFAULT 0,'+
+      '  conflict_strategy INTEGER NOT NULL DEFAULT 0,'+
+      '  is_enabled BOOLEAN NOT NULL DEFAULT 1,'+
       '  filter_rules TEXT,'+
-      '  last_sync_time TEXT,'+
-      '  last_sync_status TEXT,'+
-      '  last_error_message TEXT,'+
-      '  files_synced INTEGER DEFAULT 0,'+
-      '  bytes_synced INTEGER DEFAULT 0'+
+      '  preset_id INTEGER,'+
+      '  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,'+
+      '  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP'+
       ');';
     Q.ExecSQL;
 
     Q.SQL.Text :=
       'CREATE TABLE IF NOT EXISTS sync_history ('+
-      '  history_id TEXT PRIMARY KEY,'+
-      '  task_id TEXT NOT NULL,'+
-      '  sync_start_time TEXT,'+
-      '  sync_end_time TEXT,'+
-      '  status TEXT,'+
-      '  files_added INTEGER,'+
-      '  files_modified INTEGER,'+
-      '  files_deleted INTEGER,'+
-      '  bytes_transferred INTEGER,'+
-      '  error_message TEXT'+
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,'+
+      '  task_id INTEGER NOT NULL,'+
+      '  sync_type TEXT NOT NULL,'+
+      '  start_time DATETIME NOT NULL,'+
+      '  end_time DATETIME,'+
+      '  files_scanned INTEGER DEFAULT 0,'+
+      '  files_copied INTEGER DEFAULT 0,'+
+      '  files_updated INTEGER DEFAULT 0,'+
+      '  files_deleted INTEGER DEFAULT 0,'+
+      '  files_skipped INTEGER DEFAULT 0,'+
+      '  bytes_transferred INTEGER DEFAULT 0,'+
+      '  error_message TEXT,'+
+      '  status TEXT NOT NULL DEFAULT ''running'','+
+      '  created_at DATETIME DEFAULT CURRENT_TIMESTAMP'+
       ');';
     Q.ExecSQL;
   finally
@@ -337,6 +347,7 @@ procedure TfrmSyncSettings.LoadTasksFromDb;
 var
   Q: TFDQuery;
   T: uSyncEngine.TSyncTask;
+  PresetId: Integer;
 begin
   if not Assigned(FEngine) then Exit;
   if not Assigned(FConn) then EnsureDatabase;
@@ -346,23 +357,27 @@ begin
   Q := TFDQuery.Create(Self);
   try
     Q.Connection := FConn;
-    Q.SQL.Text := 'SELECT task_id, task_name, source_path, target_path, sync_mode, is_enabled, preset_id, filter_rules FROM sync_tasks';
+    Q.SQL.Text := 'SELECT id, name, source_path, target_path, sync_mode, is_enabled, preset_id, filter_rules FROM sync_tasks';
     Q.Open;
     while not Q.Eof do
     begin
       T := uSyncEngine.TSyncTask.Create;
-      T.TaskID := Q.FieldByName('task_id').AsInteger;
-      T.Name := Q.FieldByName('task_name').AsString;
+      T.TaskID := Q.FieldByName('id').AsInteger;
+      T.Name := Q.FieldByName('name').AsString;
       T.SourcePath := Q.FieldByName('source_path').AsString;
       T.TargetPath := Q.FieldByName('target_path').AsString;
       if Q.FieldByName('sync_mode').AsInteger = 0 then T.Mode := uSyncDatabase.smManual else T.Mode := uSyncDatabase.smRealtime;
-      T.Enabled := Q.FieldByName('is_enabled').AsInteger <> 0;
-      // 用 preset_id 存储分类
-      if SameText(Q.FieldByName('preset_id').AsString, 'Documents') then T.Category := uSyncDatabase.scDocuments
-      else if SameText(Q.FieldByName('preset_id').AsString, 'Code') then T.Category := uSyncDatabase.scCode
-      else if SameText(Q.FieldByName('preset_id').AsString, 'Media') then T.Category := uSyncDatabase.scMedia
-      else if SameText(Q.FieldByName('preset_id').AsString, 'Backup') then T.Category := uSyncDatabase.scBackup
-      else T.Category := uSyncDatabase.scCustom;
+      T.Enabled := Q.FieldByName('is_enabled').AsBoolean;
+      // 用 preset_id 存储分类 (INTEGER)
+      PresetId := Q.FieldByName('preset_id').AsInteger;
+      case PresetId of
+        1: T.Category := uSyncDatabase.scDocuments;
+        2: T.Category := uSyncDatabase.scCode;
+        3: T.Category := uSyncDatabase.scMedia;
+        4: T.Category := uSyncDatabase.scBackup;
+      else
+        T.Category := uSyncDatabase.scCustom;
+      end;
       T.IgnoreRulesText := Q.FieldByName('filter_rules').AsString;
       FEngine.AddTask(T);
       Q.Next;
@@ -385,35 +400,51 @@ end;
 procedure TfrmSyncSettings.UpsertTask(const T: uSyncEngine.TSyncTask);
 var
   Q: TFDQuery;
-  Cat: string;
+  Cat: Integer;
 begin
-  if T.TaskID = 0 then
-    T.TaskID := GetTickCount;
   case T.Category of
-    uSyncDatabase.scDocuments: Cat := 'Documents';
-    uSyncDatabase.scCode: Cat := 'Code';
-    uSyncDatabase.scMedia: Cat := 'Media';
-    uSyncDatabase.scBackup: Cat := 'Backup';
-  else Cat := 'Custom';
+    uSyncDatabase.scDocuments: Cat := 1;
+    uSyncDatabase.scCode: Cat := 2;
+    uSyncDatabase.scMedia: Cat := 3;
+    uSyncDatabase.scBackup: Cat := 4;
+  else Cat := 0;
   end;
 
   Q := TFDQuery.Create(Self);
   try
     Q.Connection := FConn;
-    Q.SQL.Text := 'INSERT INTO sync_tasks (task_id, task_name, source_path, target_path, sync_mode, is_enabled, preset_id, filter_rules) '+
-                  'VALUES (:id, :name, :src, :dst, :mode, :ena, :cat, :rules) '+
-                  'ON CONFLICT(task_id) DO UPDATE SET '+
-                  'task_name = excluded.task_name, source_path = excluded.source_path, target_path = excluded.target_path, '+
-                  'sync_mode = excluded.sync_mode, is_enabled = excluded.is_enabled, preset_id = excluded.preset_id, filter_rules = excluded.filter_rules';
-    Q.ParamByName('id').AsInteger := T.TaskID;
-    Q.ParamByName('name').AsString := T.Name;
-    Q.ParamByName('src').AsString := T.SourcePath;
-    Q.ParamByName('dst').AsString := T.TargetPath;
-    Q.ParamByName('mode').AsInteger := Ord(T.Mode);
-    Q.ParamByName('ena').AsInteger := Ord(T.Enabled);
-    Q.ParamByName('cat').AsString := Cat;
-    Q.ParamByName('rules').AsString := T.IgnoreRulesText;
-    Q.ExecSQL;
+    if T.TaskID = 0 then
+    begin
+      // 新建任务
+      Q.SQL.Text := 'INSERT INTO sync_tasks (name, source_path, target_path, sync_mode, is_enabled, preset_id, filter_rules) '+
+                    'VALUES (:name, :src, :dst, :mode, :ena, :cat, :rules)';
+      Q.ParamByName('name').AsString := T.Name;
+      Q.ParamByName('src').AsString := T.SourcePath;
+      Q.ParamByName('dst').AsString := T.TargetPath;
+      Q.ParamByName('mode').AsInteger := Ord(T.Mode);
+      Q.ParamByName('ena').AsBoolean := T.Enabled;
+      Q.ParamByName('cat').AsInteger := Cat;
+      Q.ParamByName('rules').AsString := T.IgnoreRulesText;
+      Q.ExecSQL;
+      // 获取新生成的ID
+      T.TaskID := FConn.GetLastAutoGenValue('sync_tasks');
+    end
+    else
+    begin
+      // 更新现有任务
+      Q.SQL.Text := 'UPDATE sync_tasks SET name = :name, source_path = :src, target_path = :dst, '+
+                    'sync_mode = :mode, is_enabled = :ena, preset_id = :cat, filter_rules = :rules, '+
+                    'updated_at = CURRENT_TIMESTAMP WHERE id = :id';
+      Q.ParamByName('id').AsInteger := T.TaskID;
+      Q.ParamByName('name').AsString := T.Name;
+      Q.ParamByName('src').AsString := T.SourcePath;
+      Q.ParamByName('dst').AsString := T.TargetPath;
+      Q.ParamByName('mode').AsInteger := Ord(T.Mode);
+      Q.ParamByName('ena').AsBoolean := T.Enabled;
+      Q.ParamByName('cat').AsInteger := Cat;
+      Q.ParamByName('rules').AsString := T.IgnoreRulesText;
+      Q.ExecSQL;
+    end;
   finally
     Q.Free;
   end;
@@ -427,7 +458,7 @@ begin
   Q := TFDQuery.Create(Self);
   try
     Q.Connection := FConn;
-    Q.SQL.Text := 'DELETE FROM sync_tasks WHERE task_id = :id';
+    Q.SQL.Text := 'DELETE FROM sync_tasks WHERE id = :id';
     Q.ParamByName('id').AsInteger := T.TaskID;
     Q.ExecSQL;
   finally
@@ -442,13 +473,13 @@ begin
   Q := TFDQuery.Create(Self);
   try
     Q.Connection := FConn;
-    Q.SQL.Text := 'INSERT INTO sync_history (history_id, task_id, sync_start_time, sync_end_time, status, error_message) '+
-                  'VALUES (:hid, :tid, :st, :et, :stt, :err)';
-    Q.ParamByName('hid').AsString := GUIDToString(TGUID.NewGuid);
+    Q.SQL.Text := 'INSERT INTO sync_history (task_id, sync_type, start_time, end_time, status, error_message) '+
+                  'VALUES (:tid, :stype, :st, :et, :stt, :err)';
     Q.ParamByName('tid').AsInteger := T.TaskID;
-    Q.ParamByName('st').AsString := DateTimeToStr(FLastStartTime);
-    Q.ParamByName('et').AsString := DateTimeToStr(Now);
-    Q.ParamByName('stt').AsString := IfThen(Success, 'Success', 'Failed');
+    Q.ParamByName('stype').AsString := 'manual';
+    Q.ParamByName('st').AsDateTime := FLastStartTime;
+    Q.ParamByName('et').AsDateTime := Now;
+    Q.ParamByName('stt').AsString := IfThen(Success, 'success', 'error');
     Q.ParamByName('err').AsString := Msg;
     Q.ExecSQL;
   finally
@@ -573,6 +604,18 @@ begin
   Task.Enabled := not Task.Enabled;
   UpsertTask(Task);
   LoadTasks;
+end;
+
+class procedure TfrmSyncSettings.ShowSettings(AOwner: TComponent);
+var
+  Form: TfrmSyncSettings;
+begin
+  Form := TfrmSyncSettings.Create(AOwner);
+  try
+    Form.ShowModal;
+  finally
+    Form.Free;
+  end;
 end;
 
 end.

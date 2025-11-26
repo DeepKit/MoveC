@@ -8,6 +8,8 @@ uses
 
 type
   TTrayStatus = (tsIdle, tsSyncing, tsError);
+  
+  TExitEvent = procedure of object;
 
   TTrayManager = class(TComponent)
   private
@@ -17,6 +19,7 @@ type
     FNotifyMsg: UINT;
     FPopupMenu: TPopupMenu;
     FIcon: TIcon;
+    FOnExit: TExitEvent;
     procedure WndProc(var Msg: TMessage);
     procedure CreateTrayIcon;
     procedure RemoveTrayIcon;
@@ -30,6 +33,7 @@ type
     procedure ShowMainWindow;
     procedure SetStatus(AStatus: TTrayStatus);
     procedure ShowBalloon(const ATitle, AText: string);
+    property OnExit: TExitEvent read FOnExit write FOnExit;
   end;
 
 implementation
@@ -150,7 +154,10 @@ end;
 
 procedure TTrayManager.MenuExitClick(Sender: TObject);
 begin
-  if Assigned(FMainForm) then
+  // 调用OnExit事件处理真正退出
+  if Assigned(FOnExit) then
+    FOnExit
+  else if Assigned(FMainForm) then
     FMainForm.Close;
 end;
 

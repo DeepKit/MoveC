@@ -1,4 +1,4 @@
-unit uLoggerSettingsForm;
+﻿unit uLoggerSettingsForm;
 
 interface
 

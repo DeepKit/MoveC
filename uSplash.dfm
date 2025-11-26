@@ -1,4 +1,4 @@
-object frmSplash: TfrmSplash
+﻿object frmSplash: TfrmSplash
   Left = 0
   Top = 0
   BorderStyle = bsNone

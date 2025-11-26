@@ -1,4 +1,4 @@
-unit frmLockingProcesses;
+﻿unit frmLockingProcesses;
 
 interface
 

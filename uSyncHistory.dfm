@@ -1,4 +1,4 @@
-object frmSyncHistory: TfrmSyncHistory
+﻿object frmSyncHistory: TfrmSyncHistory
   Caption = '同步历史记录'
   ClientHeight = 460
   ClientWidth = 720

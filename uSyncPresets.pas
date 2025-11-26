@@ -1,4 +1,4 @@
-unit uSyncPresets;
+﻿unit uSyncPresets;
 
 interface
 

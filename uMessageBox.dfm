@@ -1,4 +1,4 @@
-object frmMessageBox: TfrmMessageBox
+﻿object frmMessageBox: TfrmMessageBox
   Left = 0
   Top = 0
   BorderStyle = bsDialog

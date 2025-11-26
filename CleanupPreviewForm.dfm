@@ -1,4 +1,4 @@
-object frmCleanupPreview: TfrmCleanupPreview
+﻿object frmCleanupPreview: TfrmCleanupPreview
   Left = 0
   Top = 0
   Caption = '清理预览'

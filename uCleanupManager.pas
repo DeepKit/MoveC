@@ -1,4 +1,4 @@
-unit uCleanupManager;
+﻿unit uCleanupManager;
 
 interface
 

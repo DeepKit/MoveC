@@ -1,4 +1,4 @@
-object frmDuplicateFiles: TfrmDuplicateFiles
+﻿object frmDuplicateFiles: TfrmDuplicateFiles
   Left = 0
   Top = 0
   Caption = '重复文件检测器'

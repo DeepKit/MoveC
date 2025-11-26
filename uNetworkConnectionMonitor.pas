@@ -1,4 +1,4 @@
-unit uNetworkConnectionMonitor;
+﻿unit uNetworkConnectionMonitor;
 
 interface
 

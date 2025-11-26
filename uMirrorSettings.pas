@@ -1,4 +1,4 @@
-unit uMirrorSettings;
+﻿unit uMirrorSettings;
 
 interface
 

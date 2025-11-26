@@ -1,4 +1,4 @@
-unit uStrings;
+﻿unit uStrings;
 
 interface
 

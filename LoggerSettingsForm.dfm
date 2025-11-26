@@ -1,4 +1,4 @@
-object frmLoggerSettings: TfrmLoggerSettings
+﻿object frmLoggerSettings: TfrmLoggerSettings
   Left = 0
   Top = 0
   Caption = '日志设置'

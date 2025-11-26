@@ -3,7 +3,8 @@ unit uNetworkPathManager;
 interface
 
 uses
-  Winapi.Windows, Winapi.WinSock, Winapi.WinInet, System.SysUtils, System.Classes,
+  Winapi.Windows, Winapi.WinSock, Winapi.WinInet, Winapi.IpHlpApi, Winapi.IpTypes, Winapi.IpExport,
+  System.SysUtils, System.Classes, System.IOUtils,
   System.Generics.Collections, System.SyncObjs, System.Threading, System.Diagnostics;
 
 type
@@ -49,7 +50,6 @@ type
     function PingHost(const AHostName: string; const ATimeout: Cardinal): Integer;
     function TestSMBConnection(const AServer, AShare: string): TNetworkTestResult;
     procedure MonitorPath(const APath: string);
-    procedure StopMonitoring(const APath: string);
     procedure UpdateConnectionStatus(const APath: string; const AStatus: TNetworkConnectionStatus);
     
   public
@@ -249,35 +249,55 @@ end;
 
 function TNetworkPathManager.PingHost(const AHostName: string; const ATimeout: Cardinal): Integer;
 var
-  hIcmp: THandle;
-  pIpe: PIP_OPTION_INFORMATION;
-  pIeno: PIP_ECHO_REPLY;
-  dwRet: DWORD;
-  dwSize: DWORD;
+  Stopwatch: TStopwatch;
+  HostEnt: PHostEnt;
+  HostName: AnsiString;
+  Sock: TSocket;
+  SockAddr: TSockAddrIn;
+  TimeVal: TTimeVal;
+  FDSet: TFDSet;
+  Mode: u_long;
 begin
   Result := -1;
   
-  hIcmp := IcmpCreateFile;
-  if hIcmp = INVALID_HANDLE_VALUE then
+  // 简化实现：使用TCP连接测试而不是ICMP
+  // 解析主机名
+  HostName := AnsiString(AHostName);
+  HostEnt := gethostbyname(PAnsiChar(HostName));
+  if HostEnt = nil then
+    Exit;
+    
+  Sock := socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if Sock = INVALID_SOCKET then
     Exit;
     
   try
-    dwSize := SizeOf(IP_ECHO_REPLY) + 8;
-    GetMem(pIeno, dwSize);
-    try
-      pIpe := AllocMem(SizeOf(IP_OPTION_INFORMATION));
-      try
-        dwRet := IcmpSendEcho(hIcmp, inet_addr(PChar(AHostName)), nil, 0, pIpe^, pIeno^, dwSize, ATimeout);
-        if dwRet > 0 then
-          Result := pIeno.RoundTripTime;
-      finally
-        FreeMem(pIpe);
-      end;
-    finally
-      FreeMem(pIeno);
+    // 设置非阻塞模式
+    Mode := 1;
+    ioctlsocket(Sock, FIONBIO, Mode);
+    
+    // 设置目标地址
+    FillChar(SockAddr, SizeOf(SockAddr), 0);
+    SockAddr.sin_family := AF_INET;
+    SockAddr.sin_port := htons(80); // 尝试HTTP端口
+    SockAddr.sin_addr.S_addr := PDWORD(HostEnt^.h_addr_list^)^;
+    
+    Stopwatch := TStopwatch.StartNew;
+    connect(Sock, TSockAddr(SockAddr), SizeOf(SockAddr));
+    
+    // 等待连接完成
+    FD_ZERO(FDSet);
+    FD_SET(Sock, FDSet);
+    TimeVal.tv_sec := ATimeout div 1000;
+    TimeVal.tv_usec := (ATimeout mod 1000) * 1000;
+    
+    if select(0, nil, @FDSet, nil, @TimeVal) > 0 then
+    begin
+      Stopwatch.Stop;
+      Result := Stopwatch.ElapsedMilliseconds;
     end;
   finally
-    IcmpCloseHandle(hIcmp);
+    closesocket(Sock);
   end;
 end;
 
@@ -285,6 +305,8 @@ function TNetworkPathManager.TestSMBConnection(const AServer, AShare: string): T
 var
   SharePath: string;
   Stopwatch: TStopwatch;
+  FindHandle: THandle;
+  FindData: TWin32FindData;
 begin
   Result.Success := False;
   Result.ResponseTime := 0;
@@ -295,10 +317,10 @@ begin
   
   try
     // 尝试枚举共享目录
-    var FindHandle := FindFirstFile(PChar(SharePath + '\*'), TWin32FindData);
+    FindHandle := FindFirstFile(PChar(SharePath + '\*'), FindData);
     if FindHandle <> INVALID_HANDLE_VALUE then
     begin
-      Windows.FindClose(FindHandle);
+      Winapi.Windows.FindClose(FindHandle);
       Result.Success := True;
     end
     else

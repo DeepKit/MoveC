@@ -4,7 +4,7 @@ interface
 
 uses
   System.SysUtils, System.Classes, System.Generics.Collections, System.IOUtils,
-  System.SyncObjs, System.Masks, uFileSystemWatcher, uSyncDatabase;
+  System.SyncObjs, System.Masks, Winapi.Windows, uFileSystemWatcher, uSyncDatabase;
 
 type
   TSyncProgress = record
@@ -48,6 +48,7 @@ type
     FIgnoreRulesText: string;
     FIgnoreMasks: TArray<string>;
     procedure HandleFsChangesInternal(const Changes: TArray<TFileChange>);
+    procedure HandleFsChangesEvent(Sender: TObject; const Changes: TArray<TFileChange>);
     procedure StartRealtime;
     procedure StopRealtime;
     procedure ExecuteIncremental(const Changes: TArray<TFileChange>);
@@ -90,6 +91,7 @@ type
   private
     FTasks: TObjectList<TSyncTask>;
     FDatabase: TSyncDatabase;
+    function GetTaskCount: Integer;
   public
     constructor Create(AOwner: TComponent); override;
     constructor CreateWithDatabase(AOwner: TComponent; ADatabase: TSyncDatabase);
@@ -97,6 +99,7 @@ type
     function AddTask(ATask: TSyncTask): Integer;
     procedure RemoveTask(ATask: TSyncTask);
     property Tasks: TObjectList<TSyncTask> read FTasks;
+    property TaskCount: Integer read GetTaskCount;
     property Database: TSyncDatabase read FDatabase write FDatabase;
     procedure EnsurePresets;
     procedure LoadTasksFromDatabase;
@@ -280,26 +283,60 @@ end;
 procedure TSyncTask.SaveToDatabase;
 var
   DBTask: uSyncDatabase.TSyncTask;
+  NewID: Integer;
 begin
-  if not Assigned(FDatabase) then Exit;
-  
-  DBTask.TaskID := FTaskID;
-  DBTask.Name := FName;
-  DBTask.SourcePath := FSourcePath;
-  DBTask.TargetPath := FTargetPath;
-  DBTask.SyncMode := FMode;
-  DBTask.ConflictStrategy := FConflictStrategy;
-  DBTask.IsEnabled := FEnabled;
-  DBTask.FilterRules := FFilterRules;
-  DBTask.PresetID := FPresetID;
-  
-  if FTaskID > 0 then
+  if not Assigned(FDatabase) then 
   begin
-    FDatabase.UpdateSyncTask(DBTask);
-  end
-  else
-  begin
-    FTaskID := FDatabase.CreateSyncTask(DBTask);
+    OutputDebugString('SaveToDatabase: Database not assigned');
+    Exit;
+  end;
+  
+  try
+    OutputDebugString(PChar('SaveToDatabase: Preparing task data: ' + FName));
+    
+    DBTask.TaskID := FTaskID;
+    DBTask.Name := FName;
+    DBTask.SourcePath := FSourcePath;
+    DBTask.TargetPath := FTargetPath;
+    DBTask.SyncMode := FMode;
+    DBTask.ConflictStrategy := FConflictStrategy;
+    DBTask.IsEnabled := FEnabled;
+    DBTask.FilterRules := FFilterRules;
+    DBTask.PresetID := FPresetID;
+    
+    OutputDebugString(PChar('SaveToDatabase: Task data prepared, TaskID: ' + IntToStr(FTaskID)));
+    
+    if FTaskID > 0 then
+    begin
+      OutputDebugString(PChar('SaveToDatabase: Updating task ' + IntToStr(FTaskID)));
+      if not FDatabase.UpdateSyncTask(DBTask) then
+      begin
+        OutputDebugString('SaveToDatabase: Update failed');
+        Exit;
+      end;
+      OutputDebugString(PChar('SaveToDatabase: Task updated successfully'));
+    end
+    else
+    begin
+      OutputDebugString(PChar('SaveToDatabase: Creating new task: ' + FName));
+      NewID := FDatabase.CreateSyncTask(DBTask);
+      OutputDebugString(PChar('SaveToDatabase: CreateSyncTask returned: ' + IntToStr(NewID)));
+      
+      if NewID > 0 then
+      begin
+        FTaskID := NewID;
+        OutputDebugString(PChar('SaveToDatabase: Task created with ID ' + IntToStr(NewID)));
+      end
+      else
+      begin
+        OutputDebugString('SaveToDatabase: Failed to create task - returned -1');
+      end;
+    end;
+  except
+    on E: Exception do
+    begin
+      OutputDebugString(PChar('SaveToDatabase: Exception: ' + E.Message));
+    end;
   end;
 end;
 
@@ -321,6 +358,11 @@ begin
     FFilterRules := DBTask.FilterRules;
     FPresetID := DBTask.PresetID;
   end;
+end;
+
+procedure TSyncTask.HandleFsChangesEvent(Sender: TObject; const Changes: TArray<TFileChange>);
+begin
+  HandleFsChangesInternal(Changes);
 end;
 
 procedure TSyncTask.HandleFsChangesInternal(const Changes: TArray<TFileChange>);
@@ -398,10 +440,7 @@ begin
   FWatcher.Recursive := FRealtimeRecursive;
   FWatcher.IntervalMs := FRealtimeIntervalMs;
   FWatcher.Mode := FWatchMode;
-  FWatcher.OnChange := TProc<TArray<TFileChange>>(procedure(const Changes: TArray<TFileChange>)
-  begin
-    HandleFsChangesInternal(Changes);
-  end);
+  FWatcher.OnChangeEvent := HandleFsChangesEvent;
   FWatcher.Start;
   FStatus := uSyncDatabase.ssRunning;
 end;
@@ -545,29 +584,15 @@ begin
   FTasks.Remove(ATask);
 end;
 
-procedure TSyncEngine.EnsurePresets;
-  function NewTask(const AName, Src, Dst: string; Cat: uSyncDatabase.TSyncCategory): TSyncTask;
-  begin
-    if Assigned(FDatabase) then
-      Result := TSyncTask.CreateWithDatabase(FDatabase)
-    else
-      Result := TSyncTask.Create;
-    Result.Name := AName;
-    Result.SourcePath := Src;
-    Result.TargetPath := Dst;
-    Result.Mode := uSyncDatabase.smManual;
-    Result.Category := Cat;
-    Result.Enabled := True;
-  end;
+function TSyncEngine.GetTaskCount: Integer;
 begin
-  if FTasks.Count > 0 then Exit;
-  // 6个预置任务，分布于5个分类
-  FTasks.Add(NewTask('文档备份', 'C:\Users\Public\Documents', 'D:\Backup\Documents', uSyncDatabase.scDocuments));
-  FTasks.Add(NewTask('代码同步-Delphi', 'D:\SynologyDrive\Progs\_Delphi', 'F:\Backup\Delphi', uSyncDatabase.scCode));
-  FTasks.Add(NewTask('代码同步-Python', 'D:\Code\Python', 'F:\Backup\Python', uSyncDatabase.scCode));
-  FTasks.Add(NewTask('媒体整理-图片', 'D:\Pictures', 'F:\MediaBackup\Pictures', uSyncDatabase.scMedia));
-  FTasks.Add(NewTask('媒体整理-视频', 'D:\Videos', 'F:\MediaBackup\Videos', uSyncDatabase.scMedia));
-  FTasks.Add(NewTask('项目归档', 'D:\Projects', 'F:\Archives\Projects', uSyncDatabase.scBackup));
+  Result := FTasks.Count;
+end;
+
+procedure TSyncEngine.EnsurePresets;
+begin
+  // 移除mock数据，仅从数据库加载任务
+  // 这个方法现在为空，所有任务都通过数据库持久化
 end;
 
 procedure TSyncEngine.LoadTasksFromDatabase;
@@ -576,10 +601,19 @@ var
   DBTask: uSyncDatabase.TSyncTask;
   Task: TSyncTask;
 begin
-  if not Assigned(FDatabase) then Exit;
+  if not Assigned(FDatabase) then 
+  begin
+    OutputDebugString('LoadTasksFromDatabase: Database not assigned');
+    Exit;
+  end;
   
+  OutputDebugString('LoadTasksFromDatabase: Clearing existing tasks');
   FTasks.Clear;
+  
+  OutputDebugString('LoadTasksFromDatabase: Loading from database');
   DBTasks := FDatabase.GetAllSyncTasks;
+  
+  OutputDebugString(PChar('LoadTasksFromDatabase: Found ' + IntToStr(Length(DBTasks)) + ' tasks in database'));
   
   for DBTask in DBTasks do
   begin
@@ -587,7 +621,10 @@ begin
     Task.FTaskID := DBTask.TaskID;
     Task.LoadFromDatabase;
     FTasks.Add(Task);
+    OutputDebugString(PChar('LoadTasksFromDatabase: Loaded task ' + IntToStr(DBTask.TaskID) + ': ' + Task.Name));
   end;
+  
+  OutputDebugString(PChar('LoadTasksFromDatabase: Total loaded tasks: ' + IntToStr(FTasks.Count)));
 end;
 
 procedure TSyncEngine.SaveTasksToDatabase;

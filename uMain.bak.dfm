@@ -1,4 +1,4 @@
-object frmMain: TfrmMain
+﻿object frmMain: TfrmMain
   Left = 0
   Top = 0
   Caption = 'C'#30424#28411#36523#31070#22120' - '#26234#33021#30446#24405#36801#31227#19987#23478

@@ -1,4 +1,4 @@
-object frmDuplicateFiles: TfrmDuplicateFiles
+﻿object frmDuplicateFiles: TfrmDuplicateFiles
   Left = 0
   Top = 0
   Caption = #37325#22797#25991#20214#26816#27979#22120

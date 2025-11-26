@@ -1,4 +1,4 @@
-unit uRestartManager;
+﻿unit uRestartManager;
 
 interface
 

@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>同步任务持久化数据流图</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .mermaid {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .check-point {
+            background: #e8f5e8;
+            border-left: 4px solid #27ae60;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .error-point {
+            background: #ffeaea;
+            border-left: 4px solid #e74c3c;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .flow-step {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .success { color: #27ae60; font-weight: bold; }
+        .error { color: #e74c3c; font-weight: bold; }
+        .warning { color: #f39c12; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 同步任务持久化数据流图</h1>
+        
+        <h2>📊 整体架构流程</h2>
+        <div class="mermaid">
+graph TD
+    A[用户界面层<br/>MainSyncForm] --> B[业务逻辑层<br/>uSyncEngine]
+    B --> C[数据访问层<br/>uSyncDatabase]
+    C --> D[数据存储层<br/>MoveC.db SQLite]
+    
+    A1[NewTask1Click] --> B1[TSyncTask.Save]
+    B1 --> C1[CreateSyncTask]
+    C1 --> D1[INSERT INTO sync_tasks]
+    
+    A2[程序启动] --> B2[LoadTasksFromDatabase]
+    B2 --> C2[GetAllSyncTasks]
+    C2 --> D2[SELECT FROM sync_tasks]
+        </div>
+
+        <h2>🆕 任务创建详细流程</h2>
+        <div class="mermaid">
+graph TD
+    Start([用户点击新建任务]) --> A[MainSyncForm.NewTask1Click]
+    A --> B[创建TaskEditForm]
+    B --> C{用户填写表单}
+    C -->|取消| End1([流程结束])
+    C -->|确定| D[TaskEditForm.CreateTask]
+    
+    D --> E{任务对象创建}
+    E -->|失败| Error1[❌ 创建任务对象失败]
+    E -->|成功| F[FSyncEngine.AddTask]
+    
+    F --> G[添加到内存列表]
+    G --> H[NewTask.Save]
+    H --> I[SaveToDatabase]
+    
+    I --> J{FTaskID > 0?}
+    J -->|是(更新)| K[UpdateSyncTask]
+    J -->|否(新建)| L[CreateSyncTask]
+    
+    L --> M{数据库连接}
+    M -->|失败| Error2[❌ 数据库连接失败]
+    M -->|成功| N[执行INSERT SQL]
+    
+    N --> O{SQL执行}
+    O -->|失败| Error3[❌ SQL执行失败]
+    O -->|成功| P[获取自增ID]
+    
+    P --> Q{ID > 0?}
+    Q -->|否| Error4[❌ ID获取失败]
+    Q -->|是| R[FTaskID := NewID]
+    
+    R --> S[✅ 保存成功]
+    S --> T[RefreshTaskList]
+    T --> End2([流程完成])
+    
+    K --> S
+    
+    style Start fill:#e1f5fe
+    style End1 fill:#f3e5f5
+    style End2 fill:#e8f5e8
+    style Error1 fill:#ffebee
+    style Error2 fill:#ffebee
+    style Error3 fill:#ffebee
+    style Error4 fill:#ffebee
+    style S fill:#e8f5e8
+        </div>
+
+        <h2>🔄 任务加载详细流程</h2>
+        <div class="mermaid">
+graph TD
+    Start([程序启动]) --> A[MainSyncForm.FormCreate]
+    A --> B[创建数据库对象]
+    B --> C{连接数据库}
+    C -->|失败| Error1[❌ 数据库连接失败]
+    C -->|成功| D[创建同步引擎]
+    
+    D --> E[LoadTasksFromDatabase]
+    E --> F[清空内存列表]
+    F --> G[GetAllSyncTasks]
+    
+    G --> H{执行查询}
+    H -->|失败| Error2[❌ 查询失败]
+    H -->|成功| I[遍历结果集]
+    
+    I --> J{有任务?}
+    J -->|否| K[✅ 加载0个任务]
+    J -->|是| L[创建TSyncTask对象]
+    
+    L --> M[LoadFromDatabase]
+    M --> N[添加到内存列表]
+    N --> O{还有任务?}
+    O -->|是| L
+    O -->|否| P[✅ 加载完成]
+    
+    K --> Q[LoadTasksToListView]
+    P --> Q
+    Q --> R[显示任务列表]
+    R --> End([流程完成])
+    
+    style Start fill:#e1f5fe
+    style End fill:#e8f5e8
+    style Error1 fill:#ffebee
+    style Error2 fill:#ffebee
+    style K fill:#fff3e0
+    style P fill:#e8f5e8
+        </div>
+
+        <h2>🔍 关键检查点</h2>
+        
+        <div class="check-point">
+            <h3>✅ 检查点1：数据库连接</h3>
+            <div class="flow-step">
+                <strong>位置：</strong>MainSyncForm.FormCreate()<br>
+                <strong>检查：</strong>FDatabase.Connected = True<br>
+                <strong>日志：</strong>"[成功] 数据库已连接"<br>
+                <strong>失败影响：</strong>所有持久化操作失败
+            </div>
+        </div>
+
+        <div class="check-point">
+            <h3>✅ 检查点2：任务对象创建</h3>
+            <div class="flow-step">
+                <strong>位置：</strong>TaskEditForm.CreateTask()<br>
+                <strong>检查：</strong>NewTask <> nil<br>
+                <strong>验证：</strong>必填字段完整<br>
+                <strong>失败影响：</strong>无法保存到数据库
+            </div>
+        </div>
+
+        <div class="check-point">
+            <h3>✅ 检查点3：SQL执行</h3>
+            <div class="flow-step">
+                <strong>位置：</strong>TSyncDatabase.CreateSyncTask()<br>
+                <strong>检查：</strong>FQuery.ExecSQL() 成功<br>
+                <strong>验证：</strong>无SQL异常<br>
+                <strong>失败影响：</strong>任务无法插入
+            </div>
+        </div>
+
+        <div class="check-point">
+            <h3>✅ 检查点4：ID获取</h3>
+            <div class="flow-step">
+                <strong>位置：</strong>GetLastAutoGenValue()<br>
+                <strong>检查：</strong>返回值 > 0<br>
+                <strong>日志：</strong>"Generated ID: 1"<br>
+                <strong>失败影响：</strong>TaskID保持为0
+            </div>
+        </div>
+
+        <div class="check-point">
+            <h3>✅ 检查点5：ID回写</h3>
+            <div class="flow-step">
+                <strong>位置：</strong>TSyncTask.SaveToDatabase()<br>
+                <strong>检查：</strong>FTaskID := NewID 执行<br>
+                <strong>验证：</strong>FTaskID > 0<br>
+                <strong>失败影响：</strong>界面显示保存失败
+            </div>
+        </div>
+
+        <h2>⚠️ 常见失败点</h2>
+        
+        <div class="error-point">
+            <h3>❌ 失败点1：数据库连接失败</h3>
+            <div class="flow-step">
+                <strong>症状：</strong><span class="error">"[错误] 数据库连接失败"</span><br>
+                <strong>原因：</strong>文件权限、路径错误、磁盘空间<br>
+                <strong>解决：</strong>管理员运行、检查路径、清理空间
+            </div>
+        </div>
+
+        <div class="error-point">
+            <h3>❌ 失败点2：SQL执行失败</h3>
+            <div class="flow-step">
+                <strong>症状：</strong><span class="error">"❌ 异常: [SQL错误]"</span><br>
+                <strong>原因：</strong>表结构错误、参数类型不匹配<br>
+                <strong>解决：</strong>重建数据库、检查参数绑定
+            </div>
+        </div>
+
+        <div class="error-point">
+            <h3>❌ 失败点3：ID获取失败</h3>
+            <div class="flow-step">
+                <strong>症状：</strong><span class="warning">"Generated ID: -1"</span><br>
+                <strong>原因：</strong>自增字段设置问题<br>
+                <strong>解决：</strong>检查表结构、重新初始化
+            </div>
+        </div>
+
+        <h2>🧪 测试验证流程</h2>
+        <div class="mermaid">
+graph TD
+    Start([开始测试]) --> A[删除旧数据库]
+    A --> B[启动程序]
+    B --> C{检查连接日志}
+    C -->|失败| Error1[❌ 数据库连接问题]
+    C -->|成功| D[创建新任务]
+    
+    D --> E{检查对象创建}
+    E -->|失败| Error2[❌ 对象创建问题]
+    E -->|成功| F[保存任务]
+    
+    F --> G{检查保存日志}
+    G -->|ID=0| Error3[❌ 保存失败]
+    G -->|ID>0| H[✅ 创建成功]
+    
+    H --> I[关闭程序]
+    I --> J[重新启动]
+    J --> K{检查加载日志}
+    K -->|0个任务| Error4[❌ 持久化失败]
+    K -->|1个任务| L[✅ 持久化成功]
+    
+    L --> End([测试通过])
+    
+    style Start fill:#e1f5fe
+    style End fill:#e8f5e8
+    style Error1 fill:#ffebee
+    style Error2 fill:#ffebee
+    style Error3 fill:#ffebee
+    style Error4 fill:#ffebee
+    style H fill:#e8f5e8
+    style L fill:#e8f5e8
+        </div>
+
+        <h2>📊 数据流向追踪表</h2>
+        <table border="1" style="width:100%; border-collapse: collapse;">
+            <tr style="background-color: #3498db; color: white;">
+                <th>步骤</th>
+                <th>关键变量</th>
+                <th>预期值</th>
+                <th>检查方法</th>
+                <th>失败症状</th>
+            </tr>
+            <tr>
+                <td>1. 数据库连接</td>
+                <td>FDatabase.Connected</td>
+                <td class="success">True</td>
+                <td>查看启动日志</td>
+                <td class="error">"数据库连接失败"</td>
+            </tr>
+            <tr>
+                <td>2. 任务对象</td>
+                <td>NewTask, NewTask.TaskID</td>
+                <td class="success">不为空, 0</td>
+                <td>对象创建日志</td>
+                <td class="error">"创建任务对象失败"</td>
+            </tr>
+            <tr>
+                <td>3. 内存添加</td>
+                <td>FTasks.Count</td>
+                <td class="success">+1</td>
+                <td>任务计数</td>
+                <td class="warning">列表不更新</td>
+            </tr>
+            <tr>
+                <td>4. SQL执行</td>
+                <td>FQuery.ExecSQL</td>
+                <td class="success">无异常</td>
+                <td>DebugView输出</td>
+                <td class="error">SQL异常信息</td>
+            </tr>
+            <tr>
+                <td>5. ID获取</td>
+                <td>GetLastAutoGenValue</td>
+                <td class="success">1, 2, 3...</td>
+                <td>返回值检查</td>
+                <td class="error">返回-1</td>
+            </tr>
+            <tr>
+                <td>6. ID回写</td>
+                <td>FTaskID</td>
+                <td class="success">> 0</td>
+                <td>最终日志</td>
+                <td class="error">TaskID = 0</td>
+            </tr>
+            <tr>
+                <td>7. 界面显示</td>
+                <td>ListView, 日志</td>
+                <td class="success">显示任务</td>
+                <td>界面检查</td>
+                <td class="warning">列表为空</td>
+            </tr>
+        </table>
+
+        <h2>🎯 快速问题定位指南</h2>
+        <div class="flow-step">
+            <h3>根据日志信息定位：</h3>
+            <ul>
+                <li><span class="error">"[错误] 数据库连接失败"</span> → 检查数据库文件和权限</li>
+                <li><span class="error">"❌ 创建任务对象失败"</span> → 检查表单验证</li>
+                <li><span class="error">"❌ 异常: [SQL错误]"</span> → 检查SQL执行</li>
+                <li><span class="warning">"TaskID = 0"</span> → 检查ID回写逻辑</li>
+                <li><span class="warning">"已加载 0 个同步任务"</span> → 检查数据库内容</li>
+            </ul>
+        </div>
+
+        <div class="flow-step">
+            <h3>根据测试步骤定位：</h3>
+            <ul>
+                <li>步骤1失败 → <strong>数据库连接问题</strong></li>
+                <li>步骤2成功 → <strong>对象创建正常</strong></li>
+                <li>步骤3失败 → <strong>SQL执行问题</strong></li>
+                <li>步骤4失败 → <strong>ID回写问题</strong></li>
+                <li>步骤5失败 → <strong>数据读取问题</strong></li>
+            </ul>
+        </div>
+
+        <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+            <h3>💡 使用建议：</h3>
+            <ol>
+                <li>按照流程图逐步执行测试</li>
+                <li>在每个检查点验证预期值</li>
+                <li>使用DebugView查看详细调试信息</li>
+                <li>根据失败症状快速定位问题</li>
+                <li>参考数据流向追踪表检查关键变量</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#3498db',
+                primaryTextColor: '#2c3e50',
+                primaryBorderColor: '#2980b9',
+                lineColor: '#34495e',
+                sectionBkgColor: '#ecf0f1',
+                altSectionBkgColor: '#ffffff',
+                gridColor: '#bdc3c7'
+            }
+        });
+    </script>
+</body>
+</html>

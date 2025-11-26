@@ -4,7 +4,8 @@ interface
 
 uses
   Winapi.Windows, System.SysUtils, System.Classes, System.IOUtils, System.Generics.Collections,
-  System.JSON, System.Threading, System.SyncObjs, uFileSyncComparer, uSyncDatabase;
+  System.Generics.Defaults, System.JSON, System.Threading, System.SyncObjs, System.Math, 
+  System.DateUtils, uFileSyncComparerSimple, uSyncDatabase, uFileHasher;
 
 type
   // 冲突类型
@@ -47,6 +48,13 @@ type
     RiskLevel: TConflictSeverity;
   end;
 
+  // 文件信息记录
+  TFileInfo = record
+    FullName: string;
+    Size: Int64;
+    LastWriteTime: TDateTime;
+  end;
+
 type
   TConflictDetectedEvent = procedure(const AConflict: TConflictRecord) of object;
   TConflictResolvedEvent = procedure(const AConflict: TConflictRecord) of object;
@@ -72,7 +80,7 @@ type
     function AnalyzeConflictSeverity(const AConflict: TConflictRecord): TConflictSeverity;
     function GenerateSuggestions(const AConflict: TConflictRecord): TArray<TConflictSuggestion>;
     function GetBestSuggestion(const ASuggestions: TArray<TConflictSuggestion>): TConflictSuggestion;
-    function ApplyResolution(const AConflict: TConflictRecord; const AStrategy: TConflictResolutionStrategy): Boolean;
+    function ApplyResolution(var AConflict: TConflictRecord; const AStrategy: TConflictResolutionStrategy): Boolean;
     function BackupFile(const AFilePath: string): string;
     function CompareFileContent(const ASourcePath, ATargetPath: string): Boolean;
     procedure LogConflict(const AConflict: TConflictRecord);
@@ -154,6 +162,7 @@ var
   ConflictList: TList<TConflictRecord>;
   Diff: TFileDiff;
   Conflict: TConflictRecord;
+  SourceInfo, TargetInfo: TFileInfo;
 begin
   ConflictList := TList<TConflictRecord>.Create;
   Comparer := TFileSyncComparer.Create;
@@ -167,16 +176,17 @@ begin
     begin
       if Diff.DiffType = fdtConflict then
       begin
-        var SourceInfo := TFileInfo.Create(Diff.SourceFullPath);
-        var TargetInfo := TFileInfo.Create(Diff.TargetFullPath);
-        try
-          Conflict := DetectConflict(SourceInfo, TargetInfo, Diff.RelativePath);
-          ConflictList.Add(Conflict);
-          LogConflict(Conflict);
-        finally
-          SourceInfo.Free;
-          TargetInfo.Free;
-        end;
+        SourceInfo.FullName := Diff.SourceFullPath;
+        SourceInfo.Size := TFile.GetSize(Diff.SourceFullPath);
+        SourceInfo.LastWriteTime := TFile.GetLastWriteTime(Diff.SourceFullPath);
+        
+        TargetInfo.FullName := Diff.TargetFullPath;
+        TargetInfo.Size := TFile.GetSize(Diff.TargetFullPath);
+        TargetInfo.LastWriteTime := TFile.GetLastWriteTime(Diff.TargetFullPath);
+        
+        Conflict := DetectConflict(SourceInfo, TargetInfo, Diff.RelativePath);
+        ConflictList.Add(Conflict);
+        LogConflict(Conflict);
       end;
     end;
     
@@ -188,6 +198,8 @@ begin
 end;
 
 function TConflictResolver.DetectConflict(const ASourceInfo, ATargetInfo: TFileInfo; const ARelativePath: string): TConflictRecord;
+var
+  Hasher: TFileHasher;
 begin
   Result.ID := TGuid.NewGuid.ToString;
   Result.FilePath := ARelativePath;
@@ -236,10 +248,10 @@ begin
   Result.Severity := AnalyzeConflictSeverity(Result);
   
   // 计算哈希值
-  var Hasher := TFileHasher.Create;
+  Hasher := TFileHasher.Create;
   try
-    Result.SourceHash := Hasher.CalculateFileHash(Result.SourcePath);
-    Result.TargetHash := Hasher.CalculateFileHash(Result.TargetPath);
+    Result.SourceHash := Hasher.ComputeSHA256(Result.SourcePath);
+    Result.TargetHash := Hasher.ComputeSHA256(Result.TargetPath);
   finally
     Hasher.Free;
   end;
@@ -406,7 +418,7 @@ begin
   end;
 end;
 
-function TConflictResolver.ApplyResolution(const AConflict: TConflictRecord; const AStrategy: TConflictResolutionStrategy): Boolean;
+function TConflictResolver.ApplyResolution(var AConflict: TConflictRecord; const AStrategy: TConflictResolutionStrategy): Boolean;
 begin
   Result := False;
   
@@ -528,8 +540,8 @@ var
 begin
   Hasher := TFileHasher.Create;
   try
-    SourceHash := Hasher.CalculateFileHash(ASourcePath);
-    TargetHash := Hasher.CalculateFileHash(ATargetPath);
+    SourceHash := Hasher.ComputeSHA256(ASourcePath);
+    TargetHash := Hasher.ComputeSHA256(ATargetPath);
     Result := SourceHash <> TargetHash;
   finally
     Hasher.Free;
@@ -665,10 +677,11 @@ begin
       ConflictArray := FConflictHistory.Values.ToArray;
       // 按时间排序
       TArray.Sort<TConflictRecord>(ConflictArray, 
-        function(const A, B: TConflictRecord): Integer
-        begin
-          Result := CompareDateTime(B.DetectedTime, A.DetectedTime);
-        end);
+        TComparer<TConflictRecord>.Construct(
+          function(const A, B: TConflictRecord): Integer
+          begin
+            Result := CompareDateTime(B.DetectedTime, A.DetectedTime);
+          end));
       
       for I := 0 to Min(ACount - 1, High(ConflictArray)) do
       begin

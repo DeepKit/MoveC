@@ -1,4 +1,4 @@
-unit uLogger;
+﻿unit uLogger;
 
 {
   统一日志接口 - Unified Logging Interface

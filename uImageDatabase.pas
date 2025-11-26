@@ -1,4 +1,4 @@
-unit uImageDatabase;
+﻿unit uImageDatabase;
 
 interface
 

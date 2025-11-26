@@ -1,4 +1,4 @@
-object frmSyncTaskEdit: TfrmSyncTaskEdit
+﻿object frmSyncTaskEdit: TfrmSyncTaskEdit
   Caption = '编辑同步任务'
   ClientHeight = 400
   ClientWidth = 560

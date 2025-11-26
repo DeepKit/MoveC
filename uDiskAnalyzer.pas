@@ -1,4 +1,4 @@
-unit uDiskAnalyzer;
+﻿unit uDiskAnalyzer;
 
 {
   C盘空间分析器 - 核心功能模块

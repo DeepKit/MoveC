@@ -1,4 +1,4 @@
-unit uTraySettingsForm;
+﻿unit uTraySettingsForm;
 
 interface
 

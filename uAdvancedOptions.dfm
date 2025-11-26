@@ -1,4 +1,4 @@
-object frmAdvancedOptions: TfrmAdvancedOptions
+﻿object frmAdvancedOptions: TfrmAdvancedOptions
   Left = 0
   Top = 0
   Caption = #39640#32423#36873#39033

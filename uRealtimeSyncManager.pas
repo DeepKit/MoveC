@@ -5,7 +5,8 @@ interface
 uses
   Winapi.Windows, System.SysUtils, System.Classes, System.IOUtils, System.Generics.Collections,
   System.Threading, System.SyncObjs, System.Diagnostics, System.JSON, uFileSystemWatcher,
-  uSyncDatabase, uFileSyncComparer, uSyncExecutor;
+  uSyncDatabase, uFileSyncComparerSimple, uSyncExecutorSimple, Vcl.ExtCtrls,
+  System.StrUtils, System.DateUtils;
 
 type
   // 实时同步事件类型
@@ -32,7 +33,6 @@ type
     RapidChangeThreshold: Integer; // 快速变化阈值（次数/秒）
   end;
 
-type
   TRealtimeSyncManager = class
   private
     FDatabase: TSyncDatabase;
@@ -65,6 +65,7 @@ type
     procedure HandleSyncError(const ATask: TSyncTask; const AError: string);
     function CreateDebounceTimer(const ATaskID: Integer): TTimer;
     procedure CleanupTask(const ATaskID: Integer);
+    procedure DebounceTimerHandler(Sender: TObject);
     
   public
     constructor Create(ADatabase: TSyncDatabase);
@@ -126,16 +127,7 @@ begin
   FDebounceConfig.IgnoreRapidChanges := True;
   FDebounceConfig.RapidChangeThreshold := 10; // 10次/秒
   
-  // 设置同步执行器事件
-  FSyncExecutor.OnProgress := procedure(const AProgress: TSyncProgressInfo)
-  begin
-    // 转发进度事件
-  end;
-  
-  FSyncExecutor.OnCompleted := procedure(const ASuccess: Boolean; const ASummary: string)
-  begin
-    // 转发完成事件
-  end;
+  // 设置同步执行器事件（按需在外部订阅 OnSyncProgress/OnSyncEvent/OnSyncError）
 end;
 
 destructor TRealtimeSyncManager.Destroy;
@@ -159,12 +151,12 @@ var
   DebounceTimer: TTimer;
   Stats: TDictionary<string, Integer>;
 begin
-  if not Assigned(ATask) then Exit;
+  if ATask.Name = '' then Exit;
   
   FLock.Enter;
   try
     // 检查任务是否已在运行
-    if FActiveTasks.ContainsKey(ATask.ID) then
+    if FActiveTasks.ContainsKey(ATask.TaskID) then
     begin
       LogSyncEvent(ATask, '任务已在运行中');
       Exit;
@@ -196,13 +188,14 @@ begin
     Watcher.Recursive := True;
     Watcher.IntervalMs := 200; // 200ms 轮询间隔
     Watcher.Mode := TWatchMode.wmNative; // 优先使用原生API
-    Watcher.OnChange := OnFileSystemChange;
+    // 使用传统事件处理文件变更
+    Watcher.OnChangeEvent := OnFileSystemChange;
     
     // 创建变更缓冲区
     ChangeBuffer := TList<TFileChangeRecord>.Create;
     
     // 创建防抖动定时器
-    DebounceTimer := CreateDebounceTimer(ATask.ID);
+    DebounceTimer := CreateDebounceTimer(ATask.TaskID);
     
     // 创建统计信息
     Stats := TDictionary<string, Integer>.Create;
@@ -213,23 +206,23 @@ begin
     Stats.AddOrSetValue('LastSyncTime', 0);
     
     // 注册所有组件
-    FActiveTasks.AddOrSetValue(ATask.ID, ATask);
-    FWatchers.AddOrSetValue(ATask.ID, Watcher);
-    FChangeBuffers.AddOrSetValue(ATask.ID, ChangeBuffer);
-    FDebounceTimers.AddOrSetValue(ATask.ID, DebounceTimer);
-    FStatistics.AddOrSetValue(ATask.ID, Stats);
+    FActiveTasks.AddOrSetValue(ATask.TaskID, ATask);
+    FWatchers.AddOrSetValue(ATask.TaskID, Watcher);
+    FChangeBuffers.AddOrSetValue(ATask.TaskID, ChangeBuffer);
+    FDebounceTimers.AddOrSetValue(ATask.TaskID, DebounceTimer);
+    FStatistics.AddOrSetValue(ATask.TaskID, Stats);
     
     // 启动监控
     try
       Watcher.Start;
       FActive := True;
       LogSyncEvent(ATask, '实时同步已启动');
-      UpdateStatistics(ATask.ID, 'Started');
+      UpdateStatistics(ATask.TaskID, 'Started');
     except
       on E: Exception do
       begin
         HandleSyncError(ATask, '启动文件监控失败: ' + E.Message);
-        CleanupTask(ATask.ID);
+        CleanupTask(ATask.TaskID);
       end;
     end;
     
@@ -239,12 +232,14 @@ begin
 end;
 
 procedure TRealtimeSyncManager.StopRealtimeSync(const ATaskID: Integer);
+var
+  Task: TSyncTask;
 begin
   FLock.Enter;
   try
     if not FActiveTasks.ContainsKey(ATaskID) then Exit;
     
-    var Task := FActiveTasks[ATaskID];
+    Task := FActiveTasks[ATaskID];
     LogSyncEvent(Task, '停止实时同步');
     
     CleanupTask(ATaskID);
@@ -276,13 +271,15 @@ begin
 end;
 
 procedure TRealtimeSyncManager.PauseRealtimeSync(const ATaskID: Integer);
+var
+  Task: TSyncTask;
 begin
   FLock.Enter;
   try
     if FWatchers.ContainsKey(ATaskID) then
     begin
       FWatchers[ATaskID].Stop;
-      var Task := FActiveTasks[ATaskID];
+      Task := FActiveTasks[ATaskID];
       LogSyncEvent(Task, '实时同步已暂停');
       UpdateStatistics(ATaskID, 'Paused');
     end;
@@ -292,6 +289,8 @@ begin
 end;
 
 procedure TRealtimeSyncManager.ResumeRealtimeSync(const ATaskID: Integer);
+var
+  Task: TSyncTask;
 begin
   FLock.Enter;
   try
@@ -299,13 +298,13 @@ begin
     begin
       try
         FWatchers[ATaskID].Start;
-        var Task := FActiveTasks[ATaskID];
+        Task := FActiveTasks[ATaskID];
         LogSyncEvent(Task, '实时同步已恢复');
         UpdateStatistics(ATaskID, 'Resumed');
       except
         on E: Exception do
         begin
-          var Task := FActiveTasks[ATaskID];
+          Task := FActiveTasks[ATaskID];
           HandleSyncError(Task, '恢复文件监控失败: ' + E.Message);
         end;
       end;
@@ -323,10 +322,14 @@ var
   ChangeBuffer: TList<TFileChangeRecord>;
   ChangeRecord: TFileChangeRecord;
   Change: TFileChange;
+  Pair: TPair<Integer, TFileSystemWatcher>;
+  FilteredChanges: TArray<TFileChange>;
+  Timer: TTimer;
+  FileStream: TFileStream;
 begin
   // 找到对应的任务
   TaskID := -1;
-  for var Pair in FWatchers do
+  for Pair in FWatchers do
   begin
     if Pair.Value = Sender then
     begin
@@ -345,7 +348,7 @@ begin
     ChangeBuffer := FChangeBuffers[TaskID];
     
     // 过滤变更
-    var FilteredChanges := FilterChanges(Changes, Task);
+    FilteredChanges := FilterChanges(Changes, Task);
     
     // 添加到缓冲区
     for Change in FilteredChanges do
@@ -361,7 +364,12 @@ begin
       else if TFile.Exists(Change.Path) then
       begin
         try
-          ChangeRecord.FileSize := TFileInfo.Create(Change.Path).Size;
+          FileStream := TFileStream.Create(Change.Path, fmOpenRead or fmShareDenyNone);
+          try
+            ChangeRecord.FileSize := FileStream.Size;
+          finally
+            FileStream.Free;
+          end;
         except
           ChangeRecord.FileSize := 0;
         end;
@@ -381,7 +389,7 @@ begin
     else
     begin
       // 重置防抖动定时器
-      var Timer := FDebounceTimers[TaskID];
+      Timer := FDebounceTimers[TaskID];
       Timer.Enabled := False;
       Timer.Enabled := True;
     end;
@@ -407,16 +415,20 @@ begin
       
       // 跳过临时文件
       if (Extension = '.tmp') or (Extension = '.temp') or (Extension = '.bak') or
-         (Extension = '.~') or FileName.StartsWith('.') or FileName.StartsWith('~') then
+         (Extension = '.~') or (Pos('.', FileName) = 1) or (Pos('~', FileName) = 1) then
         Continue;
       
       // 跳过锁定文件
-      if Extension = '.lock' or Extension = '.lck' then
+      if (Extension = '.lock') or (Extension = '.lck') then
         Continue;
       
       // 跳过隐藏文件（如果配置要求）
-      if (TFile.GetAttributes(Change.Path) and TFileAttribute.faHidden) <> 0 then
-        Continue;
+      try
+        if TFileAttribute.faHidden in TFile.GetAttributes(Change.Path) then
+          Continue;
+      except
+        // 忽略无法访问的文件
+      end;
       
       FilteredList.Add(Change);
     end;
@@ -433,6 +445,7 @@ var
   ChangeBuffer: TList<TFileChangeRecord>;
   SyncChanges: TArray<TFileChange>;
   I: Integer;
+  Timer: TTimer;
   ChangeRecord: TFileChangeRecord;
 begin
   if not FActiveTasks.ContainsKey(ATaskID) then Exit;
@@ -459,34 +472,40 @@ begin
     if Assigned(FOnSyncProgress) then
       FOnSyncProgress(Task, '开始增量同步...');
     
-    // 这里应该调用同步引擎的增量同步方法
-    // 暂时简化处理
-    TTask.Run(procedure
-    begin
-      try
-        // TODO: 实现实际的增量同步逻辑
-        Sleep(100); // 模拟同步时间
-        
-        UpdateStatistics(ATaskID, 'ProcessedChanges', ChangeBuffer.Count);
-        
-        if Assigned(FOnSyncProgress) then
-          FOnSyncProgress(Task, '增量同步完成');
+    // 这里应该调用同步引擎的增量同步方法（使用线程以避免 TTask 版本不兼容）
+    TThread.CreateAnonymousThread(
+      procedure
+      var
+        LocalTask: TSyncTask;
+        LocalTaskID: Integer;
+        LocalCount: Integer;
+      begin
+        LocalTask := Task;
+        LocalTaskID := ATaskID;
+        LocalCount := ChangeBuffer.Count;
+        try
+          // TODO: 实现实际的增量同步逻辑
+          Sleep(100); // 模拟同步时间
           
-      except
-        on E: Exception do
-        begin
-          HandleSyncError(Task, '增量同步失败: ' + E.Message);
-          UpdateStatistics(ATaskID, 'ErrorChanges', ChangeBuffer.Count);
+          // 直接更新统计（已在临界区保护中）
+          UpdateStatistics(LocalTaskID, 'ProcessedChanges', LocalCount);
+          if Assigned(FOnSyncProgress) then
+            FOnSyncProgress(LocalTask, '增量同步完成');
+        except
+          on E: Exception do
+          begin
+            HandleSyncError(LocalTask, '增量同步失败: ' + E.Message);
+            UpdateStatistics(LocalTaskID, 'ErrorChanges', LocalCount);
+          end;
         end;
-      end;
-    end);
+      end).Start;
     
     // 清空缓冲区
     ChangeBuffer.Clear;
     
   finally
     // 停止防抖动定时器
-    var Timer := FDebounceTimers[ATaskID];
+    Timer := FDebounceTimers[ATaskID];
     if Assigned(Timer) then
       Timer.Enabled := False;
   end;
@@ -497,12 +516,8 @@ begin
   Result := TTimer.Create(nil);
   Result.Interval := FDebounceConfig.DebounceInterval;
   Result.Enabled := False;
-  
-  Result.OnTimer := procedure(Sender: TObject)
-  begin
-    if FActiveTasks.ContainsKey(ATaskID) then
-      ProcessChangeBuffer(ATaskID);
-  end;
+  Result.Tag := ATaskID;
+  Result.OnTimer := DebounceTimerHandler;
 end;
 
 procedure TRealtimeSyncManager.CleanupTask(const ATaskID: Integer);
@@ -544,11 +559,16 @@ begin
 end;
 
 procedure TRealtimeSyncManager.UpdateStatistics(const ATaskID: Integer; const AOperation: string; const ACount: Integer = 1);
+var
+  Stats: TDictionary<string, Integer>;
+  OldValue: Integer;
 begin
   if FStatistics.ContainsKey(ATaskID) then
   begin
-    var Stats := FStatistics[ATaskID];
-    Stats.AddOrSetValue(AOperation, Stats.GetValueOrDefault(AOperation, 0) + ACount);
+    Stats := FStatistics[ATaskID];
+    if not Stats.TryGetValue(AOperation, OldValue) then
+      OldValue := 0;
+    Stats.AddOrSetValue(AOperation, OldValue + ACount);
     Stats.AddOrSetValue('LastSyncTime', DateTimeToUnix(Now));
   end;
 end;
@@ -566,16 +586,15 @@ begin
 end;
 
 procedure TRealtimeSyncManager.SetDebounceConfig(const AConfig: TDebounceConfig);
+var
+  PairTimer: TPair<Integer, TTimer>;
 begin
   FLock.Enter;
   try
     FDebounceConfig := AConfig;
-    
     // 更新所有现有定时器
-    for var Pair in FDebounceTimers do
-    begin
-      Pair.Value.Interval := AConfig.DebounceInterval;
-    end;
+    for PairTimer in FDebounceTimers do
+      PairTimer.Value.Interval := AConfig.DebounceInterval;
   finally
     FLock.Leave;
   end;
@@ -620,11 +639,13 @@ begin
 end;
 
 function TRealtimeSyncManager.GetAllStatistics: TDictionary<Integer, TDictionary<string, Integer>>;
+var
+  Pair: TPair<Integer, TDictionary<string, Integer>>;
 begin
   FLock.Enter;
   try
     Result := TDictionary<Integer, TDictionary<string, Integer>>.Create;
-    for var Pair in FStatistics do
+    for Pair in FStatistics do
     begin
       Result.AddOrSetValue(Pair.Key, Pair.Value);
     end;
@@ -634,13 +655,15 @@ begin
 end;
 
 procedure TRealtimeSyncManager.TriggerSync(const ATaskID: Integer);
+var
+  Task: TSyncTask;
 begin
   FLock.Enter;
   try
     if FChangeBuffers.ContainsKey(ATaskID) then
     begin
       ProcessChangeBuffer(ATaskID);
-      var Task := FActiveTasks[ATaskID];
+      Task := FActiveTasks[ATaskID];
       LogSyncEvent(Task, '手动触发同步');
     end;
   finally
@@ -649,35 +672,39 @@ begin
 end;
 
 procedure TRealtimeSyncManager.TriggerFullSync(const ATaskID: Integer);
+var
+  Task: TSyncTask;
 begin
   FLock.Enter;
   try
     if FActiveTasks.ContainsKey(ATaskID) then
     begin
-      var Task := FActiveTasks[ATaskID];
+      Task := FActiveTasks[ATaskID];
       LogSyncEvent(Task, '触发全量同步');
       
-      // TODO: 实现全量同步逻辑
-      TTask.Run(procedure
-      begin
-        try
-          // 执行全量同步
-          if Assigned(FOnSyncProgress) then
-            FOnSyncProgress(Task, '开始全量同步...');
+      // TODO: 实现全量同步逻辑（使用线程以避免 TTask 版本不兼容）
+      TThread.CreateAnonymousThread(
+        procedure
+        var
+          LocalTask: TSyncTask;
+        begin
+          LocalTask := Task;
+          try
+            if Assigned(FOnSyncProgress) then
+              FOnSyncProgress(LocalTask, '开始全量同步...');
             
-          // 这里应该调用同步引擎的全量同步方法
-          Sleep(1000); // 模拟同步时间
-          
-          if Assigned(FOnSyncProgress) then
-            FOnSyncProgress(Task, '全量同步完成');
+            // 这里应该调用同步引擎的全量同步方法
+            Sleep(1000); // 模拟同步时间
             
-        except
-          on E: Exception do
-          begin
-            HandleSyncError(Task, '全量同步失败: ' + E.Message);
+            if Assigned(FOnSyncProgress) then
+              FOnSyncProgress(LocalTask, '全量同步完成');
+          except
+            on E: Exception do
+            begin
+              HandleSyncError(LocalTask, '全量同步失败: ' + E.Message);
+            end;
           end;
-        end;
-      end);
+        end).Start;
     end;
   finally
     FLock.Leave;
@@ -703,6 +730,17 @@ end;
 procedure TRealtimeSyncManager.FlushChanges(const ATaskID: Integer);
 begin
   ProcessChangeBuffer(ATaskID);
+end;
+
+procedure TRealtimeSyncManager.DebounceTimerHandler(Sender: TObject);
+var
+  Timer: TTimer;
+  TaskID: Integer;
+begin
+  Timer := TTimer(Sender);
+  TaskID := Timer.Tag;
+  if FActiveTasks.ContainsKey(TaskID) then
+    ProcessChangeBuffer(TaskID);
 end;
 
 end.

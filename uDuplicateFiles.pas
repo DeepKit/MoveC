@@ -1,4 +1,4 @@
-unit uDuplicateFiles;
+﻿unit uDuplicateFiles;
 
 interface
 

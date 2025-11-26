@@ -8,7 +8,7 @@ uses
   FireDAC.DApt, FireDAC.UI.Intf, FireDAC.VCLUI.Wait, FireDAC.Comp.UI,
   FireDAC.Phys, FireDAC.Phys.SQLite, FireDAC.Phys.SQLiteDef,
   FireDAC.Stan.ExprFuncs, FireDAC.Phys.SQLiteWrapper.Stat,
-  FireDAC.Stan.Param, System.Hash, uBasicProtection, uAntiTamperPackage;
+  FireDAC.Stan.Param, System.Hash, uBasicProtection, uAntiTamperPackage, uDatabaseConfig;
 
 type
   // 同步模式枚举
@@ -91,6 +91,7 @@ type
     
     procedure InitializeDatabase;
     procedure CreateTables;
+    procedure CreateDefaultPresets;
     procedure LogError(const AMessage: string);
     procedure LogInfo(const AMessage: string);
     
@@ -221,80 +222,144 @@ end;
 
 procedure TSyncDatabase.CreateTables;
 begin
-  // 创建同步任务表
-  FQuery.SQL.Text := 
-    'CREATE TABLE IF NOT EXISTS sync_tasks (' +
-    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-    '  name TEXT NOT NULL,' +
-    '  source_path TEXT NOT NULL,' +
-    '  target_path TEXT NOT NULL,' +
-    '  sync_mode INTEGER NOT NULL DEFAULT 0,' + // 0=manual, 1=realtime
-    '  conflict_strategy INTEGER NOT NULL DEFAULT 0,' + // 0=source, 1=target, 2=newer, 3=ask
-    '  is_enabled BOOLEAN NOT NULL DEFAULT 1,' +
-    '  filter_rules TEXT,' + // JSON格式
-    '  preset_id INTEGER,' +
-    '  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,' +
-    '  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,' +
-    '  FOREIGN KEY (preset_id) REFERENCES sync_presets(id)' +
-    ')';
-  FQuery.ExecSQL;
-  
-  // 创建预设模板表
-  FQuery.SQL.Text := 
-    'CREATE TABLE IF NOT EXISTS sync_presets (' +
-    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-    '  name TEXT NOT NULL UNIQUE,' +
-    '  description TEXT,' +
-    '  filter_rules TEXT,' + // JSON格式
-    '  conflict_strategy INTEGER NOT NULL DEFAULT 0,' +
-    '  is_system BOOLEAN NOT NULL DEFAULT 0,' +
-    '  created_at DATETIME DEFAULT CURRENT_TIMESTAMP' +
-    ')';
-  FQuery.ExecSQL;
-  
-  // 创建同步历史表
-  FQuery.SQL.Text := 
-    'CREATE TABLE IF NOT EXISTS sync_history (' +
-    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-    '  task_id INTEGER NOT NULL,' +
-    '  sync_type TEXT NOT NULL,' + // 'manual' 或 'realtime'
-    '  start_time DATETIME NOT NULL,' +
-    '  end_time DATETIME,' +
-    '  files_scanned INTEGER DEFAULT 0,' +
-    '  files_copied INTEGER DEFAULT 0,' +
-    '  files_updated INTEGER DEFAULT 0,' +
-    '  files_deleted INTEGER DEFAULT 0,' +
-    '  files_skipped INTEGER DEFAULT 0,' +
-    '  bytes_transferred INTEGER DEFAULT 0,' +
-    '  error_message TEXT,' +
-    '  status TEXT NOT NULL DEFAULT ''pending'',' + // 'success', 'error', 'cancelled', 'pending'
-    '  FOREIGN KEY (task_id) REFERENCES sync_tasks(id) ON DELETE CASCADE' +
-    ')';
-  FQuery.ExecSQL;
-  
-  // 创建文件状态表
-  FQuery.SQL.Text := 
-    'CREATE TABLE IF NOT EXISTS file_states (' +
-    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-    '  task_id INTEGER NOT NULL,' +
-    '  file_path TEXT NOT NULL,' + // 相对路径
-    '  file_hash TEXT,' +
-    '  file_size INTEGER DEFAULT 0,' +
-    '  modified_time DATETIME,' +
-    '  last_sync_time DATETIME,' +
-    '  sync_status TEXT NOT NULL DEFAULT ''pending'',' + // 'synced', 'pending', 'conflict', 'error'
-    '  exists_in_source BOOLEAN NOT NULL DEFAULT 0,' +
-    '  exists_in_target BOOLEAN NOT NULL DEFAULT 0,' +
-    '  UNIQUE(task_id, file_path),' +
-    '  FOREIGN KEY (task_id) REFERENCES sync_tasks(id) ON DELETE CASCADE' +
-    ')';
-  FQuery.ExecSQL;
-  
-  // 创建索引
-  FConnection.ExecSQL('CREATE INDEX IF NOT EXISTS idx_sync_tasks_enabled ON sync_tasks(is_enabled)');
-  FConnection.ExecSQL('CREATE INDEX IF NOT EXISTS idx_sync_history_task ON sync_history(task_id)');
-  FConnection.ExecSQL('CREATE INDEX IF NOT EXISTS idx_file_states_task ON file_states(task_id)');
-  FConnection.ExecSQL('CREATE INDEX IF NOT EXISTS idx_file_states_status ON file_states(sync_status)');
+  try
+    OutputDebugString('CreateTables: Creating database tables...');
+    
+    // 创建同步任务表
+    OutputDebugString('CreateTables: Creating sync_tasks table...');
+    FQuery.SQL.Text := 
+      'CREATE TABLE IF NOT EXISTS sync_tasks (' +
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  name TEXT NOT NULL,' +
+      '  source_path TEXT NOT NULL,' +
+      '  target_path TEXT NOT NULL,' +
+      '  sync_mode INTEGER NOT NULL DEFAULT 0,' + // 0=manual, 1=realtime
+      '  conflict_strategy INTEGER NOT NULL DEFAULT 0,' + // 0=source, 1=target, 2=newer, 3=ask
+      '  is_enabled BOOLEAN NOT NULL DEFAULT 1,' +
+      '  filter_rules TEXT,' + // JSON格式
+      '  preset_id INTEGER,' +
+      '  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,' +
+      '  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,' +
+      '  FOREIGN KEY (preset_id) REFERENCES sync_presets(id)' +
+      ')';
+    FQuery.ExecSQL;
+    OutputDebugString('CreateTables: sync_tasks table created successfully');
+    
+    // 创建预设模板表
+    OutputDebugString('CreateTables: Creating sync_presets table...');
+    FQuery.SQL.Text := 
+      'CREATE TABLE IF NOT EXISTS sync_presets (' +
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  name TEXT NOT NULL UNIQUE,' +
+      '  description TEXT,' +
+      '  filter_rules TEXT,' + // JSON格式
+      '  conflict_strategy INTEGER NOT NULL DEFAULT 0,' +
+      '  is_system BOOLEAN NOT NULL DEFAULT 0,' +
+      '  created_at DATETIME DEFAULT CURRENT_TIMESTAMP' +
+      ')';
+    FQuery.ExecSQL;
+    OutputDebugString('CreateTables: sync_presets table created successfully');
+    
+    // 创建同步历史表
+    OutputDebugString('CreateTables: Creating sync_history table...');
+    FQuery.SQL.Text := 
+      'CREATE TABLE IF NOT EXISTS sync_history (' +
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  task_id INTEGER NOT NULL,' +
+      '  sync_type TEXT NOT NULL,' + // 'manual' 或 'realtime'
+      '  start_time DATETIME NOT NULL,' +
+      '  end_time DATETIME,' +
+      '  files_scanned INTEGER DEFAULT 0,' +
+      '  files_copied INTEGER DEFAULT 0,' +
+      '  files_updated INTEGER DEFAULT 0,' +
+      '  files_deleted INTEGER DEFAULT 0,' +
+      '  files_skipped INTEGER DEFAULT 0,' +
+      '  bytes_transferred INTEGER DEFAULT 0,' +
+      '  error_message TEXT,' +
+      '  status TEXT NOT NULL DEFAULT ''running'',' + // 'running', 'success', 'error', 'cancelled'
+      '  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,' +
+      '  FOREIGN KEY (task_id) REFERENCES sync_tasks(id) ON DELETE CASCADE' +
+      ')';
+    FQuery.ExecSQL;
+    OutputDebugString('CreateTables: sync_history table created successfully');
+    
+    // 创建文件状态表
+    OutputDebugString('CreateTables: Creating file_states table...');
+    FQuery.SQL.Text := 
+      'CREATE TABLE IF NOT EXISTS file_states (' +
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  task_id INTEGER NOT NULL,' +
+      '  file_path TEXT NOT NULL,' + // 相对路径
+      '  file_hash TEXT,' +
+      '  file_size INTEGER DEFAULT 0,' +
+      '  modified_time DATETIME,' +
+      '  last_sync_time DATETIME,' +
+      '  sync_status TEXT NOT NULL DEFAULT ''pending'',' + // 'synced', 'pending', 'conflict', 'error'
+      '  exists_in_source BOOLEAN NOT NULL DEFAULT 0,' +
+      '  exists_in_target BOOLEAN NOT NULL DEFAULT 0,' +
+      '  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,' +
+      '  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,' +
+      '  FOREIGN KEY (task_id) REFERENCES sync_tasks(id) ON DELETE CASCADE' +
+      ')';
+    FQuery.ExecSQL;
+    OutputDebugString('CreateTables: file_states table created successfully');
+    
+    // 创建应用设置表
+    OutputDebugString('CreateTables: Creating app_settings table...');
+    FQuery.SQL.Text := 
+      'CREATE TABLE IF NOT EXISTS app_settings (' +
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  key_name TEXT NOT NULL UNIQUE,' +
+      '  value TEXT,' +
+      '  setting_type TEXT NOT NULL DEFAULT ''string'',' + // 'string', 'integer', 'boolean', 'json'
+      '  description TEXT,' +
+      '  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,' +
+      '  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP' +
+      ')';
+    FQuery.ExecSQL;
+    OutputDebugString('CreateTables: app_settings table created successfully');
+    
+    // 创建索引
+    OutputDebugString('CreateTables: Creating indexes...');
+    FQuery.SQL.Text := 'CREATE INDEX IF NOT EXISTS idx_sync_tasks_name ON sync_tasks(name)';
+    FQuery.ExecSQL;
+    FQuery.SQL.Text := 'CREATE INDEX IF NOT EXISTS idx_sync_tasks_enabled ON sync_tasks(is_enabled)';
+    FQuery.ExecSQL;
+    FQuery.SQL.Text := 'CREATE INDEX IF NOT EXISTS idx_sync_history_task_id ON sync_history(task_id)';
+    FQuery.ExecSQL;
+    FQuery.SQL.Text := 'CREATE INDEX IF NOT EXISTS idx_file_states_task_id ON file_states(task_id)';
+    FQuery.ExecSQL;
+    FQuery.SQL.Text := 'CREATE INDEX IF NOT EXISTS idx_file_states_path ON file_states(task_id, file_path)';
+    FQuery.ExecSQL;
+    FQuery.SQL.Text := 'CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings(key_name)';
+    FQuery.ExecSQL;
+    OutputDebugString('CreateTables: Indexes created successfully');
+    
+    // 验证表是否创建成功
+    OutputDebugString('CreateTables: Verifying table creation...');
+    FQuery.SQL.Text := 'SELECT name FROM sqlite_master WHERE type="table" AND name="sync_tasks"';
+    FQuery.Open;
+    if FQuery.RecordCount > 0 then
+    begin
+      OutputDebugString('CreateTables: sync_tasks table exists');
+    end
+    else
+    begin
+      OutputDebugString('CreateTables: sync_tasks table NOT found');
+    end;
+    FQuery.Close;
+    
+    // 创建默认预设模板
+    CreateDefaultPresets;
+    OutputDebugString('CreateTables: Database tables creation completed');
+    
+  except
+    on E: Exception do
+    begin
+      OutputDebugString(PChar('CreateTables: Exception: ' + E.Message));
+      LogError('创建数据库表失败: ' + E.Message);
+    end;
+  end;
 end;
 
 procedure TSyncDatabase.LogError(const AMessage: string);
@@ -309,13 +374,28 @@ end;
 
 function TSyncDatabase.CreateSyncTask(const ATask: TSyncTask): Integer;
 begin
+  Result := -1;
   try
+    if not Assigned(FConnection) then
+    begin
+      LogError('数据库连接未建立');
+      Exit;
+    end;
+    
+    if not FConnection.Connected then
+    begin
+      LogError('数据库连接已断开');
+      Exit;
+    end;
+    
+    OutputDebugString('CreateSyncTask: Preparing SQL statement');
     FQuery.SQL.Text := 
       'INSERT INTO sync_tasks (name, source_path, target_path, sync_mode, ' +
       'conflict_strategy, is_enabled, filter_rules, preset_id) ' +
       'VALUES (:name, :source_path, :target_path, :sync_mode, ' +
       ':conflict_strategy, :is_enabled, :filter_rules, :preset_id)';
     
+    OutputDebugString(PChar('CreateSyncTask: Setting parameters for task: ' + ATask.Name));
     FQuery.ParamByName('name').AsString := ATask.Name;
     FQuery.ParamByName('source_path').AsString := ATask.SourcePath;
     FQuery.ParamByName('target_path').AsString := ATask.TargetPath;
@@ -328,12 +408,17 @@ begin
     else
       FQuery.ParamByName('preset_id').Clear;
     
+    OutputDebugString('CreateSyncTask: Executing SQL');
     FQuery.ExecSQL;
+    
+    OutputDebugString('CreateSyncTask: Getting generated ID');
     Result := FConnection.GetLastAutoGenValue('sync_tasks');
+    OutputDebugString(PChar('CreateSyncTask: Generated ID: ' + IntToStr(Result)));
   except
     on E: Exception do
     begin
       LogError('创建同步任务失败: ' + E.Message);
+      OutputDebugString(PChar('CreateSyncTask: Exception: ' + E.Message));
       Result := -1;
     end;
   end;
@@ -375,15 +460,35 @@ end;
 
 function TSyncDatabase.DeleteSyncTask(const ATaskID: Integer): Boolean;
 begin
+  Result := False;
   try
+    if not Assigned(FConnection) then
+    begin
+      LogError('删除任务失败: 数据库连接未建立');
+      Exit;
+    end;
+    
+    if not FConnection.Connected then
+    begin
+      LogError('删除任务失败: 数据库连接已断开');
+      Exit;
+    end;
+    
+    OutputDebugString(PChar('DeleteSyncTask: Deleting task ID: ' + IntToStr(ATaskID)));
+    
     FQuery.SQL.Text := 'DELETE FROM sync_tasks WHERE id = :id';
     FQuery.ParamByName('id').AsInteger := ATaskID;
+    
+    OutputDebugString('DeleteSyncTask: Executing DELETE SQL');
     FQuery.ExecSQL;
+    
+    OutputDebugString(PChar('DeleteSyncTask: Task deleted successfully, ID: ' + IntToStr(ATaskID)));
     Result := True;
   except
     on E: Exception do
     begin
       LogError('删除同步任务失败: ' + E.Message);
+      OutputDebugString(PChar('DeleteSyncTask: Exception: ' + E.Message));
       Result := False;
     end;
   end;
@@ -935,7 +1040,75 @@ end;
 
 class function TSyncDatabase.GetProjectDatabasePath: string;
 begin
-  Result := TPath.Combine(TPath.GetDirectoryName(ParamStr(0)), 'MoveC.db');
+  // 根据程序身份选择不同的数据库
+  // syncLocal.exe 使用 syncLocal.db
+  // MoveC.exe 使用 MoveC.db
+  Result := TDatabaseConfig.GetDatabasePath;
+end;
+
+procedure TSyncDatabase.CreateDefaultPresets;
+var
+  Preset: TSyncPreset;
+begin
+  try
+    OutputDebugString('CreateDefaultPresets: Creating default presets...');
+    
+    // 检查是否已有预设
+    FQuery.SQL.Text := 'SELECT COUNT(*) FROM sync_presets WHERE is_system = 1';
+    FQuery.Open;
+    if FQuery.Fields[0].AsInteger > 0 then
+    begin
+      OutputDebugString('CreateDefaultPresets: System presets already exist');
+      FQuery.Close;
+      Exit;
+    end;
+    FQuery.Close;
+    
+    // 创建基础同步预设
+    Preset.Name := '基础文件同步';
+    Preset.Description := '基本的文件同步设置，适用于大多数场景';
+    Preset.FilterRules := '{"include":["*"],"exclude":[]}';
+    Preset.ConflictStrategy := csSourcePriority;
+    Preset.IsSystem := True;
+    
+    if CreatePreset(Preset) > 0 then
+    begin
+      OutputDebugString('CreateDefaultPresets: Created basic sync preset');
+    end;
+    
+    // 创建图片同步预设
+    Preset.Name := '图片同步';
+    Preset.Description := '专门用于图片文件同步的设置';
+    Preset.FilterRules := '{"include":["*.jpg","*.jpeg","*.png","*.gif","*.bmp","*.tiff"],"exclude":[]}';
+    Preset.ConflictStrategy := csNewerPriority;
+    Preset.IsSystem := True;
+    
+    if CreatePreset(Preset) > 0 then
+    begin
+      OutputDebugString('CreateDefaultPresets: Created image sync preset');
+    end;
+    
+    // 创建文档同步预设
+    Preset.Name := '文档同步';
+    Preset.Description := '文档文件同步设置，排除临时文件';
+    Preset.FilterRules := '{"include":["*.doc","*.docx","*.pdf","*.txt","*.rtf"],"exclude":["*.tmp","*.temp","~$*"]}';
+    Preset.ConflictStrategy := csNewerPriority;
+    Preset.IsSystem := True;
+    
+    if CreatePreset(Preset) > 0 then
+    begin
+      OutputDebugString('CreateDefaultPresets: Created document sync preset');
+    end;
+    
+    OutputDebugString('CreateDefaultPresets: Default presets creation completed');
+    
+  except
+    on E: Exception do
+    begin
+      OutputDebugString(PChar('CreateDefaultPresets: Exception: ' + E.Message));
+      LogError('创建默认预设失败: ' + E.Message);
+    end;
+  end;
 end;
 
 end.

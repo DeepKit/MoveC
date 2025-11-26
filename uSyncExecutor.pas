@@ -1,10 +1,10 @@
-unit uSyncExecutor;
+﻿unit uSyncExecutor;
 
 interface
 
 uses
   Winapi.Windows, System.SysUtils, System.Classes, System.IOUtils, System.Generics.Collections,
-  System.Threading, System.Diagnostics, System.SyncObjs, uFileSyncComparer, uSyncDatabase;
+  System.SyncObjs, uFileSyncComparerSimple, uSyncDatabase;
 
 type
   // 同步进度信息
@@ -21,7 +21,7 @@ type
     PercentComplete: Double;
     BytesTransferred: Int64;
     TotalBytes: Int64;
-    EstimatedTimeRemaining: TTimeSpan;
+    EstimatedTimeRemaining: Double; // 以秒为单位
     Speed: Int64; // bytes per second
   end;
   
@@ -32,7 +32,7 @@ type
     FilePath: string;
     ErrorMessage: string;
     ErrorCode: Integer;
-    Duration: TTimeSpan;
+    Duration: Double; // 以秒为单位
     BytesTransferred: Int64;
   end;
   
@@ -45,7 +45,7 @@ type
   TSyncExecutor = class
   private
     FFileSyncComparer: TFileSyncComparer;
-    FCancellationToken: T CancellationTokenSource;
+    FCancellationToken: TCancellationTokenSource;
     FProgressLock: TCriticalSection;
     FCurrentProgress: TSyncProgressInfo;
     FStopwatch: TStopwatch;

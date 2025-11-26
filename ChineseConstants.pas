@@ -1,4 +1,4 @@
-unit ChineseConstants;
+﻿unit ChineseConstants;
 
 interface
 

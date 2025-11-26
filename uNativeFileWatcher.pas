@@ -1,4 +1,4 @@
-unit uNativeFileWatcher;
+﻿unit uNativeFileWatcher;
 
 interface
 

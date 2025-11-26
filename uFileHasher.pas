@@ -1,4 +1,4 @@
-unit uFileHasher;
+﻿unit uFileHasher;
 
 interface
 

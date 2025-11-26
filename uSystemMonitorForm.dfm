@@ -1,4 +1,4 @@
-object frmSystemMonitor: TfrmSystemMonitor
+﻿object frmSystemMonitor: TfrmSystemMonitor
   Left = 0
   Top = 0
   Caption = '系统监控工具 v2.2.0'

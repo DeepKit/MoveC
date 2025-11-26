@@ -1,4 +1,4 @@
-unit uMain;
+﻿unit uMain;
 
 interface
 
@@ -38,7 +38,7 @@ uses
   // FireDAC for SQLite initialization when DB is missing
   FireDAC.Comp.Client, FireDAC.Stan.Def, FireDAC.Phys.SQLite, Data.DB,
   // Tray and Sync
-  uTrayIcon, uSyncEngine, uSyncDatabase;
+  uTrayIcon, uSyncEngine, uSyncDatabase, uSyncSettings;
 
 type
   TfrmMain = class(TForm)
@@ -346,16 +346,15 @@ implementation
 
 procedure TfrmMain.MenuSyncSampleClick(Sender: TObject);
 begin
-  if Assigned(FTray) then
-    FTray.SetStatus(tsSyncing);
-  UpdateStatus('开始执行样例同步任务...');
-  if Assigned(ProgressBar1) then
-  begin
-    ProgressBar1.Visible := True;
-    ProgressBar1.Position := 0;
+  // 打开同步盘设置界面 - 使用已有完整持久化功能的uSyncSettings
+  try
+    uSyncSettings.TfrmSyncSettings.ShowSettings(Self);
+  except
+    on E: Exception do
+    begin
+      ShowChineseMessage('打开同步盘设置失败：' + E.Message);
+    end;
   end;
-  if Assigned(FSampleTask) then
-    FSampleTask.Start;
 end;
 
 procedure TfrmMain.OnSyncProgress(const P: TSyncProgress);
@@ -556,11 +555,11 @@ begin
   FSampleTask.OnComplete := OnSyncComplete;
   FSyncEngine.AddTask(FSampleTask);
 
-  // 工具菜单增加“立即同步样例任务”入口
+  // 工具菜单增加"同步盘设置"入口
   if Assigned(MenuTools) then
   begin
     FMenuSyncSample := TMenuItem.Create(Self);
-    FMenuSyncSample.Caption := '立即同步样例任务';
+    FMenuSyncSample.Caption := '同步盘设置';
     FMenuSyncSample.OnClick := MenuSyncSampleClick;
     MenuTools.Add(FMenuSyncSample);
   end;
