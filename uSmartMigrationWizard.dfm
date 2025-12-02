@@ -131,44 +131,72 @@ Caption = 'Smart Migration Wizard'
     object lblSelectSource: TLabel
       Left = 16
       Top = 16
-      Width = 120
+      Width = 280
       Height = 16
-      Caption = #35831#36873#25321#35201#36716#31227#30340#30446#24405
+      Caption = #35831#36873#25321#35201#36716#31227#30340#30446#24405#65288#25903#25345#22810#36873#65289
     end
-    object edtSourcePath: TEdit
+    object lblTemplates: TLabel
       Left = 16
+      Top = 44
+      Width = 80
+      Height = 16
+      Caption = #24555#36895#36873#25321#65306
+    end
+    object cboTemplates: TComboBox
+      Left = 100
       Top = 40
-      Width = 840
+      Width = 280
       Height = 24
+      Style = csDropDownList
       TabOrder = 0
+      OnChange = cboTemplatesChange
     end
-    object btnBrowseSource: TBitBtn
-      Left = 868
+    object btnSelectAll: TBitBtn
+      Left = 400
       Top = 40
-      Width = 108
+      Width = 80
       Height = 24
-      Caption = #27983#35272'...'
-      OnClick = btnBrowseSourceClick
+      Caption = #20840#36873
       TabOrder = 1
+      OnClick = btnSelectAllClick
     end
-    object lblRecommendedPaths: TLabel
-      Left = 16
-      Top = 80
-      Width = 120
-      Height = 16
-      Caption = #25512#33616#21487#36716#31227#30446#24405
-    end
-    object lvRecommendedPaths: TListView
-      Left = 16
-      Top = 104
-      Width = 960
-      Height = 448
-      Anchors = [akLeft, akTop, akRight, akBottom]
-      ReadOnly = True
-      RowSelect = True
-      ViewStyle = vsReport
+    object btnSelectNone: TBitBtn
+      Left = 488
+      Top = 40
+      Width = 80
+      Height = 24
+      Caption = #21462#28040#20840#36873
       TabOrder = 2
-      OnDblClick = lvRecommendedPathsDblClick
+      OnClick = btnSelectNoneClick
+    end
+    object btnAddCustomPath: TBitBtn
+      Left = 576
+      Top = 40
+      Width = 120
+      Height = 24
+      Caption = #28155#21152#33258#23450#20041#30446#24405'...'
+      TabOrder = 3
+      OnClick = btnAddCustomPathClick
+    end
+    object clbSourcePaths: TCheckListBox
+      Left = 16
+      Top = 72
+      Width = 960
+      Height = 460
+      Anchors = [akLeft, akTop, akRight, akBottom]
+      ItemHeight = 20
+      TabOrder = 4
+      OnClickCheck = clbSourcePathsClickCheck
+    end
+    object lblSelectedInfo: TLabel
+      Left = 16
+      Top = 540
+      Width = 960
+      Height = 16
+      Anchors = [akLeft, akBottom]
+      Caption = #24050#36873#25321' 0 '#20010#30446#24405#65292#20849#35745' 0 '#65292#25991#20214#25968#65306' 0'
+      Font.Style = [fsBold]
+      ParentFont = False
     end
   end
   object pnlAnalysis: TPanel

@@ -19,6 +19,8 @@ uses
   uAdvancedFileManagerForm,
   // Smart migration wizard
   uSmartMigrationWizard,
+  // Rollback manager
+  uRollbackManager,
   // Log manager
   uLogManager,
   // Advanced options dialog
@@ -90,6 +92,7 @@ type
     MenuTools: TMenuItem;
     miSimpleMode: TMenuItem;
     miConfigManager: TMenuItem;
+    miRollbackManager: TMenuItem;
     miSeparatorTools1: TMenuItem;
     miLogManager: TMenuItem;
     miAdvancedOptions: TMenuItem;
@@ -187,6 +190,7 @@ type
     procedure MenuCleanupDuplicateFilesClick(Sender: TObject);
     procedure MenuCleanupHistoryClick(Sender: TObject);
     procedure miConfigManagerClick(Sender: TObject);
+    procedure miRollbackManagerClick(Sender: TObject);
     procedure miAdvancedFileManagerClick(Sender: TObject);
     procedure miLogManagerClick(Sender: TObject);
     procedure miAdvancedOptionsClick(Sender: TObject);
@@ -1246,6 +1250,21 @@ procedure TfrmMain.miConfigManagerClick(Sender: TObject);
 begin
   UpdateStatus('配置管理器功能暂时不可用');
   ShowChineseMessage('配置管理器功能正在开发中，敬请期待！');
+end;
+
+procedure TfrmMain.miRollbackManagerClick(Sender: TObject);
+begin
+  try
+    UpdateStatus('正在打开回滚点管理器...');
+    TfrmRollbackManager.ShowManager(Self);
+    UpdateStatus('回滚点管理器已关闭');
+  except
+    on E: Exception do
+    begin
+      UpdateStatus('打开回滚点管理器失败: ' + E.Message);
+      ShowChineseMessage('打开回滚点管理器失败：' + sLineBreak + E.Message);
+    end;
+  end;
 end;
 
 // 高级文件管理器菜单点击事件

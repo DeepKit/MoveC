@@ -577,6 +577,10 @@
         Caption = #37197#32622#31649#29702'(&C)'
         OnClick = miConfigManagerClick
       end
+      object miRollbackManager: TMenuItem
+        Caption = #22238#28378#28857#31649#29702'(&R)'
+        OnClick = miRollbackManagerClick
+      end
       object miSeparatorTools1: TMenuItem
         Caption = '-'
       end
