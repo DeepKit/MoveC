@@ -1,1 +1,67 @@
-﻿nul
+# Delphi 编译产物
+*.dcu
+*.exe
+*.dll
+*.bpl
+*.bpi
+*.dcp
+*.so
+*.apk
+*.drc
+*.map
+*.dres
+*.rsm
+*.tds
+*.lib
+*.a
+*.o
+*.ocx
+
+# Delphi 临时文件
+*.~*
+*.local
+*.identcache
+*.projdata
+*.tvsconfig
+*.dsk
+
+# Delphi 编译目录
+__history/
+__recovery/
+Win32/
+Win64/
+Android/
+iOSDevice/
+iOSSimulator/
+OSX32/
+OSX64/
+Linux64/
+
+# IDE 配置
+*.dproj.local
+*.groupproj.local
+
+# 数据库文件（运行时生成）
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# 日志文件
+*.log
+antitamper_debug.log
+
+# 配置文件（运行时生成）
+CleanupScheduler.ini
+MigrationScheduler.ini
+ScanCache.dat
+
+# 系统文件
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# 备份文件
+*.bak
+*.backup
+*~
