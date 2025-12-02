@@ -249,7 +249,8 @@ begin
       FPreviewMemo.Lines.Add(Format('可删除文件总数: %d，预计可释放空间: %.2f MB',
         [res.FilesDeleted, res.SpaceFreed / (1024 * 1024)]));
       FPreviewMemo.Lines.Add('详细记录:');
-      FPreviewMemo.Lines.AddStrings(res.Details);
+      for var Detail in res.Details do
+        FPreviewMemo.Lines.Add(Detail);
       FPreviewMemo.Lines.Add('');
       if kind = ckLarge then
         FPreviewMemo.Lines.Add('（当前为大文件扫描模式，仅列出大文件，不会自动删除。）')
@@ -263,8 +264,6 @@ begin
       FPreviewMemo.Lines.Add('预览失败：' + res.ErrorMessage);
     end;
   finally
-    if Assigned(res.Details) then
-      res.Details.Free;
     FProgressBar.Position := 100;
   end;
 end;
@@ -299,15 +298,14 @@ begin
     FPreviewMemo.Lines.Add(Format('删除文件总数: %d，释放空间: %.2f MB',
       [res.FilesDeleted, res.SpaceFreed / (1024 * 1024)]));
     FPreviewMemo.Lines.Add('详细记录:');
-    FPreviewMemo.Lines.AddStrings(res.Details);
+    for var Detail in res.Details do
+      FPreviewMemo.Lines.Add(Detail);
 
     if res.Success then
       FStatusLabel.Caption := '清理完成。'
     else
       FStatusLabel.Caption := '清理过程中有错误：' + res.ErrorMessage;
   finally
-    if Assigned(res.Details) then
-      res.Details.Free;
     FProgressBar.Position := 100;
   end;
 end;

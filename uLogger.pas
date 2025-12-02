@@ -26,6 +26,7 @@ interface
 uses
   Winapi.Windows, System.SysUtils, System.Classes, System.IOUtils, 
   System.DateUtils, System.SyncObjs, System.Generics.Collections,
+  System.Win.Registry, Vcl.ExtCtrls,
   uLogManager;
 
 type
@@ -50,16 +51,18 @@ type
   // 统一日志接口类
   TUnifiedLogger = class
   private
-    class var FInstance: TUnifiedLogger;
-    class var FLock: TCriticalSection;
-    class function GetInstance: TUnifiedLogger; static;
-    
     FLogManager: TLogManager;
     FConfig: TLoggerConfig;
     FIsDebugMode: Boolean;
     FLastFlush: TDateTime;
     FAutoFlushTimer: TTimer;
     FLogCache: TList<TLogEntry>;
+    
+    class var FInstance: TUnifiedLogger;
+    class var FLock: TCriticalSection;
+    class function GetInstance: TUnifiedLogger; static;
+    
+    function LoggerLevelToString(Level: TLoggerLevel): string;
     
     procedure InitializeConfig;
     procedure LoadConfigFromRegistry;
@@ -326,7 +329,7 @@ begin
   begin
     OutputDebugString(PChar(Format('[%s] [%s] %s: %s', 
       [FormatDateTime('yyyy-mm-dd hh:nn:ss', Entry.Timestamp),
-       CopyRight(Uppercase(LogLevelToString(Level)), 1, 4),
+       Copy(UpperCase(LoggerLevelToString(Level)), 1, 4),
        Module, Message])));
   end;
   
@@ -335,7 +338,7 @@ begin
   begin
     Writeln(Format('[%s] [%s] %s: %s', 
       [FormatDateTime('yyyy-mm-dd hh:nn:ss', Entry.Timestamp),
-       CopyRight(Uppercase(LogLevelToString(Level)), 1, 4),
+       Copy(UpperCase(LoggerLevelToString(Level)), 1, 4),
        Module, Message]));
   end;
   
@@ -355,13 +358,26 @@ end;
 function TUnifiedLogger.ConvertLogLevel(Level: TLoggerLevel): TLogLevel;
 begin
   case Level of
-    llDebug: Result := llDebug;
-    llInfo: Result := llInfo;
-    llWarning: Result := llWarning;
-    llError: Result := llError;
-    llCritical: Result := llCritical;
+    TLoggerLevel.llDebug: Result := TLogLevel.llDebug;
+    TLoggerLevel.llInfo: Result := TLogLevel.llInfo;
+    TLoggerLevel.llWarning: Result := TLogLevel.llWarning;
+    TLoggerLevel.llError: Result := TLogLevel.llError;
+    TLoggerLevel.llCritical: Result := TLogLevel.llCritical;
   else
-    Result := llInfo;
+    Result := TLogLevel.llInfo;
+  end;
+end;
+
+function TUnifiedLogger.LoggerLevelToString(Level: TLoggerLevel): string;
+begin
+  case Level of
+    TLoggerLevel.llDebug: Result := 'DEBUG';
+    TLoggerLevel.llInfo: Result := 'INFO';
+    TLoggerLevel.llWarning: Result := 'WARNING';
+    TLoggerLevel.llError: Result := 'ERROR';
+    TLoggerLevel.llCritical: Result := 'CRITICAL';
+  else
+    Result := 'UNKNOWN';
   end;
 end;
 
@@ -563,11 +579,11 @@ end;
 function LogLevelToString(Level: TLogLevel): string;
 begin
   case Level of
-    llDebug: Result := 'DEBUG';
-    llInfo: Result := 'INFO';
-    llWarning: Result := 'WARN';
-    llError: Result := 'ERROR';
-    llCritical: Result := 'CRIT';
+    TLogLevel.llDebug: Result := 'DEBUG';
+    TLogLevel.llInfo: Result := 'INFO';
+    TLogLevel.llWarning: Result := 'WARN';
+    TLogLevel.llError: Result := 'ERROR';
+    TLogLevel.llCritical: Result := 'CRIT';
   else
     Result := 'UNKNOWN';
   end;

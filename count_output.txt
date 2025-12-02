@@ -1,3 +1,0 @@
-Exception ESQLiteNativeException in module CountRecords.exe at 0022D7A6.
-[FireDAC][Phys][SQLite] ERROR: no such table: donation_images.
-

@@ -1,4 +1,4 @@
-program MoveC;
+﻿program MoveC;
 
 uses
   Vcl.Forms,
@@ -10,8 +10,7 @@ uses
   uIconManager in 'uIconManager.pas',
   FrameAboutMe in 'FrameAboutMe.pas' {FrameAboutMe: TFrame},
   uImageSecurity in 'uImageSecurity.pas',
-  uCleanupManager in 'uCleanupManager.pas',
-  uSyncSettingsBasic in 'uSyncSettingsBasic.pas' {frmSyncSettingsBasic};
+  uCleanupManager in 'uCleanupManager.pas';
 
 {.$R 'C盘超级瘦身.res' 'C盘瘦身.rc'}
 
@@ -45,7 +44,6 @@ begin
 
   // 再创建主窗体（较重的DFM加载放在Splash之后）
   Application.CreateForm(TfrmMain, frmMain);
-  Application.CreateForm(TfrmSyncSettingsBasic, frmSyncSettingsBasic);
   frmMain.Show; // 显式显示主窗体
 
   // 进入消息循环

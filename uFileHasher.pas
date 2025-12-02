@@ -1,185 +1,153 @@
-﻿unit uFileHasher;
+unit uFileHasher;
+
+{
+  文件哈希计算单元
+  
+  功能：
+  1. 计算文件的 MD5 哈希值
+  2. 计算文件的 SHA-256 哈希值
+  3. 支持大文件分块计算
+  
+  使用方法：
+  - TFileHasher.ComputeMD5(FilePath) - 计算 MD5
+  - TFileHasher.ComputeSHA256(FilePath) - 计算 SHA-256
+}
 
 interface
 
 uses
-  System.SysUtils, System.Classes, System.Hash, System.Math;
+  System.SysUtils, System.Classes, System.Hash, System.IOUtils;
 
 type
-  // 哈希计算选项
-  THashOption = (
-    hoFullHash,       // 全量哈希
-    hoSampleHash,     // 抽样哈希（头部+尾部）
-    hoQuickHash       // 快速哈希（仅头部）
-  );
-
-  // 文件哈希器
   TFileHasher = class
   public
-    // 计算文件 SHA-256 哈希
-    class function ComputeSHA256(const AFilePath: string; 
-      AOption: THashOption = hoFullHash): string;
+    // 计算文件的 MD5 哈希值
+    class function ComputeMD5(const FilePath: string): string;
     
-    // 验证文件哈希
-    class function VerifyFile(const AFilePath, AExpectedHash: string;
-      AOption: THashOption = hoFullHash): Boolean;
+    // 计算文件的 SHA-256 哈希值
+    class function ComputeSHA256(const FilePath: string): string;
     
-    // 比较两个文件是否相同
-    class function CompareFiles(const AFile1, AFile2: string;
-      AOption: THashOption = hoFullHash): Boolean;
+    // 计算字节数组的 MD5 哈希值
+    class function ComputeMD5FromBytes(const Data: TBytes): string;
+    
+    // 计算字节数组的 SHA-256 哈希值
+    class function ComputeSHA256FromBytes(const Data: TBytes): string;
+    
+    // 比较两个文件是否相同（基于 SHA-256）
+    class function FilesAreIdentical(const FilePath1, FilePath2: string): Boolean;
   end;
 
 implementation
 
-uses
-  System.IOUtils;
-
 const
-  BUFFER_SIZE = 65536;         // 64KB 缓冲区
-  SAMPLE_SIZE = 1048576;       // 抽样大小 1MB
-  QUICK_HASH_SIZE = 65536;     // 快速哈希 64KB
+  // 缓冲区大小（1MB）
+  BUFFER_SIZE = 1024 * 1024;
 
-{ TFileHasher }
-
-class function TFileHasher.ComputeSHA256(const AFilePath: string; 
-  AOption: THashOption): string;
+class function TFileHasher.ComputeMD5(const FilePath: string): string;
 var
   FileStream: TFileStream;
+  Hash: THashMD5;
   Buffer: TBytes;
   BytesRead: Integer;
-  HashSHA2: THashSHA2;
-  FileSize: Int64;
-  ReadSize: Int64;
-  HeadSize, TailSize: Int64;
 begin
   Result := '';
   
-  if not TFile.Exists(AFilePath) then
-    raise Exception.CreateFmt('文件不存在: %s', [AFilePath]);
-
+  if not TFile.Exists(FilePath) then
+    Exit;
+    
   try
-    FileStream := TFileStream.Create(AFilePath, fmOpenRead or fmShareDenyNone);
+    FileStream := TFileStream.Create(FilePath, fmOpenRead or fmShareDenyNone);
     try
-      FileSize := FileStream.Size;
-      HashSHA2 := THashSHA2.Create(SHA256);
+      Hash := THashMD5.Create;
       SetLength(Buffer, BUFFER_SIZE);
-
-      case AOption of
-        hoFullHash:
-        begin
-          // 全量哈希：读取整个文件
-          repeat
-            BytesRead := FileStream.Read(Buffer[0], BUFFER_SIZE);
-            if BytesRead > 0 then
-              HashSHA2.Update(Buffer, BytesRead);
-          until BytesRead = 0;
-        end;
-
-        hoSampleHash:
-        begin
-          // 抽样哈希：读取头部和尾部各 SAMPLE_SIZE
-          if FileSize <= SAMPLE_SIZE * 2 then
-          begin
-            // 文件太小，使用全量哈希
-            repeat
-              BytesRead := FileStream.Read(Buffer[0], BUFFER_SIZE);
-              if BytesRead > 0 then
-                HashSHA2.Update(Buffer, BytesRead);
-            until BytesRead = 0;
-          end
-          else
-          begin
-            // 读取头部
-            ReadSize := 0;
-            while (ReadSize < SAMPLE_SIZE) do
-            begin
-              BytesRead := FileStream.Read(Buffer[0], 
-                Min(BUFFER_SIZE, SAMPLE_SIZE - ReadSize));
-              if BytesRead > 0 then
-              begin
-                HashSHA2.Update(Buffer, BytesRead);
-                Inc(ReadSize, BytesRead);
-              end
-              else
-                Break;
-            end;
-
-            // 跳转到尾部
-            FileStream.Seek(-SAMPLE_SIZE, soEnd);
-            
-            // 读取尾部
-            ReadSize := 0;
-            while (ReadSize < SAMPLE_SIZE) do
-            begin
-              BytesRead := FileStream.Read(Buffer[0], 
-                Min(BUFFER_SIZE, SAMPLE_SIZE - ReadSize));
-              if BytesRead > 0 then
-              begin
-                HashSHA2.Update(Buffer, BytesRead);
-                Inc(ReadSize, BytesRead);
-              end
-              else
-                Break;
-            end;
-          end;
-        end;
-
-        hoQuickHash:
-        begin
-          // 快速哈希：仅读取头部 QUICK_HASH_SIZE
-          ReadSize := Min(FileSize, QUICK_HASH_SIZE);
-          BytesRead := FileStream.Read(Buffer[0], ReadSize);
-          if BytesRead > 0 then
-            HashSHA2.Update(Buffer, BytesRead);
-        end;
-      end;
-
-      Result := HashSHA2.HashAsString;
+      
+      repeat
+        BytesRead := FileStream.Read(Buffer[0], BUFFER_SIZE);
+        if BytesRead > 0 then
+          Hash.Update(Buffer, BytesRead);
+      until BytesRead < BUFFER_SIZE;
+      
+      Result := Hash.HashAsString;
     finally
       FileStream.Free;
     end;
   except
     on E: Exception do
-    begin
-      raise Exception.CreateFmt('计算文件哈希失败 [%s]: %s', 
-        [AFilePath, E.Message]);
-    end;
+      Result := '';
   end;
 end;
 
-class function TFileHasher.VerifyFile(const AFilePath, AExpectedHash: string;
-  AOption: THashOption): Boolean;
+class function TFileHasher.ComputeSHA256(const FilePath: string): string;
 var
-  ActualHash: string;
+  FileStream: TFileStream;
+  Hash: THashSHA2;
+  Buffer: TBytes;
+  BytesRead: Integer;
 begin
+  Result := '';
+  
+  if not TFile.Exists(FilePath) then
+    Exit;
+    
   try
-    ActualHash := ComputeSHA256(AFilePath, AOption);
-    Result := SameText(ActualHash, AExpectedHash);
+    FileStream := TFileStream.Create(FilePath, fmOpenRead or fmShareDenyNone);
+    try
+      Hash := THashSHA2.Create(THashSHA2.TSHA2Version.SHA256);
+      SetLength(Buffer, BUFFER_SIZE);
+      
+      repeat
+        BytesRead := FileStream.Read(Buffer[0], BUFFER_SIZE);
+        if BytesRead > 0 then
+          Hash.Update(Buffer, BytesRead);
+      until BytesRead < BUFFER_SIZE;
+      
+      Result := Hash.HashAsString;
+    finally
+      FileStream.Free;
+    end;
   except
-    Result := False;
+    on E: Exception do
+      Result := '';
   end;
 end;
 
-class function TFileHasher.CompareFiles(const AFile1, AFile2: string;
-  AOption: THashOption): Boolean;
+class function TFileHasher.ComputeMD5FromBytes(const Data: TBytes): string;
+var
+  Hash: THashMD5;
+begin
+  Hash := THashMD5.Create;
+  Hash.Update(Data);
+  Result := Hash.HashAsString;
+end;
+
+class function TFileHasher.ComputeSHA256FromBytes(const Data: TBytes): string;
+var
+  Hash: THashSHA2;
+begin
+  Hash := THashSHA2.Create(THashSHA2.TSHA2Version.SHA256);
+  Hash.Update(Data);
+  Result := Hash.HashAsString;
+end;
+
+class function TFileHasher.FilesAreIdentical(const FilePath1, FilePath2: string): Boolean;
 var
   Hash1, Hash2: string;
 begin
-  try
-    // 首先比较文件大小
-    if TFile.GetSize(AFile1) <> TFile.GetSize(AFile2) then
-    begin
-      Result := False;
-      Exit;
-    end;
-
-    // 计算并比较哈希
-    Hash1 := ComputeSHA256(AFile1, AOption);
-    Hash2 := ComputeSHA256(AFile2, AOption);
-    Result := SameText(Hash1, Hash2);
-  except
-    Result := False;
-  end;
+  Result := False;
+  
+  // 首先检查文件是否存在
+  if not TFile.Exists(FilePath1) or not TFile.Exists(FilePath2) then
+    Exit;
+    
+  // 比较文件大小
+  if TFile.GetSize(FilePath1) <> TFile.GetSize(FilePath2) then
+    Exit;
+    
+  // 比较哈希值
+  Hash1 := ComputeSHA256(FilePath1);
+  Hash2 := ComputeSHA256(FilePath2);
+  
+  Result := (Hash1 <> '') and (Hash2 <> '') and SameText(Hash1, Hash2);
 end;
 
 end.

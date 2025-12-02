@@ -15,7 +15,12 @@ type
     FilesDeleted: Integer;
     SpaceFreed: Int64; // 字节
     ErrorMessage: string;
-    Details: TStringList;
+    Details: TArray<string>; // 使用动态数组替代 TStringList，避免内存泄漏
+    
+    // 辅助方法
+    procedure AddDetail(const ADetail: string);
+    procedure AddDetails(const ADetails: TArray<string>);
+    procedure ClearDetails;
   end;
 
   // 清理进度回调
@@ -82,7 +87,30 @@ type
 implementation
 
 uses
-  Winapi.WinSvc, System.StrUtils;
+  Winapi.WinSvc, System.StrUtils, uConstants;
+
+{ TCleanupResult }
+
+procedure TCleanupResult.AddDetail(const ADetail: string);
+begin
+  SetLength(Details, Length(Details) + 1);
+  Details[High(Details)] := ADetail;
+end;
+
+procedure TCleanupResult.AddDetails(const ADetails: TArray<string>);
+var
+  I, OldLen: Integer;
+begin
+  OldLen := Length(Details);
+  SetLength(Details, OldLen + Length(ADetails));
+  for I := 0 to High(ADetails) do
+    Details[OldLen + I] := ADetails[I];
+end;
+
+procedure TCleanupResult.ClearDetails;
+begin
+  SetLength(Details, 0);
+end;
 
 { TCleanupManager }
 
@@ -125,15 +153,12 @@ end;
 
 function TCleanupManager.GetRecycleBinPath: string;
 begin
-  // Windows回收站路径
-  Result := 'C:\$Recycle.Bin';
-  if not TDirectory.Exists(Result) then
-    Result := 'C:\RECYCLER'; // 旧版本Windows
+  Result := uConstants.GetRecycleBinPath;
 end;
 
 function TCleanupManager.GetWindowsUpdatePath: string;
 begin
-  Result := 'C:\Windows\SoftwareDistribution\Download';
+  Result := uConstants.GetWindowsUpdateCachePath;
 end;
 
 function TCleanupManager.GetBrowserCachePaths: TArray<string>;
@@ -188,9 +213,26 @@ begin
 end;
 
 function TCleanupManager.IsSafeToDelete(const APath: string): Boolean;
+const
+  // 安全文件扩展名白名单
+  SAFE_EXTENSIONS: array[0..15] of string = (
+    '.tmp', '.temp', '.log', '.cache', '.bak', '.old',
+    '.dmp', '.chk', '.gid', '.fts', '.ftg',  // 系统临时文件
+    '.thumbs', '.db-journal', '.etl',        // 缓存/日志
+    '.part', '.download'                     // 下载临时文件
+  );
+  // 安全目录名关键字白名单
+  SAFE_DIR_KEYWORDS: array[0..10] of string = (
+    'cache', 'temp', 'tmp', 'logs', 'thumbnails',
+    'crashreports', 'installer', 'webcache', 'gpucache',
+    'shadercache', 'codecache'
+  );
 var
   PathLower: string;
   FileName: string;
+  Ext: string;
+  I: Integer;
+  IsSafeExt, IsSafeDir: Boolean;
 begin
   Result := False;
   
@@ -200,61 +242,114 @@ begin
   PathLower := LowerCase(APath);
   FileName := LowerCase(ExtractFileName(APath));
   
-  // 检查是否是系统关键路径
+  // 检查是否是系统关键路径（黑名单优先）
   if IsSystemCriticalPath(APath) then
     Exit;
     
-  // 检查文件扩展名 - 安全的临时文件类型
+  // 检查文件扩展名白名单
   if TFile.Exists(APath) then
   begin
-    if FileName.EndsWith('.tmp') or FileName.EndsWith('.temp') or 
-       FileName.EndsWith('.log') or FileName.EndsWith('.cache') or
-       FileName.EndsWith('.bak') or FileName.EndsWith('.old') or
-       FileName.StartsWith('~') then
+    // 检查以~开头的临时文件
+    if FileName.StartsWith('~') then
+    begin
       Result := True;
+      Exit;
+    end;
+    
+    // 检查扩展名
+    Ext := LowerCase(ExtractFileExt(APath));
+    IsSafeExt := False;
+    for I := Low(SAFE_EXTENSIONS) to High(SAFE_EXTENSIONS) do
+    begin
+      if Ext = SAFE_EXTENSIONS[I] then
+      begin
+        IsSafeExt := True;
+        Break;
+      end;
+    end;
+    Result := IsSafeExt;
   end
   else if TDirectory.Exists(APath) then
   begin
-    // 检查目录名 - 安全的缓存目录
-    if PathLower.Contains('cache') or PathLower.Contains('temp') or
-       PathLower.Contains('tmp') or PathLower.Contains('logs') then
-      Result := True;
+    // 检查目录名关键字白名单
+    IsSafeDir := False;
+    for I := Low(SAFE_DIR_KEYWORDS) to High(SAFE_DIR_KEYWORDS) do
+    begin
+      if PathLower.Contains(SAFE_DIR_KEYWORDS[I]) then
+      begin
+        IsSafeDir := True;
+        Break;
+      end;
+    end;
+    Result := IsSafeDir;
   end;
 end;
 
 function TCleanupManager.IsSystemCriticalPath(const APath: string): Boolean;
-var
-  PathLower: string;
-  CriticalPaths: TArray<string>;
-  CriticalPath: string;
-begin
-  Result := False;
-  PathLower := LowerCase(APath);
-  
-  // 定义系统关键路径
-  CriticalPaths := [
+const
+  // 系统关键路径黑名单（绝对禁止删除）
+  CRITICAL_PATHS: array[0..23] of string = (
+    // Windows 系统目录
     'c:\windows\system32',
     'c:\windows\syswow64',
     'c:\windows\boot',
     'c:\windows\drivers',
+    'c:\windows\fonts',
+    'c:\windows\winsxs',
+    'c:\windows\servicing',
+    'c:\windows\assembly',
+    // 程序目录
     'c:\program files',
     'c:\program files (x86)',
+    'c:\programdata\microsoft',
+    // 用户关键目录
     'c:\users\all users',
     'c:\users\default',
     'c:\users\public',
+    // NTFS 系统文件
     'c:\$mft',
     'c:\$logfile',
     'c:\$volume',
-    'c:\system volume information'
-  ];
+    'c:\$recycle.bin',
+    'c:\system volume information',
+    // 用户关键配置
+    'appdata\roaming\microsoft\windows\start menu',
+    'appdata\roaming\microsoft\windows\recent',
+    'appdata\local\microsoft\windows\explorer',
+    'ntuser.dat',
+    'usrclass.dat'
+  );
+var
+  PathLower: string;
+  I: Integer;
+begin
+  Result := False;
+  PathLower := LowerCase(APath);
   
-  for CriticalPath in CriticalPaths do
+  // 检查是否匹配任何关键路径
+  for I := Low(CRITICAL_PATHS) to High(CRITICAL_PATHS) do
   begin
-    if PathLower.StartsWith(CriticalPath) then
+    if PathLower.StartsWith(CRITICAL_PATHS[I]) or 
+       PathLower.Contains(CRITICAL_PATHS[I]) then
     begin
       Result := True;
-      Break;
+      Exit;
     end;
+  end;
+  
+  // 禁止删除根目录
+  if (Length(PathLower) <= 3) and (Pos(':\', PathLower) = 2) then
+  begin
+    Result := True;
+    Exit;
+  end;
+  
+  // 禁止删除用户根目录
+  if PathLower.EndsWith('\users') or 
+     (Pos('\users\', PathLower) > 0) and (PathLower.CountChar('\') <= 3) then
+  begin
+    Result := True;
+    Exit;
   end;
 end;
 
@@ -291,11 +386,11 @@ begin
           TFile.Delete(FilePath);
           Inc(AResult.FilesDeleted);
           AResult.SpaceFreed := AResult.SpaceFreed + FileSize;
-          AResult.Details.Add('已删除文件: ' + FilePath);
+          AResult.AddDetail('已删除文件: ' + FilePath);
         except
           on E: Exception do
           begin
-            AResult.Details.Add('删除文件失败: ' + FilePath + ' - ' + E.Message);
+            AResult.AddDetail('删除文件失败: ' + FilePath + ' - ' + E.Message);
           end;
         end;
       end;
@@ -316,7 +411,7 @@ begin
           if TDirectory.IsEmpty(SubDirs[I]) then
           begin
             TDirectory.Delete(SubDirs[I]);
-            AResult.Details.Add('已删除空目录: ' + SubDirs[I]);
+            AResult.AddDetail('已删除空目录: ' + SubDirs[I]);
           end;
         except
           // 忽略删除目录失败的错误
@@ -339,7 +434,7 @@ begin
   Result.FilesDeleted := 0;
   Result.SpaceFreed := 0;
   Result.ErrorMessage := '';
-  Result.Details := TStringList.Create;
+  Result.ClearDetails;
   
   try
     UpdateProgress('正在清空回收站...', 0);
@@ -348,7 +443,7 @@ begin
     if SHEmptyRecycleBin(0, nil, SHERB_NOCONFIRMATION or SHERB_NOPROGRESSUI or SHERB_NOSOUND) = S_OK then
     begin
       Result.Success := True;
-      Result.Details.Add('回收站已成功清空');
+      Result.AddDetail('回收站已成功清空');
       UpdateProgress('回收站清空完成', 100);
     end
     else
@@ -376,7 +471,7 @@ begin
   Result.FilesDeleted := 0;
   Result.SpaceFreed := 0;
   Result.ErrorMessage := '';
-  Result.Details := TStringList.Create;
+  Result.ClearDetails;
   
   try
     UpdateProgress('正在清理临时文件...', 0);
@@ -421,7 +516,7 @@ begin
   Result.FilesDeleted := 0;
   Result.SpaceFreed := 0;
   Result.ErrorMessage := '';
-  Result.Details := TStringList.Create;
+  Result.ClearDetails;
   
   try
     UpdateProgress('正在清理浏览器缓存...', 0);
@@ -465,7 +560,7 @@ begin
   Result.FilesDeleted := 0;
   Result.SpaceFreed := 0;
   Result.ErrorMessage := '';
-  Result.Details := TStringList.Create;
+  Result.ClearDetails;
   
   try
     UpdateProgress('正在准备清理Windows更新缓存...', 0);
@@ -495,7 +590,7 @@ begin
     else
     begin
       Result.Success := True;
-      Result.Details.Add('Windows更新缓存目录不存在');
+      Result.AddDetail('Windows更新缓存目录不存在');
       UpdateProgress('Windows更新缓存目录不存在', 90);
     end;
     
@@ -523,7 +618,7 @@ begin
   Result.FilesDeleted := 0;
   Result.SpaceFreed := 0;
   Result.ErrorMessage := '';
-  Result.Details := TStringList.Create;
+  Result.ClearDetails;
   
   try
     UpdateProgress('正在清理系统日志...', 0);
@@ -573,7 +668,7 @@ begin
   Result.FilesDeleted := 0;
   Result.SpaceFreed := 0;
   Result.ErrorMessage := '';
-  Result.Details := TStringList.Create;
+  Result.ClearDetails;
   
   try
     UpdateProgress('正在清理预取文件...', 0);
@@ -596,7 +691,7 @@ begin
     else
     begin
       Result.Success := True;
-      Result.Details.Add('预取文件目录不存在');
+      Result.AddDetail('预取文件目录不存在');
       UpdateProgress('预取文件目录不存在', 100);
     end;
     
@@ -654,10 +749,10 @@ begin
   Result.FilesDeleted := 0;
   Result.SpaceFreed := 0;
   Result.ErrorMessage := '';
-  Result.Details := TStringList.Create;
+  Result.ClearDetails;
   
   UpdateProgress('注册表清理功能正在开发中...', 100);
-  Result.Details.Add('注册表清理功能将在未来版本中提供');
+  Result.AddDetail('注册表清理功能将在未来版本中提供');
 end;
 
 function TCleanupManager.PerformSmartCleanup: TCleanupResult;
@@ -665,12 +760,11 @@ var
   TempResult: TCleanupResult;
   TotalFiles: Integer;
   TotalSpace: Int64;
-  AllDetails: TStringList;
 begin
   FCancel := False;
   TotalFiles := 0;
   TotalSpace := 0;
-  AllDetails := TStringList.Create;
+  Result.ClearDetails;
   
   try
     UpdateProgress('开始智能清理...', 0);
@@ -682,8 +776,7 @@ begin
       TempResult := EmptyRecycleBinInternal;
       TotalFiles := TotalFiles + TempResult.FilesDeleted;
       TotalSpace := TotalSpace + TempResult.SpaceFreed;
-      AllDetails.AddStrings(TempResult.Details);
-      TempResult.Details.Free;
+      Result.AddDetails(TempResult.Details);
     end;
     
     // 2. 清理临时文件
@@ -693,8 +786,7 @@ begin
       TempResult := CleanTempFilesInternal;
       TotalFiles := TotalFiles + TempResult.FilesDeleted;
       TotalSpace := TotalSpace + TempResult.SpaceFreed;
-      AllDetails.AddStrings(TempResult.Details);
-      TempResult.Details.Free;
+      Result.AddDetails(TempResult.Details);
     end;
     
     // 3. 清理浏览器缓存
@@ -704,8 +796,7 @@ begin
       TempResult := CleanBrowserCacheInternal;
       TotalFiles := TotalFiles + TempResult.FilesDeleted;
       TotalSpace := TotalSpace + TempResult.SpaceFreed;
-      AllDetails.AddStrings(TempResult.Details);
-      TempResult.Details.Free;
+      Result.AddDetails(TempResult.Details);
     end;
     
     // 4. 清理系统日志
@@ -715,8 +806,7 @@ begin
       TempResult := CleanSystemLogsInternal;
       TotalFiles := TotalFiles + TempResult.FilesDeleted;
       TotalSpace := TotalSpace + TempResult.SpaceFreed;
-      AllDetails.AddStrings(TempResult.Details);
-      TempResult.Details.Free;
+      Result.AddDetails(TempResult.Details);
     end;
     
     // 5. 清理预取文件
@@ -726,15 +816,13 @@ begin
       TempResult := CleanPrefetchFilesInternal;
       TotalFiles := TotalFiles + TempResult.FilesDeleted;
       TotalSpace := TotalSpace + TempResult.SpaceFreed;
-      AllDetails.AddStrings(TempResult.Details);
-      TempResult.Details.Free;
+      Result.AddDetails(TempResult.Details);
     end;
     
     // 汇总结果
     Result.Success := not FCancel;
     Result.FilesDeleted := TotalFiles;
     Result.SpaceFreed := TotalSpace;
-    Result.Details := AllDetails;
     
     if FCancel then
     begin
@@ -754,7 +842,6 @@ begin
       Result.ErrorMessage := '智能清理时发生异常: ' + E.Message;
       Result.FilesDeleted := TotalFiles;
       Result.SpaceFreed := TotalSpace;
-      Result.Details := AllDetails;
       UpdateProgress('智能清理异常: ' + E.Message, 100);
     end;
   end;
@@ -767,10 +854,10 @@ begin
   Result.FilesDeleted := 0;
   Result.SpaceFreed := 0;
   Result.ErrorMessage := '';
-  Result.Details := TStringList.Create;
+  Result.ClearDetails;
   
   UpdateProgress('磁盘使用分析功能正在开发中...', 100);
-  Result.Details.Add('磁盘使用分析功能将在未来版本中提供');
+  Result.AddDetail('磁盘使用分析功能将在未来版本中提供');
 end;
 
 function TCleanupManager.GetCleanableSize: Int64;
@@ -780,7 +867,7 @@ begin
   // TODO: 实现可清理大小计算逻辑
 end;
 
-function TCleanupManager.StopServiceByName(const ServiceName: string; TimeoutMs: Cardinal): Boolean;
+function TCleanupManager.StopServiceByName(const ServiceName: string; TimeoutMs: Cardinal = SERVICE_STOP_TIMEOUT_MS): Boolean;
 var
   hSCM, hSvc: SC_HANDLE;
   SvcStatus: SERVICE_STATUS_PROCESS;

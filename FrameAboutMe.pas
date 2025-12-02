@@ -377,12 +377,8 @@ end;
 procedure TFrameAboutMe.LoadAndDisplayImages;
 var
   I: Integer;
-  LogFileName: string;
-  ImageField, AddressField, SHAField: TField;
-  MemoryStream: TMemoryStream;
-  EncryptedData, DecryptedData: TBytes;
+  AddressText: string;
 begin
-  LogFileName := GetProjectRootPath + 'aboutme_debug.log';
   Log('开始加载和显示图像');
 
   try
@@ -393,73 +389,28 @@ begin
       if FDTable1.Active and Assigned(FImageMappings[I].Image) then
       begin
         try
-          if FDTable1.Locate('image_key', FImageMappings[I].Key, []) then
+          // 使用 TAntiTamperPackage.LoadSecureImage 统一处理解密和校验
+          // 该方法内部处理 AES-256 解密、SHA-256 校验和 HMAC 校验
+          if TAntiTamperPackage.LoadSecureImage(
+               FDTable1,
+               FImageMappings[I].Key,
+               FImageMappings[I].Image,
+               AddressText) then
           begin
-            Log(Format('在数据库中找到记录: %s', [FImageMappings[I].Key]));
-
-            ImageField := FDTable1.FieldByName('image_data');
-            AddressField := FDTable1.FieldByName('address_text');
-            // 数据库列名为 md5_hash（实际存储为SHA-256值）
-            SHAField := FDTable1.FieldByName('md5_hash');
-
-            if not ImageField.IsNull then
+            Log(Format('图像加载成功: %s', [FImageMappings[I].Key]));
+            
+            // 设置地址标签
+            if Assigned(FImageMappings[I].AddressLabel) then
             begin
-              MemoryStream := TMemoryStream.Create;
-              try
-                TBlobField(ImageField).SaveToStream(MemoryStream);
-                MemoryStream.Position := 0;
-
-                SetLength(EncryptedData, MemoryStream.Size);
-                if MemoryStream.Size > 0 then
-                  MemoryStream.ReadBuffer(EncryptedData[0], MemoryStream.Size);
-
-                Log(Format('加密数据长度: %d bytes', [Length(EncryptedData)]));
-
-                DecryptedData := TBasicProtection.DecryptBinaryData(EncryptedData, '@2241114');
-                Log(Format('解密数据长度: %d bytes', [Length(DecryptedData)]));
-
-                if not TAntiTamperPackage.VerifyImageIntegrity(DecryptedData, SHAField.AsString) then
-                begin
-                  Log(Format('SHA-256校验失败: %s', [FImageMappings[I].Key]));
-                  TAntiTamperPackage.HandleSecurityViolation(FImageMappings[I].Key, 'SHA-256校验失败');
-                  Exit;
-                end;
-
-                MemoryStream.Clear;
-                if Length(DecryptedData) > 0 then
-                  MemoryStream.WriteBuffer(DecryptedData[0], Length(DecryptedData));
-                MemoryStream.Position := 0;
-
-                if MemoryStream.Size > 0 then
-                begin
-                  FImageMappings[I].Image.Picture.LoadFromStream(MemoryStream);
-                  Log(Format('数据库图像加载成功: %s, 数据大小: %d bytes',
-                    [FImageMappings[I].Key, MemoryStream.Size]));
-
-                  if Assigned(FImageMappings[I].AddressLabel) then
-                  begin
-                    if not AddressField.IsNull and (AddressField.AsString <> '') then
-                      FImageMappings[I].AddressLabel.Caption := AddressField.AsString
-                    else
-                      FImageMappings[I].AddressLabel.Caption := FImageMappings[I].DefaultAddress;
-                  end;
-                end
-                else
-                begin
-                  Log(Format('图像数据为空: %s', [FImageMappings[I].Key]));
-                end;
-              finally
-                MemoryStream.Free;
-              end;
-            end
-            else
-            begin
-              Log(Format('图像字段为空: %s', [FImageMappings[I].Key]));
+              if AddressText <> '' then
+                FImageMappings[I].AddressLabel.Caption := AddressText
+              else
+                FImageMappings[I].AddressLabel.Caption := FImageMappings[I].DefaultAddress;
             end;
           end
           else
           begin
-            Log(Format('未找到图像记录: %s', [FImageMappings[I].Key]));
+            Log(Format('图像加载失败或未找到: %s', [FImageMappings[I].Key]));
           end;
         except
           on E: Exception do

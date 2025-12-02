@@ -89,7 +89,7 @@
         Left = 9
         Top = 64
         Width = 300
-        Height = 522
+        Height = 462
         Color = clWhite
         Font.Charset = DEFAULT_CHARSET
         Font.Color = 4342338
@@ -104,6 +104,56 @@
         OnDblClick = tvSourceDblClick
         OnExpanding = tvSourceExpanding
         OnKeyDown = tvSourceKeyDown
+      end
+      object pnlAppAssoc: TPanel
+        Left = 9
+        Top = 530
+        Width = 300
+        Height = 56
+        BevelOuter = bvNone
+        Color = 16119285
+        TabOrder = 4
+        object lblAppAssocTitle: TLabel
+          Left = 4
+          Top = 2
+          Width = 65
+          Height = 15
+          Caption = #24212#29992#20851#32852#65306
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = 6579300
+          Font.Height = -11
+          Font.Name = 'Microsoft YaHei UI'
+          Font.Style = [fsBold]
+          ParentFont = False
+        end
+        object lblAppName: TLabel
+          Left = 4
+          Top = 19
+          Width = 290
+          Height = 15
+          AutoSize = False
+          Caption = '-'
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = 4210752
+          Font.Height = -11
+          Font.Name = 'Microsoft YaHei UI'
+          Font.Style = []
+          ParentFont = False
+        end
+        object lblAppSuggestion: TLabel
+          Left = 4
+          Top = 36
+          Width = 290
+          Height = 15
+          AutoSize = False
+          Caption = '-'
+          Font.Charset = DEFAULT_CHARSET
+          Font.Color = 8421504
+          Font.Height = -11
+          Font.Name = 'Microsoft YaHei UI'
+          Font.Style = []
+          ParentFont = False
+        end
       end
     end
     object pnlRight: TPanel
@@ -506,6 +556,13 @@
       object MenuCleanupDuplicateFiles: TMenuItem
         Caption = #26234#33021#37325#22797#25991#20214#28165#29702'(&D)'
         OnClick = MenuCleanupDuplicateFilesClick
+      end
+      object MenuCleanupSeparator3: TMenuItem
+        Caption = '-'
+      end
+      object MenuCleanupHistory: TMenuItem
+        Caption = #28165#29702#21382#21490#35760#24405'(&H)'
+        OnClick = MenuCleanupHistoryClick
       end
     end
     object MenuTools: TMenuItem

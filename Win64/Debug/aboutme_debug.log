@@ -1,49 +1,31 @@
-﻿[2025/11/27 5:01:03] InitializeDataManager started
-[2025/11/27 5:01:03] Project root directory: D:\_Progs\02Business\MoveC\Win64\Debug\
-[2025/11/27 5:01:03] Setting database path: D:\_Progs\02Business\MoveC\Win64\Debug\MoveC.db
-[2025/11/27 5:01:03] Setting up database connection
-[2025/11/27 5:01:03] Checking design-time database components:
-[2025/11/27 5:01:03]   FDConnection1.Connected: False
-[2025/11/27 5:01:03]   FDTable1.Active: False
-[2025/11/27 5:01:03]   Database path: D:\_Progs\02Business\MoveC\Win64\Debug\MoveC.db
-[2025/11/27 5:01:03]   FDTable1.TableName: images
-[2025/11/27 5:01:03] Attempting to activate database connection
-[2025/11/27 5:01:03] Database connection activated successfully
-[2025/11/27 5:01:03] Attempting to activate data table
-[2025/11/27 5:01:03] Data table activated successfully
-[2025/11/27 5:01:03] 开始初始化图像映射数组
-[2025/11/27 5:01:03] 验证Image控件分配状态:
-[2025/11/27 5:01:03]   imgWechat: True (地址: 0000020088C6CBA0)
-[2025/11/27 5:01:03]   imgAlipay: True (地址: 0000020088C6D6E0)
-[2025/11/27 5:01:03]   imgBTC: True (地址: 0000020088C6E220)
-[2025/11/27 5:01:03]   imgUSDT: True (地址: 0000020088C6ED60)
-[2025/11/27 5:01:03]   imgAboutMe: True (地址: 0000020088C6FC60)
-[2025/11/27 5:01:03] Frame状态检查:
-[2025/11/27 5:01:03]   Frame.Parent: True
-[2025/11/27 5:01:03]   Frame.Visible: True
-[2025/11/27 5:01:03]   Frame.ComponentCount: 28
-[2025/11/27 5:01:03] 图像映射数组初始化完成
-[2025/11/27 5:01:03] 开始加载和显示图像
-[2025/11/27 5:01:03] 处理图像 0: wechat
-[2025/11/27 5:01:03] 在数据库中找到记录: wechat
-[2025/11/27 5:01:03] 加密数据长度: 33360 bytes
-[2025/11/27 5:01:03] 处理图像时异常: wechat - AES decryption failed
-[2025/11/27 5:01:03] 处理图像 1: alipay
-[2025/11/27 5:01:03] 在数据库中找到记录: alipay
-[2025/11/27 5:01:03] 加密数据长度: 14384 bytes
-[2025/11/27 5:01:03] 解密数据长度: 14348 bytes
-[2025/11/27 5:01:03] 数据库图像加载成功: alipay, 数据大小: 14348 bytes
-[2025/11/27 5:01:03] 处理图像 2: btc
-[2025/11/27 5:01:03] 在数据库中找到记录: btc
-[2025/11/27 5:01:03] 加密数据长度: 5920 bytes
-[2025/11/27 5:01:03] 处理图像时异常: btc - AES decryption failed
-[2025/11/27 5:01:03] 处理图像 3: usdt
-[2025/11/27 5:01:03] 在数据库中找到记录: usdt
-[2025/11/27 5:01:03] 加密数据长度: 162944 bytes
-[2025/11/27 5:01:03] 处理图像时异常: usdt - AES decryption failed
-[2025/11/27 5:01:03] 处理图像 4: aboutme
-[2025/11/27 5:01:03] 在数据库中找到记录: aboutme
-[2025/11/27 5:01:03] 加密数据长度: 112176 bytes
-[2025/11/27 5:01:03] 解密数据长度: 112143 bytes
-[2025/11/27 5:01:03] 数据库图像加载成功: aboutme, 数据大小: 112143 bytes
-[2025/11/27 5:01:03] 延迟初始化完成
+﻿[2025/12/2 12:27:24] InitializeDataManager started
+[2025/12/2 12:27:24] Project root directory: D:\_Progs\02Business\MoveC\Win64\Debug\
+[2025/12/2 12:27:24] Setting database path: D:\_Progs\02Business\MoveC\Win64\Debug\MoveC.db
+[2025/12/2 12:27:24] Setting up database connection
+[2025/12/2 12:27:24] Checking design-time database components:
+[2025/12/2 12:27:24]   FDConnection1.Connected: False
+[2025/12/2 12:27:24]   FDTable1.Active: False
+[2025/12/2 12:27:24]   Database path: D:\_Progs\02Business\MoveC\Win64\Debug\MoveC.db
+[2025/12/2 12:27:24]   FDTable1.TableName: images
+[2025/12/2 12:27:24] Attempting to activate database connection
+[2025/12/2 12:27:24] Database connection activated successfully
+[2025/12/2 12:27:24] Attempting to activate data table
+[2025/12/2 12:27:24] Data table activated successfully
+[2025/12/2 12:27:24] 开始初始化图像映射数组
+[2025/12/2 12:27:24] 验证Image控件分配状态:
+[2025/12/2 12:27:24]   imgWechat: True (地址: 00000201033AB160)
+[2025/12/2 12:27:24]   imgAlipay: True (地址: 00000201033ABCA0)
+[2025/12/2 12:27:24]   imgBTC: True (地址: 00000201033AC7E0)
+[2025/12/2 12:27:24]   imgUSDT: True (地址: 00000201033AD320)
+[2025/12/2 12:27:24]   imgAboutMe: True (地址: 00000201033AE220)
+[2025/12/2 12:27:24] Frame状态检查:
+[2025/12/2 12:27:24]   Frame.Parent: True
+[2025/12/2 12:27:24]   Frame.Visible: True
+[2025/12/2 12:27:24]   Frame.ComponentCount: 28
+[2025/12/2 12:27:24] 图像映射数组初始化完成
+[2025/12/2 12:27:24] 开始加载和显示图像
+[2025/12/2 12:27:24] 处理图像 0: wechat
+[2025/12/2 12:27:24] 在数据库中找到记录: wechat
+[2025/12/2 12:27:24] 加密数据长度: 33360 bytes
+[2025/12/2 12:27:24] 解密数据长度: 33360 bytes
+[2025/12/2 12:27:24] SHA-256校验失败: wechat

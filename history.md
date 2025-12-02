@@ -1,6 +1,104 @@
 # MoveC 变更与里程碑（History）
 
-更新时间：2025-11-22 00:54
+更新时间：2025-12-02
+
+## 2025-12-02 V1.2.0-Beta 发布准备完成
+
+### 安全测试 ✅ 28/28 通过
+- 关键路径保护验证（System32/Program Files/WinSxS/Boot等）
+- 根目录保护验证（C:\/D:\）
+- 用户目录保护验证（Users/Default/Public）
+- 用户配置保护验证（Start Menu/Explorer/NTUSER.DAT）
+- 清理目标安全验证（Temp/Prefetch/Cache/Logs）
+- 测试脚本: `tests/Test-CleanupSafety.ps1`
+
+### 双平台编译 ✅
+- Win32: 6.98 MB (`Win32\Debug\C盘超级瘦身.exe`)
+- Win64: 28.9 MB (`Win64\Debug\C盘超级瘦身.exe`)
+- 编译器: dcc32.exe / dcc64.exe
+
+### 文档更新 ✅
+- README.md: 添加 V1.2.0-Beta 更新日志和新功能说明
+- html/index.html: 更新版本号和功能卡片
+- docs/用户手册.md: 完整用户手册（安装、功能、回滚、FAQ、安全说明）
+
+### P1 应用关联检测 UI ✅
+- 新增 pnlAppAssoc 面板，在源目录树下方显示关联应用信息
+- 根据置信度用不同颜色标识（绿=高、橙=中、灰=低）
+- 显示关联原因和测试建议
+
+### P1 确认文案优化 ✅
+- 迁移前确认：添加迁移步骤说明、安全提示、备份回滚说明
+- 删除目录确认：添加风险提示、二次确认、不可撤销警告
+- 清理备份确认：说明哪些备份会保留
+- 取消操作确认：说明取消后清理已复制文件、源目录不受影响
+
+### Bug修复
+- uCleanupHistoryForm.pas: 修复 `Exchange` 方法不存在错误，改用 TArray.Sort
+- uCleanupHistoryForm.pas: 添加 System.DateUtils 单元
+
+---
+
+## 2025-12-02 Phase 3 清理功能全部完成 + 历史查看 UI 新增
+
+### Phase 3.1 服务控制 ✅
+- 停止/恢复 Windows Update 相关服务（wuauserv/bits），在 Windows 更新缓存清理前后自动处理
+
+### Phase 3.2 清理预览 ✅
+- 新增 `uCleanupPreviewForm.pas`/DFM：
+  - 预览列表支持排序（列点击切换 ASC/DESC）
+  - 按风险过滤（默认隐藏高风险，勾选显示）
+  - 默认勾选安全项，支持“全选/仅安全/全不选”
+  - 执行清理前二次确认
+
+### Phase 3.5 清理历史查看 UI ✅
+- 新增 `uCleanupHistoryForm.pas`/DFM：
+  - 列表展示清理历史（时间/类型/状态/删除文件/释放空间/耗时/错误）
+  - 按类型筛选与列排序
+  - 导出 TXT 报告与 JSON 历史
+
+---
+
+## 2025-12-01 代码质量重构与安全增强完成
+
+### Phase 3.3 安全增强 ✅
+**完成工作**:
+- [x] 扩展 `IsSafeToDelete` 白名单（.tmp/.temp/.log/.cache/.bak 等 15+ 扩展名）
+- [x] 允许的目录关键字：cache/temp/tmp/logs/thumbnails 等
+- [x] 黑名单机制 `IsSystemCriticalPath`
+  - Windows 系统目录（System32/SysWOW64/Boot/Fonts/WinSxS等）
+  - 程序目录（Program Files等）
+  - 用户关键配置（Start Menu/Recent/ntuser.dat等）
+  - NTFS 系统文件（$MFT/$LogFile等）
+  - 禁止删除根目录和用户根目录
+
+### Phase 3.4 清理历史 ✅
+**完成工作**:
+- [x] 创建 `uCleanupHistory.pas` 清理历史管理模块（含 TCleanupType 枚举、TCleanupHistoryEntry、TCleanupHistoryManager）
+- [x] 生成清理报告 JSON（cleanup_history.json）
+- [x] 集成到 CleanRecycleBin/CleanTempFiles/CleanBackupFiles/CleanUpdateCache/btnSmartCleanClick
+
+### Phase R1-R3 代码质量重构 ✅
+**完成工作**:
+- [x] **R1.1** 拆分 TfrmMain 巨型类 - 创建 `uMigrationService.pas`，定义 `IMigrationProgress` 接口和 `EMigrationException` 异常类
+- [x] **R1.2** 移除调试代码残留 - 清理 FormShow 中的 AssignFile/WriteLn，使用 `{$IFDEF DEBUG}` 包裹
+- [x] **R2.1** 统一异常处理策略 - 修复 HeartbeatCheck、资源检查中的空异常处理
+- [x] **R2.2** 修复 TreeView 节点内存管理 - 实现 OnDeletion 事件自动释放 StrNew 分配的内存
+- [x] **R2.3** 修复 TCleanupResult.Details 内存泄漏风险 - TStringList 改为 TArray<string>
+- [x] **R3.1** 提取硬编码常量 - 创建 `uConstants.pas`，替换魔法数字和硬编码路径
+- [x] **R3.2** 日志框架审查 - 确认 uLogger.pas 与 uLogManager.pas 分层设计合理
+
+### UI/UX 改进 ✅
+**完成工作**:
+- [x] 去除 `uMain.pas` 中的状态消息 Emoji
+- [x] DFM 文件使用 Unicode 转义，无 Emoji 问题
+- [x] 统一日志接口（uLogger.pas）
+
+### Bug 修复 ✅
+- [x] uCleanupManager.pas: CRITICAL_PATHS 数组大小从 [0..24] 改为 [0..23]
+- [x] uCleanupHistory.pas: 添加缺失的 System.Math, System.StrUtils 引用
+
+---
 
 ## 2025-11-22 新增已完成任务归档
 

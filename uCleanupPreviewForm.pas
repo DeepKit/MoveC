@@ -60,9 +60,13 @@ type
     FIsPreviewing: Boolean;
     FIsCleaning: Boolean;
     FSelectedItems: TList<Integer>;
+    FSortColumn: Integer;
+    FSortAscending: Boolean;
     
+    procedure InitializeListView;
     procedure UpdateSafetyLevel;
     procedure DisplayPreviewResults;
+    procedure SortListView(AColumn: Integer);
     procedure UpdateItemSelection;
     procedure UpdateButtonStates;
     procedure FormatFileSizeLabel(ALabel: TLabel; ASize: Int64);
@@ -92,6 +96,8 @@ begin
   FSelectedItems := TList<Integer>.Create;
   FIsPreviewing := False;
   FIsCleaning := False;
+  FSortColumn := -1;
+  FSortAscending := True;
   
   // 设置窗体属性
   Caption := '清理预览';
@@ -216,6 +222,7 @@ var
   I: Integer;
   Item: TCleanupItem;
   ListItem: TListItem;
+  ShowItem: Boolean;
 begin
   // 更新摘要信息
   lblTotalItems.Caption := Format('清理项目: %d 个', [FCurrentPreview.TotalItems]);
@@ -225,26 +232,39 @@ begin
   lblEstimatedTime.Caption := Format('预计时间: %d 秒', [FCurrentPreview.EstimatedTime]);
   
   // 清空列表
-  lvItems.Clear;
-  FSelectedItems.Clear;
-  
-  // 添加项目到列表
-  for I := 0 to High(FCurrentPreview.Items) do
-  begin
-    Item := FCurrentPreview.Items[I];
+  lvItems.Items.BeginUpdate;
+  try
+    lvItems.Clear;
+    FSelectedItems.Clear;
     
-    ListItem := lvItems.Items.Add;
-    ListItem.Caption := Item.ItemName;
-    ListItem.SubItems.Add(CleanupItemTypeToString(Item.ItemType));
-    ListItem.SubItems.Add(FormatFileSize(Item.ItemSize));
-    ListItem.SubItems.Add(IntToStr(Item.FileCount));
-    ListItem.SubItems.Add(Format('%d/10', [Item.RiskLevel]));
-    ListItem.SubItems.Add(Item.Description);
-    ListItem.Checked := Item.IsSafe; // 默认选中安全项目
-    ListItem.Data := Pointer(I);
-    
-    if Item.IsSafe then
-      FSelectedItems.Add(I);
+    // 添加项目到列表（支持过滤）
+    for I := 0 to High(FCurrentPreview.Items) do
+    begin
+      Item := FCurrentPreview.Items[I];
+      
+      // 检查是否应显示此项目
+      ShowItem := True;
+      if not chkShowRisky.Checked and (Item.RiskLevel > 5) then
+        ShowItem := False;
+      
+      if ShowItem then
+      begin
+        ListItem := lvItems.Items.Add;
+        ListItem.Caption := Item.ItemName;
+        ListItem.SubItems.Add(CleanupItemTypeToString(Item.ItemType));
+        ListItem.SubItems.Add(FormatFileSize(Item.ItemSize));
+        ListItem.SubItems.Add(IntToStr(Item.FileCount));
+        ListItem.SubItems.Add(Format('%d/10', [Item.RiskLevel]));
+        ListItem.SubItems.Add(Item.Description);
+        ListItem.Checked := Item.IsSafe; // 默认选中安全项目
+        ListItem.Data := Pointer(I);
+        
+        if Item.IsSafe then
+          FSelectedItems.Add(I);
+      end;
+    end;
+  finally
+    lvItems.Items.EndUpdate;
   end;
   
   pnlResults.Visible := True;
@@ -363,21 +383,10 @@ begin
 end;
 
 procedure TfrmCleanupPreview.chkShowRiskyClick(Sender: TObject);
-var
-  I: Integer;
-  Item: TCleanupItem;
-  ListItem: TListItem;
 begin
-  for I := 0 to lvItems.Items.Count - 1 do
-  begin
-    ListItem := lvItems.Items[I];
-    Item := FCurrentPreview.Items[Integer(ListItem.Data)];
-    
-    if not chkShowRisky.Checked and (Item.RiskLevel > 5) then
-      ListItem.Visible := False
-    else
-      ListItem.Visible := True;
-  end;
+  // 重新显示预览结果，应用过滤
+  if Length(FCurrentPreview.Items) > 0 then
+    DisplayPreviewResults;
 end;
 
 procedure TfrmCleanupPreview.lvItemsCustomDrawItem(Sender: TCustomListView; 
@@ -409,7 +418,105 @@ end;
 procedure TfrmCleanupPreview.lvItemsColumnClick(Sender: TObject; 
   Column: TListColumn);
 begin
-  // 可以添加排序功能
+  SortListView(Column.Index);
+end;
+
+procedure TfrmCleanupPreview.SortListView(AColumn: Integer);
+var
+  I, J: Integer;
+  ListItem1, ListItem2: TListItem;
+  Value1, Value2: string;
+  Int1, Int2: Int64;
+  Swapped: Boolean;
+begin
+  if lvItems.Items.Count < 2 then Exit;
+  
+  // Toggle sort direction if same column clicked
+  if FSortColumn = AColumn then
+    FSortAscending := not FSortAscending
+  else
+  begin
+    FSortColumn := AColumn;
+    FSortAscending := True;
+  end;
+  
+  // Simple bubble sort for ListView
+  lvItems.Items.BeginUpdate;
+  try
+    for I := 0 to lvItems.Items.Count - 2 do
+    begin
+      for J := 0 to lvItems.Items.Count - 2 - I do
+      begin
+        ListItem1 := lvItems.Items[J];
+        ListItem2 := lvItems.Items[J + 1];
+        Swapped := False;
+        
+        // Get values based on column
+        if AColumn = 0 then
+        begin
+          Value1 := ListItem1.Caption;
+          Value2 := ListItem2.Caption;
+          if FSortAscending then
+            Swapped := CompareText(Value1, Value2) > 0
+          else
+            Swapped := CompareText(Value1, Value2) < 0;
+        end
+        else if AColumn <= ListItem1.SubItems.Count then
+        begin
+          Value1 := ListItem1.SubItems[AColumn - 1];
+          Value2 := ListItem2.SubItems[AColumn - 1];
+          
+          // Numeric columns: Size (2), File Count (3), Risk Level (4)
+          if AColumn in [2, 3, 4] then
+          begin
+            // Extract numeric value
+            Int1 := 0;
+            Int2 := 0;
+            
+            if AColumn = 2 then // Size column - use actual item size
+            begin
+              Int1 := FCurrentPreview.Items[Integer(ListItem1.Data)].ItemSize;
+              Int2 := FCurrentPreview.Items[Integer(ListItem2.Data)].ItemSize;
+            end
+            else if AColumn = 3 then // File count
+            begin
+              TryStrToInt64(Value1, Int1);
+              TryStrToInt64(Value2, Int2);
+            end
+            else if AColumn = 4 then // Risk level - parse "X/10" format
+            begin
+              if Pos('/', Value1) > 0 then
+                TryStrToInt64(Copy(Value1, 1, Pos('/', Value1) - 1), Int1);
+              if Pos('/', Value2) > 0 then
+                TryStrToInt64(Copy(Value2, 1, Pos('/', Value2) - 1), Int2);
+            end;
+            
+            if FSortAscending then
+              Swapped := Int1 > Int2
+            else
+              Swapped := Int1 < Int2;
+          end
+          else
+          begin
+            // Text comparison for other columns
+            if FSortAscending then
+              Swapped := CompareText(Value1, Value2) > 0
+            else
+              Swapped := CompareText(Value1, Value2) < 0;
+          end;
+        end;
+        
+        // Swap items if needed
+        if Swapped then
+        begin
+          // Exchange item data
+          lvItems.Items.Exchange(J, J + 1);
+        end;
+      end;
+    end;
+  finally
+    lvItems.Items.EndUpdate;
+  end;
 end;
 
 procedure TfrmCleanupPreview.UpdateButtonStates;

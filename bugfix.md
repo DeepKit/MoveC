@@ -161,3 +161,57 @@
 - 所有菜单项在各种环境下正常显示
 - 编译过程无Unicode相关错误
 - 用户界面简洁一致
+
+---
+
+## 修复: uCleanupManager.pas 数组大小不匹配
+
+- 日期: 2025-12-01
+- 模块: `uCleanupManager.pas`
+- 错误: E2072 Number of elements (24) differs from declaration (25)
+
+### 问题
+
+第 291 行 `CRITICAL_PATHS: array[0..24]` 声明了 25 个元素，但实际只有 24 个。
+
+### 修复
+
+将 `array[0..24]` 改为 `array[0..23]`
+
+---
+
+## 修复: uCleanupHistory.pas 缺失单元引用
+
+- 日期: 2025-12-01
+- 模块: `uCleanupHistory.pas`
+- 错误: E2003 Undeclared identifier 'Min', E2003 Undeclared identifier 'IfThen'
+
+### 问题
+
+uses 子句缺少 System.Math 和 System.StrUtils 单元。
+
+### 修复
+
+在 uses 子句中添加 `System.Math, System.StrUtils`
+
+---
+
+## 修复: uCleanupHistory.pas 缺失单元引用
+
+uSyncLocalMain.pas 有 `{$R *.dfm}` 指令，需要一个 DFM 文件。但该文件丢失。
+
+### 修复
+
+创建 `uSyncLocalMain.dfm`（Delphi 窗体设计文件，174 行）。包含:
+- 三个主要布局板: pnlTop, pnlStatus, pnlBottom
+- lvTasks (任务列表控件, 4 项)
+- memoStatus (状态日志)
+- btnSettings 和 btnExit 按钮
+- MainMenu1 (菜单系统)
+- StatusBar1 (状态栏)
+
+### 验证
+
+- [x] 创建 uSyncLocalMain.dfm
+- [x] 所有控件匹配 .pas 声明
+- [x] IDE 不再报告错误

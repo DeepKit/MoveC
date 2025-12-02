@@ -5,16 +5,16 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, Winapi.ShellAPI,
   System.SysUtils, System.Variants, System.Classes, System.AnsiStrings,
-  System.Generics.Collections, System.Generics.Defaults, System.Threading, System.Math,
+  System.Generics.Collections, System.Generics.Defaults, System.Threading, System.Math, System.DateUtils,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs,
   Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls, Vcl.Menus, Vcl.FileCtrl, Vcl.Clipbrd, Vcl.Buttons,
   System.IOUtils, System.UITypes,
   // Modern UI styles and strings
-  uStyles, uStrings, uIconManager,
+  uStyles, uStrings, uIconManager, uConstants,
   // Security modules
   uSimpleSecureManager, FrameAboutMe, uAntiTamperPackage, uAntiDebug,
   // Clean up modules
-  uCleanupManager,
+  uCleanupManager, uCleanupHistory,
   // Advanced file manager
   uAdvancedFileManagerForm,
   // Smart migration wizard
@@ -35,10 +35,12 @@ uses
   uSystemMonitor, uPerformanceAnalyzer, uSystemOptimizer,
   // C盘空间分析器
   uDiskAnalyzer,
+  // 清理预览窗体
+  uCleanupPreview,
+  // 清理历史查看窗体
+  uCleanupHistoryForm,
   // FireDAC for SQLite initialization when DB is missing
-  FireDAC.Comp.Client, FireDAC.Stan.Def, FireDAC.Phys.SQLite, Data.DB,
-  // Tray and Sync
-  uTrayIcon, uSyncEngine, uSyncDatabase, uSyncSettings;
+  FireDAC.Comp.Client, FireDAC.Stan.Def, FireDAC.Phys.SQLite, Data.DB;
 
 type
   TfrmMain = class(TForm)
@@ -52,6 +54,12 @@ type
     btnBrowseSource: TBitBtn;
     btnSourceUp: TBitBtn;
     tvSource: TTreeView;
+    
+    // 应用关联信息面板
+    pnlAppAssoc: TPanel;
+    lblAppAssocTitle: TLabel;
+    lblAppName: TLabel;
+    lblAppSuggestion: TLabel;
     
     // 右侧面板 - 目标目录
     pnlRight: TPanel;
@@ -77,6 +85,8 @@ type
     MenuCleanupSoftwareDistribution: TMenuItem;
     MenuCleanupSeparator2: TMenuItem;
     MenuCleanupDuplicateFiles: TMenuItem;
+    MenuCleanupSeparator3: TMenuItem;
+    MenuCleanupHistory: TMenuItem;
     MenuTools: TMenuItem;
     miSimpleMode: TMenuItem;
     miConfigManager: TMenuItem;
@@ -165,6 +175,8 @@ type
     procedure tvTargetKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure tvSourceExpanding(Sender: TObject; Node: TTreeNode; var AllowExpansion: Boolean);
     procedure tvTargetExpanding(Sender: TObject; Node: TTreeNode; var AllowExpansion: Boolean);
+    procedure tvSourceDeletion(Sender: TObject; Node: TTreeNode);
+    procedure tvTargetDeletion(Sender: TObject; Node: TTreeNode);
     
     // 菜单事件
     procedure MenuFileExitClick(Sender: TObject);
@@ -173,6 +185,7 @@ type
     procedure MenuCleanupLastBackupClick(Sender: TObject);
     procedure MenuCleanupSoftwareDistributionClick(Sender: TObject);
     procedure MenuCleanupDuplicateFilesClick(Sender: TObject);
+    procedure MenuCleanupHistoryClick(Sender: TObject);
     procedure miConfigManagerClick(Sender: TObject);
     procedure miAdvancedFileManagerClick(Sender: TObject);
     procedure miLogManagerClick(Sender: TObject);
@@ -236,14 +249,6 @@ type
     FAnalysisResults: TArray<TCleanupSuggestion>;
     FLastAnalysisTime: TDateTime;
     FHeartbeatTimer: TTimer;
-    // 托盘与同步
-    FTray: TTrayManager;
-    FSyncEngine: TSyncEngine;
-    FSampleTask: uSyncEngine.TSyncTask;
-    FMenuSyncSample: TMenuItem;
-    procedure MenuSyncSampleClick(Sender: TObject);
-    procedure OnSyncProgress(const P: TSyncProgress);
-    procedure OnSyncComplete(Success: Boolean; const Msg: string);
     
     procedure InitializeInterface;
     procedure InitializeTreeViews;
@@ -333,6 +338,9 @@ type
     function IsSystemCriticalDirectory(const APath: string): Boolean;
     function CheckDirectorySafety(const ASourcePath, ATargetPath: string): Boolean;
     
+    // 应用关联检测 UI
+    procedure UpdateAppAssocInfo(const APath: string);
+    
   public
     { Public declarations }
   end;
@@ -343,55 +351,6 @@ var
 implementation
 
 {$R *.dfm}
-
-procedure TfrmMain.MenuSyncSampleClick(Sender: TObject);
-begin
-  // 打开同步盘设置界面 - 使用已有完整持久化功能的uSyncSettings
-  try
-    uSyncSettings.TfrmSyncSettings.ShowSettings(Self);
-  except
-    on E: Exception do
-    begin
-      ShowChineseMessage('打开同步盘设置失败：' + E.Message);
-    end;
-  end;
-end;
-
-procedure TfrmMain.OnSyncProgress(const P: TSyncProgress);
-begin
-  if Assigned(lblCurrentFile) then
-    lblCurrentFile.Caption := P.CurrentFile;
-  if Assigned(ProgressBar1) then
-    ProgressBar1.Position := EnsureRange(Round(P.Percent), 0, 100);
-end;
-
-procedure TfrmMain.OnSyncComplete(Success: Boolean; const Msg: string);
-begin
-  if Assigned(ProgressBar1) then
-    ProgressBar1.Visible := False;
-  if Success then
-  begin
-    UpdateStatus('样例同步完成');
-    if Assigned(FTray) then
-    begin
-      FTray.SetStatus(tsIdle);
-      FTray.ShowBalloon('同步完成', '样例同步已完成');
-    end;
-    ShowChineseMessage('样例同步完成');
-  end
-  else
-  begin
-    UpdateStatus('样例同步失败: ' + Msg);
-    if Assigned(FTray) then
-    begin
-      FTray.SetStatus(tsError);
-      FTray.ShowBalloon('同步失败', Msg);
-    end;
-    ShowChineseMessage('样例同步失败：' + Msg);
-  end;
-end;
-
-
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 var
@@ -415,11 +374,10 @@ begin
   Config.EncryptionKey := 'MoveC_AntiTamper_Key_2025';
   Config.DownloadURL := 'https://www.goodmem.cn';
   Config.EnableLogging := {$IFDEF DEBUG}True{$ELSE}False{$ENDIF};
-  Config.EncryptionType := etAES256; // 使用AES-256加密
-  // 启用KDF+HMAC
-  Config.Salt := 'MoveC_Salt_v1';
-  Config.KdfIterations := 10000;
-  Config.EnableHMAC := True;
+  Config.EncryptionType := etAES256;  // 使用AES-256加密
+  Config.Salt := 'MoveC_Salt_v1';      // KDF盐值 - 必须与播种工具一致
+  Config.KdfIterations := 10000;       // KDF迭代次数 - 必须与播种工具一致
+  Config.EnableHMAC := True;           // 启用HMAC校验 - 必须与播种工具一致
   TAntiTamperPackage.Initialize(Config);
 
   // 主程序不再负责播种，仅负责解密和校验
@@ -438,15 +396,12 @@ begin
         Conn2.Params.Values['Database'] := DbPath3;
         Conn2.LoginPrompt := False;
         Conn2.Connected := True;
-        // 确保表结构存在并包含新字段
+        // 确保表结构存在
         if not TAntiTamperPackage.SetupDatabase(Conn2) then
           raise Exception.Create('创建/校验防篡改数据表失败');
-        // 清空并播种
-        TAntiTamperPackage.ClearTable(Conn2);
-        TAntiTamperPackage.ReseedMinimal(Conn2);
         // 删除标记
         TFile.Delete(ResetFlag);
-        LogInfo('Main', '已按标记执行严格清空并重播种（MoveC.reset）');
+        LogInfo('Main', '已按标记重置防篡改数据库（MoveC.reset）');
       finally
         if Assigned(Conn2) then
         begin
@@ -470,6 +425,8 @@ begin
       Exit;
     end;
   except
+    on E: Exception do
+      LogError('Main', '检查关键资源时发生异常: ' + E.Message);
   end;
 
   FStyleManager := TModernStyleManager.Create;
@@ -536,32 +493,9 @@ begin
   if not Assigned(FHeartbeatTimer) then
   begin
     FHeartbeatTimer := TTimer.Create(Self);
-    FHeartbeatTimer.Interval := 60000; // 60秒
+    FHeartbeatTimer.Interval := HEARTBEAT_INTERVAL_MS;
     FHeartbeatTimer.OnTimer := HeartbeatCheck;
     FHeartbeatTimer.Enabled := True;
-  end;
-
-  // 托盘与同步最小集成
-  FTray := TTrayManager.Create(Self);
-  FTray.Initialize(Self);
-
-  FSyncEngine := TSyncEngine.Create(Self);
-  FSampleTask := uSyncEngine.TSyncTask.Create;
-  FSampleTask.Name := '样例同步任务';
-  FSampleTask.SourcePath := 'D:\\SynologyDrive\\Progs\\_Delphi\\wyjx';
-  FSampleTask.TargetPath := 'F:\\Backup\\wyjx2';
-  FSampleTask.Mode := uSyncDatabase.smManual;
-  FSampleTask.OnProgress := OnSyncProgress;
-  FSampleTask.OnComplete := OnSyncComplete;
-  FSyncEngine.AddTask(FSampleTask);
-
-  // 工具菜单增加"同步盘设置"入口
-  if Assigned(MenuTools) then
-  begin
-    FMenuSyncSample := TMenuItem.Create(Self);
-    FMenuSyncSample.Caption := '同步盘设置';
-    FMenuSyncSample.OnClick := MenuSyncSampleClick;
-    MenuTools.Add(FMenuSyncSample);
   end;
 
   LogInfo('Main', 'MoveC 应用程序初始化完成');
@@ -610,26 +544,15 @@ begin
     FCDriveAnalyzer.Free;
   end;
 
-  // 清理托盘与同步
-  if Assigned(FSyncEngine) then FSyncEngine.Free;
-  // FSampleTask由FSyncEngine拥有并随之释放
-  FTray := nil;
 
   FStyleManager.Free;
 end;
 
 procedure TfrmMain.FormShow(Sender: TObject);
-var
-  LogFile: TextFile;
 begin
-  // 强制写入日志确认FormShow被调用
-  try
-    AssignFile(LogFile, 'MAIN_FORMSHOW_DEBUG.log');
-    Rewrite(LogFile);
-    WriteLn(LogFile, Format('[%s] FormShow 开始执行', [DateTimeToStr(Now)]));
-    CloseFile(LogFile);
-  except
-  end;
+  {$IFDEF DEBUG}
+  LogDebug('Main', 'FormShow 开始执行');
+  {$ENDIF}
 
   // 设置默认路径
   if TDirectory.Exists('C:\Users') then
@@ -660,61 +583,31 @@ begin
   try
     // 确保pnlBottom面板可见并设置合适的高度
     pnlBottom.Visible := True;
-    if pnlBottom.Height < 200 then
-      pnlBottom.Height := 250; // 设置足够的高度显示AboutMe内容
+    if pnlBottom.Height < DEFAULT_MIN_PANEL_HEIGHT then
+      pnlBottom.Height := DEFAULT_ABOUTME_PANEL_HEIGHT;
     
     // 创建并嵌入AboutMe框架到pnlBottom（在pnlAboutMe中）
     if not Assigned(FFrameAboutMe) then
     begin
-      try
-        AssignFile(LogFile, 'MAIN_FORMSHOW_DEBUG.log');
-        Append(LogFile);
-        WriteLn(LogFile, Format('[%s] 开始创建FrameAboutMe', [DateTimeToStr(Now)]));
-        CloseFile(LogFile);
-      except
-      end;
+      {$IFDEF DEBUG}
+      LogDebug('Main', '开始创建FrameAboutMe');
+      {$ENDIF}
 
       FFrameAboutMe := TFrameAboutMe.Create(Self);
-
-      try
-        AssignFile(LogFile, 'MAIN_FORMSHOW_DEBUG.log');
-        Append(LogFile);
-        WriteLn(LogFile, Format('[%s] FrameAboutMe创建完成', [DateTimeToStr(Now)]));
-        CloseFile(LogFile);
-      except
-      end;
-
-      FFrameAboutMe.Parent := pnlAboutMe; // pnlAboutMe是pnlBottom的子面板
-      FFrameAboutMe.Align := alRight; // 在右侧显示，左侧留给memoStatus
-      FFrameAboutMe.Width := 640; // 设置合适宽度
+      FFrameAboutMe.Parent := pnlAboutMe;
+      FFrameAboutMe.Align := alRight;
+      FFrameAboutMe.Width := DEFAULT_ABOUTME_FRAME_WIDTH;
       FFrameAboutMe.Visible := True;
 
-      try
-        AssignFile(LogFile, 'MAIN_FORMSHOW_DEBUG.log');
-        Append(LogFile);
-        WriteLn(LogFile, Format('[%s] FrameAboutMe设置完成', [DateTimeToStr(Now)]));
-        CloseFile(LogFile);
-      except
-      end;
-
-      // 手动初始化Frame
-      try
-        AssignFile(LogFile, 'MAIN_FORMSHOW_DEBUG.log');
-        Append(LogFile);
-        WriteLn(LogFile, Format('[%s] 开始手动初始化FrameAboutMe', [DateTimeToStr(Now)]));
-        CloseFile(LogFile);
-      except
-      end;
+      {$IFDEF DEBUG}
+      LogDebug('Main', 'FrameAboutMe设置完成，开始手动初始化');
+      {$ENDIF}
 
       FFrameAboutMe.ManualInitialize;
 
-      try
-        AssignFile(LogFile, 'MAIN_FORMSHOW_DEBUG.log');
-        Append(LogFile);
-        WriteLn(LogFile, Format('[%s] FrameAboutMe手动初始化完成', [DateTimeToStr(Now)]));
-        CloseFile(LogFile);
-      except
-      end;
+      {$IFDEF DEBUG}
+      LogDebug('Main', 'FrameAboutMe手动初始化完成');
+      {$ENDIF}
     end;
 
     // 初始化安全管理器并进行严格验证
@@ -812,6 +705,28 @@ begin
   tvTarget.ShowButtons := True;
   tvTarget.ShowLines := True;
   tvTarget.ShowRoot := True;
+  
+  // 设置 OnDeletion 事件自动释放节点内存
+  tvSource.OnDeletion := tvSourceDeletion;
+  tvTarget.OnDeletion := tvTargetDeletion;
+end;
+
+procedure TfrmMain.tvSourceDeletion(Sender: TObject; Node: TTreeNode);
+begin
+  if Assigned(Node) and Assigned(Node.Data) then
+  begin
+    StrDispose(PChar(Node.Data));
+    Node.Data := nil;
+  end;
+end;
+
+procedure TfrmMain.tvTargetDeletion(Sender: TObject; Node: TTreeNode);
+begin
+  if Assigned(Node) and Assigned(Node.Data) then
+  begin
+    StrDispose(PChar(Node.Data));
+    Node.Data := nil;
+  end;
 end;
 
 procedure TfrmMain.LoadDirectoryTree(ATreeView: TTreeView; const APath: string);
@@ -911,51 +826,34 @@ end;
 
 procedure TfrmMain.btnSmartCleanClick(Sender: TObject);
 var
-  Result: TCleanupResult;
+  PreviewForm: TfrmCleanupPreview;
 begin
   try
-    if not Assigned(FCleanupManager) then
-    begin
-      UpdateStatus('❌ 清理管理器未初始化');
-      Exit;
-    end;
-
-    if ShowChineseConfirm('智能清理将执行以下操作：' + sLineBreak + sLineBreak +
-                          '• 清空回收站' + sLineBreak +
-                          '• 清理临时文件' + sLineBreak +
-                          '• 清理浏览器缓存' + sLineBreak +
-                          '• 清理系统日志' + sLineBreak +
-                          '• 清理预取文件' + sLineBreak + sLineBreak +
-                          '是否继续执行智能清理？') then
-    begin
-      UpdateStatus('🤖 开始智能清理...');
-      ProgressBar1.Visible := True;
-      ProgressBar1.Position := 0;
+    UpdateStatus('正在打开清理预览...');
+    
+    PreviewForm := TfrmCleanupPreview.Create(Self);
+    try
+      PreviewForm.CleanupManager := FCleanupManager;
       
-      Result := FCleanupManager.PerformSmartCleanup;
-      
-      if Result.Success then
+      if PreviewForm.ShowModal = mrOk then
       begin
-        UpdateStatus(Format('✅ 智能清理完成 - 删除 %d 个文件，释放 %.2f MB 空间', 
-          [Result.FilesDeleted, Result.SpaceFreed / (1024 * 1024)]));
-        ShowChineseMessage(Format('智能清理完成！' + sLineBreak + sLineBreak +
-          '清理结果：' + sLineBreak +
-          '• 删除文件：%d 个' + sLineBreak +
-          '• 释放空间：%.2f MB' + sLineBreak + sLineBreak +
-          '您的系统运行速度应该有所提升！', 
-          [Result.FilesDeleted, Result.SpaceFreed / (1024 * 1024)]));
+        UpdateStatus('清理操作已完成');
+        LogInfo('Main', '用户通过清理预览窗口完成了清理操作');
       end
       else
       begin
-        UpdateStatus('❌ 智能清理失败: ' + Result.ErrorMessage);
-        ShowChineseMessage('智能清理失败：' + sLineBreak + Result.ErrorMessage);
+        UpdateStatus('清理操作已取消');
       end;
+    finally
+      PreviewForm.Free;
     end;
     
-  finally
-    ProgressBar1.Visible := False;
-    if Assigned(Result.Details) then
-      Result.Details.Free;
+  except
+    on E: Exception do
+    begin
+      UpdateStatus('打开清理预览失败: ' + E.Message);
+      ShowChineseMessage('打开清理预览失败：' + sLineBreak + E.Message);
+    end;
   end;
 end;
 
@@ -1025,7 +923,7 @@ var
 begin
   if (FSourcePath = '') or (FTargetPath = '') then
   begin
-    UpdateStatus('❌ 请先选择源目录和目标目录');
+    UpdateStatus('[错误] 请先选择源目录和目标目录');
     ShowChineseMessage('请先选择源目录和目标目录！');
     Exit;
   end;
@@ -1041,15 +939,20 @@ begin
   ComputeDirStats(FSourcePath, TotalFiles, TotalSize);
   
   if ShowChineseConfirm('确定要开始目录迁移操作吗？' + sLineBreak + sLineBreak +
-                        '📁 源目录: ' + FSourcePath + sLineBreak +
-                        '📂 目标目录: ' + FTargetPath + sLineBreak +
-                        Format('📄 文件数量: %d 个', [TotalFiles]) + sLineBreak +
-                        Format('💾 总大小: %s', [TSystemCheck.FormatBytes(TotalSize)]) + sLineBreak + sLineBreak +
-                        '✅ 迁移步骤：' + sLineBreak +
-                        '1️⃣ 复制全部文件到目标位置' + sLineBreak +
-                        '2️⃣ 自动备份原目录' + sLineBreak +
-                        '3️⃣ 创建 Junction链接保证兼容' + sLineBreak + sLineBreak +
-                        '⚠️ 重要提示：迁移前请确保关闭正在使用该目录的程序！') then
+                        '=== 迁移信息 ===' + sLineBreak +
+                        '源目录: ' + FSourcePath + sLineBreak +
+                        '目标目录: ' + FTargetPath + sLineBreak +
+                        Format('文件数量: %d 个', [TotalFiles]) + sLineBreak +
+                        Format('总大小: %s', [TSystemCheck.FormatBytes(TotalSize)]) + sLineBreak + sLineBreak +
+                        '=== 迁移步骤 ===' + sLineBreak +
+                        '1. 复制全部文件到目标位置' + sLineBreak +
+                        '2. 校验文件完整性 (SHA-256)' + sLineBreak +
+                        '3. 自动备份原目录 (带时间戳)' + sLineBreak +
+                        '4. 创建 Junction 链接保持原路径可用' + sLineBreak + sLineBreak +
+                        '=== 安全提示 ===' + sLineBreak +
+                        '• 迁移前请关闭正在使用该目录的程序' + sLineBreak +
+                        '• 备份目录会保留在原位置，可随时回滚' + sLineBreak +
+                        '• 迁移后建议测试相关程序是否正常') then
   begin
     ExecuteOperation;
   end;
@@ -1065,7 +968,7 @@ procedure TfrmMain.btnCalculateSizeClick(Sender: TObject);
 begin
   if FSourcePath = '' then
   begin
-    UpdateStatus('❌ 请先选择源目录');
+    UpdateStatus('[错误] 请先选择源目录');
     ShowChineseMessage('请先选择源目录！');
     Exit;
   end;
@@ -1159,6 +1062,69 @@ begin
     UpdateStatus('选择源目录: ' + FSourcePath);
     // 更新文件列表
     LoadFileList(FSourcePath);
+    // 更新应用关联信息
+    UpdateAppAssocInfo(FSourcePath);
+  end;
+end;
+
+procedure TfrmMain.UpdateAppAssocInfo(const APath: string);
+var
+  AppInfo: TAppInfo;
+  ConfidenceStr: string;
+begin
+  if not Assigned(FAppDetector) then Exit;
+  if not Assigned(lblAppName) then Exit;
+  
+  if APath = '' then
+  begin
+    lblAppName.Caption := '-';
+    lblAppSuggestion.Caption := '-';
+    Exit;
+  end;
+  
+  try
+    AppInfo := FAppDetector.DetectAssociatedApp(APath);
+    
+    // 根据置信度设置颜色
+    if AppInfo.Confidence >= 90 then
+    begin
+      lblAppName.Font.Color := $0000AA00; // 深绿色 - 高置信度
+      ConfidenceStr := ' [高]';
+    end
+    else if AppInfo.Confidence >= 70 then
+    begin
+      lblAppName.Font.Color := $000080FF; // 橙色 - 中置信度
+      ConfidenceStr := ' [中]';
+    end
+    else if AppInfo.Confidence > 0 then
+    begin
+      lblAppName.Font.Color := $00808080; // 灰色 - 低置信度
+      ConfidenceStr := ' [低]';
+    end
+    else
+    begin
+      lblAppName.Font.Color := $00404040;
+      ConfidenceStr := '';
+    end;
+    
+    // 显示应用名称
+    if AppInfo.AppName <> '未知' then
+      lblAppName.Caption := AppInfo.AppName + ConfidenceStr
+    else
+      lblAppName.Caption := '未检测到关联应用';
+    
+    // 显示建议
+    if AppInfo.Reason <> '' then
+      lblAppSuggestion.Caption := AppInfo.Reason
+    else
+      lblAppSuggestion.Caption := '迁移后请测试相关程序';
+      
+  except
+    on E: Exception do
+    begin
+      lblAppName.Caption := '-';
+      lblAppSuggestion.Caption := '检测失败';
+    end;
   end;
 end;
 
@@ -1323,58 +1289,68 @@ end;
 procedure TfrmMain.CleanRecycleBin;
 var
   Result: TCleanupResult;
+  StartTime: TDateTime;
 begin
   try
     if not Assigned(FCleanupManager) then
     begin
-      UpdateStatus('❌ 清理管理器未初始化');
+      UpdateStatus('[错误] 清理管理器未初始化');
       Exit;
     end;
 
-    UpdateStatus('🗑️ 开始清空回收站...');
+    UpdateStatus('正在清空回收站...');
     ProgressBar1.Visible := True;
     ProgressBar1.Position := 0;
+    StartTime := Now;
     
     Result := FCleanupManager.EmptyRecycleBin;
     
+    // 记录清理历史
+    CleanupHistory.AddEntry(ctRecycleBin, Result.FilesDeleted, Result.SpaceFreed,
+      Result.Success, Result.ErrorMessage, MilliSecondsBetween(Now, StartTime), Result.Details);
+    
     if Result.Success then
     begin
-      UpdateStatus('✅ 回收站清理完成');
+      UpdateStatus('回收站清理完成');
       ShowChineseMessage('回收站已成功清空！');
     end
     else
     begin
-      UpdateStatus('❌ 回收站清理失败: ' + Result.ErrorMessage);
+      UpdateStatus('[失败] 回收站清理失败: ' + Result.ErrorMessage);
       ShowChineseMessage('回收站清理失败：' + sLineBreak + Result.ErrorMessage);
     end;
     
   finally
     ProgressBar1.Visible := False;
-    if Assigned(Result.Details) then
-      Result.Details.Free;
   end;
 end;
 
 procedure TfrmMain.CleanTempFiles;
 var
   Result: TCleanupResult;
+  StartTime: TDateTime;
 begin
   try
     if not Assigned(FCleanupManager) then
     begin
-      UpdateStatus('❌ 清理管理器未初始化');
+      UpdateStatus('[错误] 清理管理器未初始化');
       Exit;
     end;
 
-    UpdateStatus('🧹 开始清理临时文件...');
+    UpdateStatus('正在清理临时文件...');
     ProgressBar1.Visible := True;
     ProgressBar1.Position := 0;
+    StartTime := Now;
     
     Result := FCleanupManager.CleanTempFiles;
     
+    // 记录清理历史
+    CleanupHistory.AddEntry(ctTempFiles, Result.FilesDeleted, Result.SpaceFreed,
+      Result.Success, Result.ErrorMessage, MilliSecondsBetween(Now, StartTime), Result.Details);
+    
     if Result.Success then
     begin
-      UpdateStatus(Format('✅ 临时文件清理完成 - 删除 %d 个文件，释放 %.2f MB 空间', 
+      UpdateStatus(Format('临时文件清理完成 - 删除 %d 个文件，释放 %.2f MB 空间', 
         [Result.FilesDeleted, Result.SpaceFreed / (1024 * 1024)]));
       ShowChineseMessage(Format('临时文件清理完成！' + sLineBreak + 
         '删除了 %d 个文件，释放了 %.2f MB 磁盘空间。', 
@@ -1382,45 +1358,54 @@ begin
     end
     else
     begin
-      UpdateStatus('❌ 临时文件清理失败: ' + Result.ErrorMessage);
+      UpdateStatus('[失败] 临时文件清理失败: ' + Result.ErrorMessage);
       ShowChineseMessage('临时文件清理失败：' + sLineBreak + Result.ErrorMessage);
     end;
     
   finally
     ProgressBar1.Visible := False;
-    if Assigned(Result.Details) then
-      Result.Details.Free;
   end;
 end;
 
 procedure TfrmMain.CleanBackupFiles;
 var
   Result: TCleanupResult;
+  StartTime: TDateTime;
 begin
   try
     if not Assigned(FCleanupManager) then
     begin
-      UpdateStatus('❌ 清理管理器未初始化');
+      UpdateStatus('[错误] 清理管理器未初始化');
       Exit;
     end;
 
     // 先检查是否有最近的备份文件需要保护
     if FLastBackupPath <> '' then
     begin
-      if not ShowChineseConfirm('检测到最近的迁移备份文件：' + sLineBreak + FLastBackupPath + sLineBreak + sLineBreak +
-                                '此操作不会删除最近的备份文件，是否继续清理其他备份文件？') then
+      if not ShowChineseConfirm('=== 备份保护 ===' + sLineBreak + sLineBreak +
+                                '检测到最近的迁移备份:' + sLineBreak +
+                                FLastBackupPath + sLineBreak + sLineBreak +
+                                '=== 操作说明 ===' + sLineBreak +
+                                '• 此备份将保留以便回滚' + sLineBreak +
+                                '• 仅清理其他旧备份和日志' + sLineBreak + sLineBreak +
+                                '是否继续？') then
         Exit;
     end;
 
-    UpdateStatus('🗃️ 开始清理系统日志和备份文件...');
+    UpdateStatus('正在清理系统日志和备份文件...');
     ProgressBar1.Visible := True;
     ProgressBar1.Position := 0;
+    StartTime := Now;
     
     Result := FCleanupManager.CleanSystemLogs;
     
+    // 记录清理历史
+    CleanupHistory.AddEntry(ctSystemLogs, Result.FilesDeleted, Result.SpaceFreed,
+      Result.Success, Result.ErrorMessage, MilliSecondsBetween(Now, StartTime), Result.Details);
+    
     if Result.Success then
     begin
-      UpdateStatus(Format('✅ 系统日志清理完成 - 删除 %d 个文件，释放 %.2f MB 空间', 
+      UpdateStatus(Format('系统日志清理完成 - 删除 %d 个文件，释放 %.2f MB 空间', 
         [Result.FilesDeleted, Result.SpaceFreed / (1024 * 1024)]));
       ShowChineseMessage(Format('系统日志清理完成！' + sLineBreak + 
         '删除了 %d 个文件，释放了 %.2f MB 磁盘空间。', 
@@ -1428,37 +1413,41 @@ begin
     end
     else
     begin
-      UpdateStatus('❌ 系统日志清理失败: ' + Result.ErrorMessage);
+      UpdateStatus('[失败] 系统日志清理失败: ' + Result.ErrorMessage);
       ShowChineseMessage('系统日志清理失败：' + sLineBreak + Result.ErrorMessage);
     end;
     
   finally
     ProgressBar1.Visible := False;
-    if Assigned(Result.Details) then
-      Result.Details.Free;
   end;
 end;
 
 procedure TfrmMain.CleanUpdateCache;
 var
   Result: TCleanupResult;
+  StartTime: TDateTime;
 begin
   try
     if not Assigned(FCleanupManager) then
     begin
-      UpdateStatus('❌ 清理管理器未初始化');
+      UpdateStatus('[错误] 清理管理器未初始化');
       Exit;
     end;
 
-    UpdateStatus('🔄 开始清理Windows更新缓存...');
+    UpdateStatus('正在清理Windows更新缓存...');
     ProgressBar1.Visible := True;
     ProgressBar1.Position := 0;
+    StartTime := Now;
     
     Result := FCleanupManager.CleanWindowsUpdateCache;
     
+    // 记录清理历史
+    CleanupHistory.AddEntry(ctWindowsUpdate, Result.FilesDeleted, Result.SpaceFreed,
+      Result.Success, Result.ErrorMessage, MilliSecondsBetween(Now, StartTime), Result.Details);
+    
     if Result.Success then
     begin
-      UpdateStatus(Format('✅ Windows更新缓存清理完成 - 删除 %d 个文件，释放 %.2f MB 空间', 
+      UpdateStatus(Format('Windows更新缓存清理完成 - 删除 %d 个文件，释放 %.2f MB 空间', 
         [Result.FilesDeleted, Result.SpaceFreed / (1024 * 1024)]));
       ShowChineseMessage(Format('Windows更新缓存清理完成！' + sLineBreak + 
         '删除了 %d 个文件，释放了 %.2f MB 磁盘空间。', 
@@ -1466,14 +1455,12 @@ begin
     end
     else
     begin
-      UpdateStatus('❌ Windows更新缓存清理失败: ' + Result.ErrorMessage);
+      UpdateStatus('[失败] Windows更新缓存清理失败: ' + Result.ErrorMessage);
       ShowChineseMessage('Windows更新缓存清理失败：' + sLineBreak + Result.ErrorMessage);
     end;
     
   finally
     ProgressBar1.Visible := False;
-    if Assigned(Result.Details) then
-      Result.Details.Free;
   end;
 end;
 
@@ -1482,30 +1469,23 @@ begin
   try
     if not TFile.Exists(TPath.Combine(ExtractFilePath(ParamStr(0)), 'MoveC.db')) then
     begin
+      LogWarning('Heartbeat', '检测到关键资源丢失: MoveC.db');
       UpdateStatus('关键资源丢失：MoveC.db');
       ShowChineseMessage('检测到关键资源丢失：MoveC.db，程序将退出。');
       Application.Terminate;
     end;
   except
+    on E: Exception do
+      LogError('Heartbeat', '心跳检查异常: ' + E.Message);
   end;
 end;
 
 procedure TfrmMain.FreeTreeViewData(ATreeView: TTreeView);
-var
-  I: Integer;
-  Node: TTreeNode;
 begin
-  if not Assigned(ATreeView) then Exit;
-
-  for I := 0 to ATreeView.Items.Count - 1 do
-  begin
-    Node := ATreeView.Items[I];
-    if Assigned(Node.Data) then
-    begin
-      StrDispose(PChar(Node.Data));
-      Node.Data := nil;
-    end;
-  end;
+  // 内存释放现在由 OnDeletion 事件自动处理
+  // 此方法保留以保持接口兼容性
+  if Assigned(ATreeView) then
+    ATreeView.Items.Clear;
 end;
 
 // 核心迁移功能实现（带事务管理和SHA-256校验）
@@ -1773,9 +1753,9 @@ begin
       VerifiedCount := Length(FMigrationTransaction.GetProcessedFiles);
       FailedFiles := FMigrationTransaction.GetFailedFiles;
       
-      UpdateStatus(Format('✅ 迁移完成！已验证 %d/%d 个文件', [VerifiedCount, TotalFiles]));
-      UpdateStatus(Format('📁 备份目录: %s', [FMigrationTransaction.BackupDir]));
-      UpdateStatus(Format('🔗 Junction链接: %s -> %s', [Src, Dst]));
+      UpdateStatus(Format('迁移完成！已验证 %d/%d 个文件', [VerifiedCount, TotalFiles]));
+      UpdateStatus(Format('备份目录: %s', [FMigrationTransaction.BackupDir]));
+      UpdateStatus(Format('Junction链接: %s -> %s', [Src, Dst]));
       
       if Length(FailedFiles) > 0 then
       begin
@@ -1835,7 +1815,7 @@ begin
   try
     // 优先使用目录联接 (Junction)
     Command := Format('mklink /J "%s" "%s"', [ASource, ATarget]);
-    UpdateStatus('🔗 创建目录联接: ' + Command);
+    UpdateStatus('创建目录联接: ' + Command);
 
     if WinExec(PAnsiChar(AnsiString('cmd /c ' + Command)), SW_HIDE) > 31 then
     begin
@@ -1847,7 +1827,7 @@ begin
     begin
       // 如果目录联接失败，尝试符号链接
       Command := Format('mklink /D "%s" "%s"', [ASource, ATarget]);
-      UpdateStatus('🔗 尝试符号链接: ' + Command);
+      UpdateStatus('尝试符号链接: ' + Command);
 
       if WinExec(PAnsiChar(AnsiString('cmd /c ' + Command)), SW_HIDE) > 31 then
       begin
@@ -1857,14 +1837,14 @@ begin
     end;
 
     if Result then
-      UpdateStatus('✅ 链接创建成功')
+      UpdateStatus('链接创建成功')
     else
-      UpdateStatus('❌ 链接创建失败');
+      UpdateStatus('[失败] 链接创建失败');
 
   except
     on E: Exception do
     begin
-      UpdateStatus('❌ 创建链接时发生异常: ' + E.Message);
+      UpdateStatus('[异常] 创建链接时发生异常: ' + E.Message);
       Result := False;
     end;
   end;
@@ -1921,7 +1901,7 @@ begin
       end;
     except
       on E: Exception do
-        UpdateStatus('⚠️ 复制文件失败: ' + SrcFile + ' - ' + E.Message);
+        UpdateStatus('[警告] 复制文件失败: ' + SrcFile + ' - ' + E.Message);
     end;
   end;
 
@@ -1972,26 +1952,26 @@ begin
     end
     else
     begin
-      Recommendation := '❌ 不建议迁移：目录较小，迁移效果有限';
-      RiskLevel := '🔴 高风险';
+      Recommendation := '不建议迁移：目录较小，迁移效果有限';
+      RiskLevel := '[高风险]';
     end;
 
     // 根据路径特征判断风险
     PathLower := LowerCase(APath);
     if Pos('system', PathLower) > 0 then
     begin
-      RiskLevel := '🔴 极高风险';
-      Recommendation := '⚠️ 严禁迁移：系统关键目录，迁移可能导致系统崩溃';
+      RiskLevel := '[极高风险]';
+      Recommendation := '[警告] 严禁迁移：系统关键目录，迁移可能导致系统崩溃';
     end
     else if Pos('program', PathLower) > 0 then
     begin
-      RiskLevel := '🟡 中等风险';
-      Recommendation := '⚠️ 谨慎迁移：程序目录，需要测试相关软件功能';
+      RiskLevel := '[中等风险]';
+      Recommendation := '[注意] 谨慎迁移：程序目录，需要测试相关软件功能';
     end
     else if (Pos('documents', PathLower) > 0) or (Pos('desktop', PathLower) > 0) then
     begin
-      RiskLevel := '🟢 低风险';
-      Recommendation := '✅ 推荐迁移：用户数据目录，迁移安全性高';
+      RiskLevel := '[低风险]';
+      Recommendation := '推荐迁移：用户数据目录，迁移安全性高';
     end;
 
     UpdateStatus('📊 分析完成: ' + IntToStr(FileCount) + ' 个文件，总大小 ' +
@@ -2082,10 +2062,10 @@ begin
       TFile.Copy(SrcFile, DstFile, True);
       FileSize := TFile.GetSize(SrcFile);
 
-      // 计算源文件哈希（样本哈希以加速）
+      // 计算源文件哈希
       try
-        SrcHash := TFileHasher.ComputeSHA256(SrcFile, hoSampleHash);
-        DstHash := TFileHasher.ComputeSHA256(DstFile, hoSampleHash);
+        SrcHash := TFileHasher.ComputeSHA256(SrcFile);
+        DstHash := TFileHasher.ComputeSHA256(DstFile);
 
         // 校验哈希
         if SameText(SrcHash, DstHash) then
@@ -2394,6 +2374,21 @@ begin
     begin
       UpdateStatus('启动重复文件清理失败: ' + E.Message);
       ShowChineseMessage('启动重复文件清理失败：' + sLineBreak + E.Message);
+    end;
+  end;
+end;
+
+procedure TfrmMain.MenuCleanupHistoryClick(Sender: TObject);
+begin
+  try
+    UpdateStatus('正在打开清理历史记录...');
+    TfrmCleanupHistory.ShowHistory;
+    UpdateStatus('清理历史记录已关闭');
+  except
+    on E: Exception do
+    begin
+      UpdateStatus('打开清理历史记录失败: ' + E.Message);
+      ShowChineseMessage('打开清理历史记录失败：' + sLineBreak + E.Message);
     end;
   end;
 end;
@@ -3342,8 +3337,12 @@ end;
 // 取消按钮点击事件
 procedure TfrmMain.btnCancelOperationClick(Sender: TObject);
 begin
-  if ShowChineseConfirm('确定要取消当前操作吗？' + sLineBreak + sLineBreak +
-                        '取消后将停止当前进度，已处理的数据不会丢失。') then
+  if ShowChineseConfirm('=== 取消操作 ===' + sLineBreak + sLineBreak +
+                        '确定要取消当前操作吗？' + sLineBreak + sLineBreak +
+                        '=== 取消后的处理 ===' + sLineBreak +
+                        '• 已复制的文件将被清理' + sLineBreak +
+                        '• 源目录保持不变' + sLineBreak +
+                        '• 不会影响现有数据') then
   begin
     FCancelRequested := True;
     btnCancelOperation.Enabled := False;
@@ -3365,12 +3364,12 @@ begin
   
   if FIsAdmin then
   begin
-    UpdateStatus('✅ 已获取管理员权限');
+    UpdateStatus('已获取管理员权限');
     StatusBar1.Panels[0].Text := '管理员模式';
   end
   else
   begin
-    UpdateStatus('⚠️ 警告：未以管理员身份运行，部分功能将受限');
+    UpdateStatus('[警告] 未以管理员身份运行，部分功能将受限');
     StatusBar1.Panels[0].Text := '普通模式（功能受限）';
     
     ShowChineseMessage(
@@ -3620,13 +3619,13 @@ begin
       Msg.Add('');
       
       if UsagePercent > 90 then
-        Msg.Add('⚠️ C盘空间严重不足！建议立即进行清理和迁移。')
+        Msg.Add('[警告] C盘空间严重不足！建议立即进行清理和迁移。')
       else if UsagePercent > 80 then
-        Msg.Add('⚠️ C盘空间较紧张，建议进行清理。')
+        Msg.Add('[注意] C盘空间较紧张，建议进行清理。')
       else if UsagePercent > 70 then
-        Msg.Add('ℹ️ C盘空间尚可，但建议定期清理。')
+        Msg.Add('[提示] C盘空间尚可，但建议定期清理。')
       else
-        Msg.Add('✅ C盘空间充足。');
+        Msg.Add('C盘空间充足。');
         
       Msg.Add('');
     end;
@@ -3797,18 +3796,24 @@ begin
   ComputeDirStats(APath, FileCount, TotalSize);
   
   Msg := Format(
-    '确认删除该目录吗?' + sLineBreak + sLineBreak +
-    '路径: %s' + sLineBreak +
-    '文件数量: %d' + sLineBreak +
+    '=== 删除确认 ===' + sLineBreak + sLineBreak +
+    '路径: %s' + sLineBreak + sLineBreak +
+    '文件数量: %d 个' + sLineBreak +
     '总大小: %s' + sLineBreak + sLineBreak +
-    '警告: 该操作不可恢复!',
+    '=== 风险提示 ===' + sLineBreak +
+    '• 删除后文件无法恢复' + sLineBreak +
+    '• 请确认没有重要文件' + sLineBreak +
+    '• 建议先备份再删除',
     [APath, FileCount, TSystemCheck.FormatBytes(TotalSize)]);
   
   if not ShowChineseConfirm(Msg) then
     Exit;
   
-  // 二次确认
-  if not ShowChineseConfirm('再次确认: 确定要删除此目录吗?' + sLineBreak + APath) then
+  // 二次确认 - 最后一次确认
+  if not ShowChineseConfirm('=== 最终确认 ===' + sLineBreak + sLineBreak +
+    '确定要永久删除此目录吗？' + sLineBreak + sLineBreak +
+    APath + sLineBreak + sLineBreak +
+    '此操作不可撤销！') then
     Exit;
   
   UpdateStatus('正在删除目录: ' + APath);
@@ -4013,7 +4018,7 @@ begin
   end;
   
   // 在状态栏中显示警告
-  UpdateStatus('⚠️ ' + AlertText);
+  UpdateStatus('[警告] ' + AlertText);
   
   // 如果是严重警告，弹出对话框
   if Event.EventType = metCritical then
